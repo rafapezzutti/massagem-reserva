@@ -126,6 +126,26 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .field textarea{resize:vertical;min-height:80px}
 .required{color:var(--pec);margin-left:2px}
 
+/* ═══ DRINKS BOX ═══════════════════════════════════════════════════════════ */
+.drinks-box{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
+.drinks-add-row{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--cel-pale);border-bottom:1px solid var(--border)}
+.drinks-add-row input{border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;outline:none;transition:border-color .18s}
+.drinks-add-row input:focus{border-color:var(--cel);box-shadow:0 0 0 3px rgba(127,179,211,.15)}
+.drinks-list{max-height:160px;overflow-y:auto}
+.drink-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--cel-pale)}
+.drink-item:last-child{border-bottom:none}
+.drink-nome{flex:1;font-size:.9rem;color:var(--text)}
+.drink-preco{font-size:.9rem;font-weight:600;color:var(--pec);min-width:70px;text-align:right}
+.drink-remove{background:none;border:none;color:var(--red);font-size:.85rem;cursor:pointer;padding:2px 6px;border-radius:4px;transition:background .15s}
+.drink-remove:hover{background:var(--red-lt)}
+.drinks-empty{padding:12px;text-align:center;color:var(--text-lt);font-size:.85rem;font-style:italic}
+.drinks-total{display:flex;justify-content:space-between;padding:8px 12px;background:var(--pec-pale);border-top:1.5px solid var(--border);font-size:.88rem;font-weight:700;color:var(--pec)}
+
+/* ═══ PASSWORD MATCH FEEDBACK ══════════════════════════════════════════════ */
+.pwd-hint{font-size:.78rem;margin-top:3px;font-weight:600;transition:color .2s}
+.pwd-hint.match{color:var(--green)}
+.pwd-hint.nomatch{color:var(--red)}
+
 /* ═══ BADGES ═══════════════════════════════════════════════════════════════ */
 .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
 .badge-conf{background:var(--cel-lt);color:var(--cel)}
@@ -711,7 +731,7 @@ function renderTimeline(){
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
             <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.massagem_nome)}</div>
-            ${rb.bebida?`<div class="rb-prof">🍹 ${esc(rb.bebida)}</div>`:''}
+            ${rb.bebida?(()=>{try{const dl=JSON.parse(rb.bebida);return dl.map(d=>`<div class="rb-prof">🍹 ${esc(d.nome)} R$${parseFloat(d.preco).toFixed(2).replace('.',',')}</div>`).join('');}catch(e){return `<div class="rb-prof">🍹 ${esc(rb.bebida)}</div>`;}})()):''}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}</div>
           </div></div>`;
       }else{
@@ -847,6 +867,7 @@ function renderProfissionais(){
         <button class="btn btn-secondary btn-sm" onclick="openProfModal(${p.id})">✏️ Editar</button>
         <button class="btn ${p.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleProf(${p.id},${p.ativo})">
           ${p.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProf(${p.id},'${esc(p.nome_fantasia||p.nome)}')">🗑 Deletar</button>
       </div>
     </div>`).join('')}</div>`;
 }
@@ -892,6 +913,12 @@ async function toggleProf(id,ativo){
     toast(ativo?'Desativada':'Ativada','info');loadProfissionais()}
   catch(e){toast(e.message,'err')}
 }
+async function deleteProf(id,nome){
+  if(!confirm(`Deletar permanentemente "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/profissionais/${id}`+(cid?'?'+cid:''));toast('Profissional deletado','info');loadProfissionais()}
+  catch(e){toast(e.message,'err')}
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MASSAGENS
@@ -916,6 +943,7 @@ function renderMassagens(){
         <button class="btn btn-secondary btn-sm" onclick="openMassagemModal(${m.id})">✏️ Editar</button>
         <button class="btn ${m.ativa?'btn-danger':'btn-success'} btn-sm" onclick="toggleMassagem(${m.id},${m.ativa})">
           ${m.ativa?'⛔ Desativar':'✅ Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMassagem(${m.id},'${esc(m.nome)}')">🗑 Deletar</button>
       </div>
     </div>`).join('')}</div>`;
 }
@@ -954,6 +982,12 @@ async function toggleMassagem(id,ativa){
     toast(ativa?'Desativada':'Ativada','info');loadMassagens()}
   catch(e){toast(e.message,'err')}
 }
+async function deleteMassagem(id,nome){
+  if(!confirm(`Deletar permanentemente "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/massagens/${id}`+(cid?'?'+cid:''));toast('Massagem deletada','info');loadMassagens()}
+  catch(e){toast(e.message,'err')}
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RESERVAS
@@ -976,6 +1010,8 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
     <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
   </select></div>`:'';
+  // inicializa lista de bebidas
+  try{ _drinks = r?.bebida ? JSON.parse(r.bebida) : []; }catch(e){ _drinks=[]; }
   openModal(r?`Reserva #${r.id}`:'Nova Reserva',
     `<div class="form-grid">
       <div class="field full"><label>Data <span class="required">*</span></label>
@@ -995,21 +1031,75 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
       <div class="field"><label>Telefone do Cliente</label>
         <input id="rv-ctel" type="tel" value="${r?.cliente_telefone?esc(r.cliente_telefone):''}"/></div>
       ${statusSel}
-      <div class="field"><label>🍹 Bebida</label>
-        <input id="rv-bebida" type="text" value="${r?.bebida?esc(r.bebida):''}" placeholder="Ex: Água de coco, Suco..."/></div>
-      <div class="field"><label>💰 Preço da Bebida (R$)</label>
-        <input id="rv-preco-bebida" type="number" value="${r?.preco_bebida&&parseFloat(r.preco_bebida)>0?parseFloat(r.preco_bebida):''}" min="0" step="0.01" placeholder="0,00"/></div>
+      <div class="field full">
+        <label>🍹 Bebidas</label>
+        <div class="drinks-box">
+          <div class="drinks-add-row">
+            <input id="rv-bebida-nome" type="text" placeholder="Nome da bebida…" style="flex:2"/>
+            <input id="rv-bebida-preco" type="number" placeholder="R$ 0,00" min="0" step="0.01" style="flex:1;min-width:90px"/>
+            <button type="button" class="btn btn-primary btn-sm" onclick="addDrink()" style="white-space:nowrap">＋ Adicionar</button>
+          </div>
+          <div id="rv-drinks-list" class="drinks-list"></div>
+          <div id="rv-drinks-total" class="drinks-total" style="display:none"></div>
+        </div>
+      </div>
       <div class="field full"><label>Observações</label>
         <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
     </div>`,
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
      <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
+  setTimeout(()=>{
+    renderDrinksList();
+    document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
+    document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
+  },30);
 }
 function autoFillHoraFim(){
   const m=state.massagens.find(x=>x.id===parseInt(document.getElementById('rv-massagem')?.value));
   const i=document.getElementById('rv-inicio')?.value;
   if(m&&i) document.getElementById('rv-fim').value=minToTime(timeToMin(i)+m.duracao);
+}
+function checkPwdMatch(id1,id2,hintId){
+  const s1=document.getElementById(id1)?.value||'';
+  const s2=document.getElementById(id2)?.value||'';
+  const hint=document.getElementById(hintId);
+  if(!hint)return;
+  if(!s2){hint.textContent='';hint.className='pwd-hint';return;}
+  if(s1===s2){hint.textContent='✅ Senhas idênticas';hint.className='pwd-hint match';}
+  else{hint.textContent='❌ Senhas não coincidem';hint.className='pwd-hint nomatch';}
+}
+
+let _drinks=[];
+function renderDrinksList(){
+  const list=document.getElementById('rv-drinks-list');
+  const tot=document.getElementById('rv-drinks-total');
+  if(!list)return;
+  if(!_drinks.length){list.innerHTML='<div class="drinks-empty">Nenhuma bebida adicionada</div>';tot.style.display='none';return;}
+  list.innerHTML=_drinks.map((d,i)=>`
+    <div class="drink-item">
+      <span class="drink-nome">🍹 ${esc(d.nome)}</span>
+      <span class="drink-preco">${fmtMoeda(d.preco)}</span>
+      <button type="button" class="drink-remove" onclick="removeDrink(${i})" title="Remover">✕</button>
+    </div>`).join('');
+  const total=_drinks.reduce((s,d)=>s+d.preco,0);
+  tot.style.display='flex';
+  tot.innerHTML=`<span>Total bebidas:</span><span>${fmtMoeda(total)}</span>`;
+}
+function addDrink(){
+  const nomeEl=document.getElementById('rv-bebida-nome');
+  const precoEl=document.getElementById('rv-bebida-preco');
+  const nome=(nomeEl?.value||'').trim();
+  const preco=parseFloat(precoEl?.value)||0;
+  if(!nome)return toast('Informe o nome da bebida','err');
+  _drinks.push({nome,preco});
+  nomeEl.value=''; precoEl.value='';
+  nomeEl.focus();
+  renderDrinksList();
+}
+function removeDrink(i){
+  _drinks.splice(i,1);
+  renderDrinksList();
 }
 async function saveReserva(id){
   const data=document.getElementById('rv-data').value;
@@ -1022,8 +1112,8 @@ async function saveReserva(id){
   const cliente_telefone=document.getElementById('rv-ctel')?.value.trim();
   const status=document.getElementById('rv-status')?.value||'confirmada';
   const observacoes=document.getElementById('rv-obs')?.value.trim();
-  const bebida=document.getElementById('rv-bebida')?.value.trim()||null;
-  const preco_bebida=parseFloat(document.getElementById('rv-preco-bebida')?.value)||0;
+  const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
+  const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
@@ -1212,6 +1302,7 @@ async function loadClinicasList(){
           <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
           <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
           <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
         </div>
       </div>`).join('')}</div>`;
   }catch(e){toast(e.message,'err')}
@@ -1224,9 +1315,10 @@ function openClinicaModal(id){
     <div class="field"><label>Email de Login <span class="required">*</span></label>
       <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
     <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha" type="password" placeholder="••••••••"/></div>
+      <input id="cl-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/></div>
     <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha2" type="password" placeholder="••••••••"/></div>
+      <input id="cl-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/>
+      <div id="cl-pwd-hint" class="pwd-hint"></div></div>
     <div class="field"><label>Telefone</label>
       <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
     <div class="field full"><label>Endereço</label>
@@ -1282,6 +1374,11 @@ async function toggleClinica(id,ativo){
     loadClinicasList();loadClinicaSelector();
   }catch(e){toast(e.message,'err')}
 }
+async function deleteClinica(id,nome){
+  if(!confirm(`Deletar permanentemente a clínica "${nome}"?\nTodos os dados (reservas, profissionais, etc.) serão excluídos. Esta ação não pode ser desfeita.`))return;
+  try{await api('DELETE',`/admin/clinicas/${id}`);toast('Clínica deletada','info');loadClinicasList();loadClinicaSelector()}
+  catch(e){toast(e.message,'err')}
+}
 
 async function loadAdminsList(){
   document.getElementById('admins-list').innerHTML='<div class="spinner"></div>';
@@ -1297,6 +1394,7 @@ async function loadAdminsList(){
         <div class="item-actions">
           <button class="btn btn-secondary btn-sm" onclick="openAdminModal(${a.id})">✏️ Editar</button>
           <button class="btn ${a.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleAdmin(${a.id},${a.ativo})">${a.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAdmin(${a.id},'${esc(a.nome)}')">🗑 Deletar</button>
         </div>
       </div>`).join('')}</div>`;
   }catch(e){toast(e.message,'err')}
@@ -1309,9 +1407,10 @@ function openAdminModal(id){
       <div class="field"><label>Email <span class="required">*</span></label>
         <input id="ad-email" type="email" placeholder="admin@email.com"/></div>
       <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
-        <input id="ad-senha" type="password" placeholder="••••••••"/></div>
+        <input id="ad-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/></div>
       <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
-        <input id="ad-senha2" type="password" placeholder="••••••••"/></div>
+        <input id="ad-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/>
+        <div id="ad-pwd-hint" class="pwd-hint"></div></div>
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="saveAdmin(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
@@ -1344,6 +1443,11 @@ async function toggleAdmin(id,ativo){
     if(a) await api('PUT',`/admin/admins/${id}`,{...a,ativo:ativo?0:1});
     toast(ativo?'Desativado':'Ativado','info');loadAdminsList();
   }catch(e){toast(e.message,'err')}
+}
+async function deleteAdmin(id,nome){
+  if(!confirm(`Deletar permanentemente o admin "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  try{await api('DELETE',`/admin/admins/${id}`);toast('Admin deletado','info');loadAdminsList()}
+  catch(e){toast(e.message,'err')}
 }
 
 // ─── Start ───────────────────────────────────────────────────────────────────
