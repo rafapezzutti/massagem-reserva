@@ -1,0 +1,14 @@
+{
+  "name": "massagem-reserva",
+  "version": "1.0.0",
+  "description": "CRM para Spa de Massagem - Gestão de Quartos, Profissionais e Reservas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3"
+  }
+}

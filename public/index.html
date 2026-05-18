@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Massagem Reserva</title>
+<style>
+/* ═══ VARIÁVEIS ════════════════════════════════════════════════════════════ */
+:root {
+  --cel:       #7fb3d3;
+  --cel-lt:    #d5e8f5;
+  --cel-pale:  #eef6fc;
+  --pec:       #e8956a;
+  --pec-lt:    #fce8d8;
+  --pec-pale:  #fff4ee;
+  --bg:        #f7f3ef;
+  --card:      #ffffff;
+  --border:    #ddd5cc;
+  --text:      #3d5a6b;
+  --text-lt:   #7a96a5;
+  --green:     #7bbf9e;
+  --green-lt:  #d4f0e4;
+  --red:       #d47a7a;
+  --red-lt:    #fce4e4;
+  --yellow:    #e8c56a;
+  --yellow-lt: #fdf5d8;
+  --shadow:    0 2px 12px rgba(61,90,107,.10);
+  --radius:    12px;
+  --font:      'Segoe UI', system-ui, sans-serif;
+}
+
+/* ═══ RESET ════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { font-family: var(--font); background: var(--bg); color: var(--text);
+       min-height: 100vh; overflow-x: hidden; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: .93rem; }
+
+/* ═══ SCROLLBAR ════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--cel-pale); }
+::-webkit-scrollbar-thumb { background: var(--cel); border-radius: 3px; }
+
+/* ═══ TOPBAR ═══════════════════════════════════════════════════════════════ */
+#topbar {
+  background: linear-gradient(135deg, var(--cel) 0%, #5a9abf 100%);
+  color: #fff; display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; height: 58px; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(61,90,107,.25);
+}
+#topbar .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .4px;
+                white-space: nowrap; }
+#topbar .logo span { opacity: .7; font-weight: 400; }
+#hamburger { display: none; background: none; border: none; color: #fff;
+             font-size: 1.4rem; padding: 4px 8px; }
+
+/* ═══ NAV ══════════════════════════════════════════════════════════════════ */
+#nav { display: flex; gap: 4px; flex: 1; }
+.nav-btn {
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  padding: 6px 14px; border-radius: 20px; font-size: .85rem; font-weight: 500;
+  transition: background .18s, transform .12s;
+  white-space: nowrap;
+}
+.nav-btn:hover { background: rgba(255,255,255,.28); }
+.nav-btn.active { background: rgba(255,255,255,.35); font-weight: 700;
+                  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5); }
+
+/* ═══ LAYOUT ═══════════════════════════════════════════════════════════════ */
+#main { max-width: 1400px; margin: 0 auto; padding: 24px 20px 40px; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* ═══ CARDS ════════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+}
+.card-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.card-header h2 { font-size: 1rem; font-weight: 600; color: var(--text); flex: 1; }
+.card-body { padding: 20px; }
+
+/* ═══ BOTÕES ═══════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: none; border-radius: 8px; padding: 8px 16px;
+  font-size: .88rem; font-weight: 600; transition: all .18s; cursor: pointer;
+}
+.btn-primary { background: var(--cel); color: #fff; }
+.btn-primary:hover { background: #6aa3c5; transform: translateY(-1px); }
+.btn-secondary { background: var(--cel-lt); color: var(--text); }
+.btn-secondary:hover { background: #c8dff0; }
+.btn-peach { background: var(--pec); color: #fff; }
+.btn-peach:hover { background: #d0845c; }
+.btn-danger { background: var(--red-lt); color: var(--red); }
+.btn-danger:hover { background: #f5d0d0; }
+.btn-success { background: var(--green-lt); color: #2d7a56; }
+.btn-success:hover { background: #c0e8d4; }
+.btn-sm { padding: 4px 10px; font-size: .8rem; border-radius: 6px; }
+.btn-icon { padding: 5px 8px; font-size: .9rem; background: none;
+            border: none; color: var(--text-lt); cursor: pointer;
+            border-radius: 6px; transition: all .15s; }
+.btn-icon:hover { background: var(--cel-pale); color: var(--cel); }
+
+/* ═══ FORMULÁRIOS ══════════════════════════════════════════════════════════ */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid .full { grid-column: 1/-1; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: .82rem; font-weight: 600; color: var(--text-lt); }
+.field input, .field select, .field textarea {
+  border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; outline: none; transition: border-color .18s;
+  background: var(--card); color: var(--text);
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--cel);
+  box-shadow: 0 0 0 3px rgba(127,179,211,.15);
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.required { color: var(--pec); margin-left: 2px; }
+
+/* ═══ BADGE / STATUS ═══════════════════════════════════════════════════════ */
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 20px;
+  font-size: .75rem; font-weight: 600;
+}
+.badge-conf { background: var(--cel-lt); color: var(--cel); }
+.badge-conc { background: var(--green-lt); color: #2d7a56; }
+.badge-canc { background: var(--red-lt); color: var(--red); }
+
+/* ═══ VISÃO DIÁRIA ═════════════════════════════════════════════════════════ */
+.daily-toolbar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.date-nav { display: flex; align-items: center; gap: 6px; }
+.date-nav .date-label {
+  font-size: 1.1rem; font-weight: 700; color: var(--text);
+  min-width: 210px; text-align: center;
+}
+#date-input {
+  border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px;
+  background: var(--card); color: var(--text); font-size: .93rem;
+  outline: none; cursor: pointer;
+}
+#date-input:focus { border-color: var(--cel); }
+
+.timeline-wrap { overflow-x: auto; border-radius: var(--radius); }
+.timeline {
+  display: grid;
+  /* col 1 = rótulo quarto | col 2+ = slots de 30min (08:00–22:00 = 28 slots) */
+  grid-template-columns: 140px repeat(28, minmax(58px, 1fr));
+  min-width: 1720px;
+}
+.tl-corner {
+  background: var(--cel-lt); border-bottom: 2px solid var(--border);
+  border-right: 2px solid var(--border); padding: 10px 14px;
+  font-size: .78rem; font-weight: 700; color: var(--text-lt);
+  border-radius: var(--radius) 0 0 0;
+  display: flex; align-items: flex-end;
+}
+.tl-header {
+  background: var(--cel-lt); border-bottom: 2px solid var(--border);
+  text-align: center; padding: 8px 4px; font-size: .76rem; font-weight: 700;
+  color: var(--cel); position: sticky; top: 0;
+}
+.tl-room-label {
+  background: var(--pec-pale); border-right: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
+  justify-content: center;
+}
+.tl-room-label .room-name { font-size: .83rem; font-weight: 700; }
+.tl-room-label .room-num  { font-size: .72rem; color: var(--text-lt); }
+.tl-room-label .room-hydro { font-size: .72rem; color: var(--cel); }
+.tl-cell {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px dashed #e8e0d8;
+  min-height: 72px; position: relative;
+  transition: background .12s;
+}
+.tl-cell:hover { background: var(--cel-pale); cursor: pointer; }
+.tl-cell.half-border { border-right-style: solid; }
+
+.reservation-block {
+  position: absolute; top: 4px; bottom: 4px; left: 2px; right: 2px;
+  border-radius: 8px; padding: 5px 7px;
+  font-size: .72rem; cursor: pointer; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px;
+  transition: filter .15s, transform .12s;
+  z-index: 2;
+}
+.reservation-block:hover { filter: brightness(.93); transform: scale(1.01); }
+.reservation-block .rb-client { font-weight: 700; font-size: .76rem; }
+.reservation-block .rb-prof   { color: rgba(0,0,0,.55); }
+.reservation-block .rb-time   { color: rgba(0,0,0,.45); font-size: .68rem; }
+.res-conf { background: linear-gradient(135deg,#b8e0f5,#9acde8);
+            border-left: 3px solid var(--cel); color: var(--text); }
+.res-conc { background: linear-gradient(135deg,#b8e8d0,#9dd6b6);
+            border-left: 3px solid var(--green); color: #1d5a40; }
+.res-canc { background: linear-gradient(135deg,#f5d0d0,#e8b8b8);
+            border-left: 3px solid var(--red); color: #7a2020;
+            opacity: .65; text-decoration: line-through; }
+
+.empty-day {
+  text-align: center; padding: 48px; color: var(--text-lt);
+  font-size: .95rem;
+}
+.empty-day .empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+/* ═══ VISÃO MENSAL ═════════════════════════════════════════════════════════ */
+.month-toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.month-toolbar select {
+  border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px;
+  background: var(--card); color: var(--text); outline: none;
+}
+.month-toolbar select:focus { border-color: var(--cel); }
+.calendar-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 1px; background: var(--border); border-radius: var(--radius);
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.cal-weekday {
+  background: var(--cel-lt); text-align: center;
+  padding: 10px 4px; font-size: .8rem; font-weight: 700; color: var(--cel);
+}
+.cal-day {
+  background: var(--card); min-height: 90px;
+  padding: 8px; cursor: pointer; transition: background .15s;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cal-day:hover { background: var(--cel-pale); }
+.cal-day.other-month { background: #f0ece8; }
+.cal-day.today { background: var(--pec-pale);
+                 box-shadow: inset 0 0 0 2px var(--pec); }
+.cal-day .day-num {
+  font-size: .88rem; font-weight: 700; color: var(--text);
+}
+.cal-day.other-month .day-num { color: var(--text-lt); }
+.cal-day.today .day-num { color: var(--pec); }
+.cal-day .day-badge {
+  font-size: .72rem; padding: 2px 6px; border-radius: 10px;
+  background: var(--cel-lt); color: var(--cel); font-weight: 600;
+  align-self: flex-start;
+}
+.cal-day .day-badge.has-res { background: var(--cel); color: #fff; }
+
+/* ═══ LISTAS CRUD ══════════════════════════════════════════════════════════ */
+.list-header {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.list-header h1 { font-size: 1.3rem; font-weight: 700; flex: 1; }
+.search-box {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 6px 12px;
+}
+.search-box input {
+  border: none; outline: none; background: none;
+  font-size: .88rem; width: 180px;
+}
+.item-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+.item-card {
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  box-shadow: var(--shadow); transition: box-shadow .18s, transform .15s;
+  position: relative;
+}
+.item-card:hover { box-shadow: 0 6px 20px rgba(61,90,107,.15);
+                   transform: translateY(-2px); }
+.item-card .item-title {
+  font-size: .97rem; font-weight: 700; margin-bottom: 4px;
+}
+.item-card .item-sub {
+  font-size: .82rem; color: var(--text-lt); margin-bottom: 8px;
+}
+.item-card .item-detail {
+  font-size: .8rem; color: var(--text); margin-bottom: 2px;
+}
+.item-card .item-actions {
+  display: flex; gap: 6px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.hydro-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .75rem; background: var(--cel-lt); color: var(--cel);
+  padding: 2px 8px; border-radius: 10px; font-weight: 600;
+}
+.inactive-overlay {
+  position: absolute; inset: 0; border-radius: var(--radius);
+  background: rgba(255,255,255,.55); display: flex; align-items: center;
+  justify-content: center; font-size: .8rem; color: var(--text-lt);
+  font-weight: 600; pointer-events: none;
+}
+
+/* ═══ MODAL ════════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(40,55,65,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 20px; opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--card); border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(40,55,65,.3);
+  width: 100%; max-width: 560px; max-height: 92vh;
+  overflow-y: auto; transform: translateY(16px);
+  transition: transform .22s;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal-header {
+  padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.modal-header h3 { font-size: 1.05rem; font-weight: 700; flex: 1; }
+.modal-close {
+  background: none; border: none; font-size: 1.3rem;
+  color: var(--text-lt); cursor: pointer; padding: 2px 6px;
+  border-radius: 6px; transition: background .15s;
+}
+.modal-close:hover { background: var(--red-lt); color: var(--red); }
+.modal-body { padding: 22px; }
+.modal-footer {
+  padding: 14px 22px 18px; border-top: 1px solid var(--border);
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+
+/* ═══ TOAST ════════════════════════════════════════════════════════════════ */
+#toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 2000;
+              display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  min-width: 220px; max-width: 340px; padding: 12px 18px;
+  border-radius: 10px; font-size: .88rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18); animation: slideUp .25s ease;
+  display: flex; align-items: center; gap: 8px;
+}
+.toast-ok   { background: var(--green-lt); color: #1d6040; border-left: 4px solid var(--green); }
+.toast-err  { background: var(--red-lt);   color: #7a1f1f; border-left: 4px solid var(--red); }
+.toast-info { background: var(--cel-lt);   color: var(--text); border-left: 4px solid var(--cel); }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; }
+                     to   { transform: translateY(0);    opacity: 1; } }
+
+/* ═══ LOADER ═══════════════════════════════════════════════════════════════ */
+.spinner {
+  width: 28px; height: 28px; border: 3px solid var(--cel-lt);
+  border-top-color: var(--cel); border-radius: 50%;
+  animation: spin .7s linear infinite; margin: 40px auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══ RESPONSIVO ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  #hamburger { display: block; }
+  #nav { display: none; flex-direction: column; position: absolute;
+         top: 58px; left: 0; right: 0; background: #5a9abf;
+         padding: 12px; gap: 6px; z-index: 99; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  #nav.open { display: flex; }
+  .nav-btn { border-radius: 8px; padding: 10px 16px; text-align: left; }
+  #topbar { position: relative; }
+
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid .full { grid-column: 1; }
+  #main { padding: 16px 12px 40px; }
+  .item-grid { grid-template-columns: 1fr; }
+  .daily-toolbar { gap: 8px; }
+  .date-nav .date-label { min-width: 160px; font-size: .95rem; }
+  .modal { max-width: 100%; }
+  .cal-day { min-height: 60px; padding: 5px; }
+  .cal-weekday { padding: 7px 2px; font-size: .72rem; }
+}
+@media (max-width: 480px) {
+  .timeline { min-width: 900px; grid-template-columns: 100px repeat(28, minmax(42px,1fr)); }
+  .tl-header { font-size: .65rem; padding: 5px 2px; }
+  .tl-room-label { padding: 6px 6px; }
+  .tl-room-label .room-name { font-size: .72rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOPBAR ═══════════════════════════════════════════════════════════════ -->
+<header id="topbar">
+  <button id="hamburger" onclick="toggleMenu()">☰</button>
+  <div class="logo">💆 <span>Massagem</span> Reserva</div>
+  <nav id="nav">
+    <button class="nav-btn active" onclick="showView('daily')"   >📅 Hoje</button>
+    <button class="nav-btn"        onclick="showView('monthly')" >📆 Mês</button>
+    <button class="nav-btn"        onclick="showView('quartos')" >🛏 Quartos</button>
+    <button class="nav-btn"        onclick="showView('profissionais')">👤 Profissionais</button>
+    <button class="nav-btn"        onclick="showView('massagens')">💆 Massagens</button>
+  </nav>
+</header>
+
+<div id="main">
+
+  <!-- ═══ VISÃO DIÁRIA ══════════════════════════════════════════════════════ -->
+  <div id="view-daily" class="view active">
+    <div class="daily-toolbar">
+      <div class="date-nav">
+        <button class="btn btn-secondary btn-sm" onclick="changeDay(-1)">‹</button>
+        <span class="date-label" id="date-label"></span>
+        <button class="btn btn-secondary btn-sm" onclick="changeDay(1)">›</button>
+      </div>
+      <input type="date" id="date-input" onchange="onDateInput(this.value)"/>
+      <button class="btn btn-primary btn-sm" onclick="openReservaModal()">
+        ＋ Nova Reserva
+      </button>
+    </div>
+    <div class="card">
+      <div id="timeline-container">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VISÃO MENSAL ══════════════════════════════════════════════════════ -->
+  <div id="view-monthly" class="view">
+    <div class="month-toolbar">
+      <h1 style="font-size:1.3rem;font-weight:700;flex:1">📆 Calendário Mensal</h1>
+      <select id="sel-month" onchange="loadMonthly()">
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+        <option value="3">Março</option><option value="4">Abril</option>
+        <option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option>
+        <option value="9">Setembro</option><option value="10">Outubro</option>
+        <option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+      <select id="sel-year" onchange="loadMonthly()"></select>
+    </div>
+    <div id="monthly-container"><div class="spinner"></div></div>
+  </div>
+
+  <!-- ═══ QUARTOS ════════════════════════════════════════════════════════════ -->
+  <div id="view-quartos" class="view">
+    <div class="list-header">
+      <h1>🛏 Quartos</h1>
+      <button class="btn btn-primary" onclick="openQuartoModal()">＋ Novo Quarto</button>
+    </div>
+    <div id="quartos-list"><div class="spinner"></div></div>
+  </div>
+
+  <!-- ═══ PROFISSIONAIS ═════════════════════════════════════════════════════ -->
+  <div id="view-profissionais" class="view">
+    <div class="list-header">
+      <h1>👤 Profissionais</h1>
+      <div class="search-box">
+        🔍 <input id="prof-search" type="text" placeholder="Buscar..."
+                  oninput="renderProfissionais()"/>
+      </div>
+      <button class="btn btn-primary" onclick="openProfModal()">＋ Novo Profissional</button>
+    </div>
+    <div id="profissionais-list"><div class="spinner"></div></div>
+  </div>
+
+  <!-- ═══ MASSAGENS ═════════════════════════════════════════════════════════ -->
+  <div id="view-massagens" class="view">
+    <div class="list-header">
+      <h1>💆 Massagens</h1>
+      <button class="btn btn-primary" onclick="openMassagemModal()">＋ Nova Massagem</button>
+    </div>
+    <div id="massagens-list"><div class="spinner"></div></div>
+  </div>
+
+</div><!-- #main -->
+
+<!-- ═══ MODAL ══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOnBg(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Título</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ═══ TOASTS ══════════════════════════════════════════════════════════════ -->
+<div id="toast-wrap"></div>
+
+<!-- ═══ SCRIPT ══════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── Estado ────────────────────────────────────────────────────────────────
+let state = {
+  currentView: 'daily',
+  currentDate: toDateStr(new Date()),
+  quartos: [],
+  profissionais: [],
+  massagens: [],
+  reservasDia: [],
+  monthData: {},
+};
+
+// ─── Utilidades ────────────────────────────────────────────────────────────
+function toDateStr(d) {
+  return d.toFullYear ? d.toFullYear() :
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+Date.prototype.toFullYear = function() {
+  return `${this.getFullYear()}-${String(this.getMonth()+1).padStart(2,'0')}-${String(this.getDate()).padStart(2,'0')}`;
+};
+function parseDate(s) {
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function fmtDate(s) {
+  const d = parseDate(s);
+  return d.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+}
+function fmtDateShort(s) {
+  return parseDate(s).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function fmtCPF(s) {
+  const n = s.replace(/\D/g,'');
+  return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+function fmtMoeda(v) {
+  return Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+function timeToMin(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
+function minToTime(m) {
+  return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+}
+
+// ─── API ────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch('/api' + path, opts);
+  const json = await r.json();
+  if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
+  return json.data;
+}
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = (type==='ok'?'✅':type==='err'?'❌':'ℹ️') + ' ' + msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(() => el.remove(), 3400);
+}
+
+// ─── Nav ────────────────────────────────────────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    if (btn.textContent.toLowerCase().includes(
+        v === 'daily' ? 'hoje' : v === 'monthly' ? 'mês' :
+        v === 'quartos' ? 'quartos' : v === 'profissionais' ? 'prof' : 'massa'
+    )) btn.classList.add('active');
+  });
+  // fechar menu mobile
+  document.getElementById('nav').classList.remove('open');
+  state.currentView = v;
+  if (v === 'daily') loadDaily();
+  else if (v === 'monthly') loadMonthly();
+  else if (v === 'quartos') loadQuartos();
+  else if (v === 'profissionais') loadProfissionais();
+  else if (v === 'massagens') loadMassagens();
+}
+function toggleMenu() {
+  document.getElementById('nav').classList.toggle('open');
+}
+
+// ─── Modal ──────────────────────────────────────────────────────────────────
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHtml;
+  document.getElementById('modal-footer').innerHTML = footerHtml;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function closeModalOnBg(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISÃO DIÁRIA
+// ═══════════════════════════════════════════════════════════════════════════
+const START_HOUR = 8;   // 08:00
+const END_HOUR   = 22;  // 22:00
+const SLOTS      = (END_HOUR - START_HOUR) * 2; // 28 slots de 30min
+
+function initDate() {
+  const today = new Date().toFullYear();
+  state.currentDate = today;
+  document.getElementById('date-input').value = today;
+  updateDateLabel();
+}
+function updateDateLabel() {
+  document.getElementById('date-label').textContent = fmtDate(state.currentDate);
+  document.getElementById('date-input').value = state.currentDate;
+}
+function changeDay(delta) {
+  const d = parseDate(state.currentDate);
+  d.setDate(d.getDate() + delta);
+  state.currentDate = d.toFullYear();
+  updateDateLabel();
+  loadDaily();
+}
+function onDateInput(v) {
+  state.currentDate = v;
+  updateDateLabel();
+  loadDaily();
+}
+
+async function loadDaily() {
+  const cont = document.getElementById('timeline-container');
+  cont.innerHTML = '<div class="spinner"></div>';
+  try {
+    const [quartos, reservas] = await Promise.all([
+      api('GET', '/quartos'),
+      api('GET', `/reservas?data=${state.currentDate}`)
+    ]);
+    state.quartos = quartos;
+    state.reservasDia = reservas;
+    renderTimeline();
+  } catch(e) {
+    cont.innerHTML = `<p style="padding:20px;color:var(--red)">${e.message}</p>`;
+  }
+}
+
+function renderTimeline() {
+  const cont = document.getElementById('timeline-container');
+  if (!state.quartos.length) {
+    cont.innerHTML = `<div class="empty-day">
+      <div class="empty-icon">🛏</div>
+      <div>Nenhum quarto cadastrado. <a href="#" onclick="showView('quartos');return false;">Cadastrar quartos</a></div>
+    </div>`;
+    return;
+  }
+
+  let html = '<div class="timeline-wrap"><div class="timeline">';
+
+  // Cabeçalho
+  html += `<div class="tl-corner">Quarto</div>`;
+  for (let i = 0; i < SLOTS; i++) {
+    const min = START_HOUR * 60 + i * 30;
+    const label = minToTime(min);
+    const isHour = min % 60 === 0;
+    html += `<div class="tl-header${isHour ? ' half-border' : ''}">${label}</div>`;
+  }
+
+  // Linhas por quarto
+  for (const q of state.quartos) {
+    // Label do quarto
+    html += `<div class="tl-room-label">
+      <div class="room-name">${esc(q.nome)}</div>
+      <div class="room-num">Nº ${q.numero}</div>
+      ${q.tem_hidromassagem ? '<div class="room-hydro">💧 Hidro</div>' : ''}
+    </div>`;
+
+    // Células de tempo — com reservas sobrepostas
+    const reservasQuarto = state.reservasDia.filter(r => r.quarto_id === q.id);
+
+    // Mapa de slot → reserva para renderizar como bloco
+    const slotReservas = {};
+    for (const r of reservasQuarto) {
+      const startMin = timeToMin(r.hora_inicio);
+      const endMin   = timeToMin(r.hora_fim);
+      const startSlot = Math.max(0, Math.floor((startMin - START_HOUR*60) / 30));
+      const endSlot   = Math.min(SLOTS, Math.ceil((endMin - START_HOUR*60) / 30));
+      slotReservas[startSlot] = { ...r, startSlot, endSlot, span: endSlot - startSlot };
+    }
+
+    // Renderizar células
+    for (let i = 0; i < SLOTS; i++) {
+      const cellMin = START_HOUR*60 + i*30;
+      const isHour = cellMin % 60 === 0;
+      const res = slotReservas[i];
+
+      if (res) {
+        // Célula com início de reserva — bloco relativo
+        const statusCls = res.status === 'cancelada' ? 'res-canc' :
+                          res.status === 'concluida'  ? 'res-conc' : 'res-conf';
+        const nomeMostra = res.nome_fantasia || res.profissional_nome;
+        html += `<div class="tl-cell${isHour?' half-border':''}"
+          onclick="openReservaCellModal(${q.id}, '${minToTime(cellMin)}', '${minToTime(cellMin+30)}')">
+          <div class="reservation-block ${statusCls}"
+               style="left:0;right:0;width:calc(${res.span * 100}% + ${(res.span-1)}px)"
+               onclick="event.stopPropagation();viewReserva(${res.id})">
+            <div class="rb-client">${esc(res.cliente_nome)}</div>
+            <div class="rb-prof">${esc(nomeMostra)}</div>
+            <div class="rb-time">${res.hora_inicio}–${res.hora_fim} · ${esc(res.massagem_nome)}</div>
+          </div>
+        </div>`;
+      } else {
+        // Verificar se este slot está dentro de uma reserva já renderizada
+        const occupied = reservasQuarto.some(r => {
+          const s = Math.max(0, Math.floor((timeToMin(r.hora_inicio) - START_HOUR*60)/30));
+          const e = Math.min(SLOTS, Math.ceil((timeToMin(r.hora_fim) - START_HOUR*60)/30));
+          return i > s && i < e;
+        });
+        html += `<div class="tl-cell${isHour?' half-border':''}${occupied?'':''}"
+          onclick="openReservaCellModal(${q.id}, '${minToTime(cellMin)}', '${minToTime(cellMin+30)}')"></div>`;
+      }
+    }
+  }
+  html += '</div></div>';
+  cont.innerHTML = html;
+}
+
+function openReservaCellModal(quartoId, horaInicio, horaFim) {
+  openReservaModal(null, quartoId, horaInicio, horaFim);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISÃO MENSAL
+// ═══════════════════════════════════════════════════════════════════════════
+function initMonthSelectors() {
+  const today = new Date();
+  const selYear = document.getElementById('sel-year');
+  const selMonth = document.getElementById('sel-month');
+  for (let y = today.getFullYear() - 3; y <= today.getFullYear() + 1; y++) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === today.getFullYear()) opt.selected = true;
+    selYear.appendChild(opt);
+  }
+  selMonth.value = today.getMonth() + 1;
+}
+
+async function loadMonthly() {
+  const mes  = document.getElementById('sel-month').value;
+  const ano  = document.getElementById('sel-year').value;
+  const cont = document.getElementById('monthly-container');
+  cont.innerHTML = '<div class="spinner"></div>';
+  try {
+    const resumo = await api('GET', `/reservas/resumo-mensal?mes=${mes}&ano=${ano}`);
+    const map = {};
+    resumo.forEach(r => { map[r.data] = r; });
+    renderCalendar(parseInt(ano), parseInt(mes), map);
+  } catch(e) {
+    cont.innerHTML = `<p style="padding:20px;color:var(--red)">${e.message}</p>`;
+  }
+}
+
+function renderCalendar(year, month, map) {
+  const today = new Date().toFullYear();
+  const firstDay = new Date(year, month-1, 1);
+  const lastDay  = new Date(year, month, 0);
+  let startDow = firstDay.getDay(); // 0=Dom
+
+  const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let html = '<div class="calendar-grid">';
+  DIAS.forEach(d => html += `<div class="cal-weekday">${d}</div>`);
+
+  let day = 1;
+  const totalCells = Math.ceil((lastDay.getDate() + startDow) / 7) * 7;
+
+  for (let i = 0; i < totalCells; i++) {
+    const col = i - startDow + 1;
+    if (col < 1 || col > lastDay.getDate()) {
+      html += `<div class="cal-day other-month"><div class="day-num" style="opacity:.4">${col<1?'':col}</div></div>`;
+    } else {
+      const ds = `${year}-${String(month).padStart(2,'0')}-${String(col).padStart(2,'0')}`;
+      const info = map[ds];
+      const isToday = ds === today;
+      const total = info ? (info.confirmadas + info.concluidas) : 0;
+      html += `<div class="cal-day${isToday?' today':''}" onclick="goToDay('${ds}')">
+        <div class="day-num">${col}</div>
+        ${total > 0 ? `<span class="day-badge has-res">${total} reserva${total>1?'s':''}</span>` :
+          (info && info.canceladas > 0 ? `<span class="day-badge">${info.canceladas} cancel.</span>` : '')}
+      </div>`;
+    }
+  }
+  html += '</div>';
+  document.getElementById('monthly-container').innerHTML = html;
+}
+
+function goToDay(dateStr) {
+  state.currentDate = dateStr;
+  showView('daily');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUARTOS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadQuartos() {
+  document.getElementById('quartos-list').innerHTML = '<div class="spinner"></div>';
+  try {
+    state.quartos = await api('GET', '/quartos');
+    renderQuartos();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderQuartos() {
+  const el = document.getElementById('quartos-list');
+  if (!state.quartos.length) {
+    el.innerHTML = `<div class="empty-day"><div class="empty-icon">🛏</div>
+      <div>Nenhum quarto cadastrado.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="item-grid">${state.quartos.map(q => `
+    <div class="item-card">
+      <div class="item-title">Quarto ${q.numero} — ${esc(q.nome)}</div>
+      <div class="item-sub">${q.tem_hidromassagem ?
+        '<span class="hydro-tag">💧 Hidromassagem</span>' :
+        '<span style="font-size:.75rem;color:var(--text-lt)">Sem hidromassagem</span>'}</div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openQuartoModal(${q.id})">✏️ Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteQuarto(${q.id},'${esc(q.nome)}')">🗑 Excluir</button>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openQuartoModal(id) {
+  const q = id ? state.quartos.find(x => x.id === id) : null;
+  const title = q ? `Editar Quarto ${q.numero}` : 'Novo Quarto';
+  const body = `<div class="form-grid">
+    <div class="field full">
+      <label>Nome do Quarto <span class="required">*</span></label>
+      <input id="q-nome" type="text" value="${q ? esc(q.nome) : ''}" placeholder="Ex: Suite Relax"/>
+    </div>
+    <div class="field full">
+      <label>Hidromassagem</label>
+      <select id="q-hidro">
+        <option value="0"${!q?.tem_hidromassagem?' selected':''}>Não</option>
+        <option value="1"${q?.tem_hidromassagem?' selected':''}>Sim</option>
+      </select>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveQuarto(${id||'null'})">
+      ${q ? 'Salvar' : 'Cadastrar'}
+    </button>`;
+  openModal(title, body, footer);
+}
+
+async function saveQuarto(id) {
+  const nome  = document.getElementById('q-nome').value.trim();
+  const hidro = document.getElementById('q-hidro').value === '1';
+  if (!nome) return toast('Nome é obrigatório', 'err');
+  try {
+    if (id) await api('PUT', `/quartos/${id}`, { nome, tem_hidromassagem: hidro });
+    else    await api('POST', '/quartos', { nome, tem_hidromassagem: hidro });
+    toast(id ? 'Quarto atualizado!' : 'Quarto cadastrado!');
+    closeModal();
+    loadQuartos();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteQuarto(id, nome) {
+  if (!confirm(`Excluir o quarto "${nome}"? Esta ação não pode ser desfeita.`)) return;
+  try {
+    await api('DELETE', `/quartos/${id}`);
+    toast('Quarto excluído');
+    loadQuartos();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFISSIONAIS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadProfissionais() {
+  document.getElementById('profissionais-list').innerHTML = '<div class="spinner"></div>';
+  try {
+    state.profissionais = await api('GET', '/profissionais?todos=1');
+    renderProfissionais();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderProfissionais() {
+  const q   = (document.getElementById('prof-search')?.value || '').toLowerCase();
+  const arr = state.profissionais.filter(p =>
+    p.nome.toLowerCase().includes(q) ||
+    (p.nome_fantasia||'').toLowerCase().includes(q));
+  const el = document.getElementById('profissionais-list');
+  if (!arr.length) {
+    el.innerHTML = `<div class="empty-day"><div class="empty-icon">👤</div>
+      <div>Nenhum profissional encontrado.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="item-grid">${arr.map(p => {
+    const nascDate = p.data_nascimento ? fmtDateShort(p.data_nascimento) : '';
+    return `<div class="item-card" style="${!p.ativo?'opacity:.7':''}">
+      ${!p.ativo ? '<div class="inactive-overlay">Inativo</div>' : ''}
+      <div class="item-title">${esc(p.nome)}</div>
+      ${p.nome_fantasia ? `<div class="item-sub" style="color:var(--pec)">✨ ${esc(p.nome_fantasia)}</div>` : ''}
+      <div class="item-detail">📋 CPF: ${fmtCPF(p.cpf)}</div>
+      ${p.data_nascimento ? `<div class="item-detail">🎂 ${nascDate}</div>` : ''}
+      ${p.telefone ? `<div class="item-detail">📱 ${esc(p.telefone)}</div>` : ''}
+      ${p.email    ? `<div class="item-detail">📧 ${esc(p.email)}</div>` : ''}
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openProfModal(${p.id})">✏️ Editar</button>
+        <button class="btn ${p.ativo?'btn-danger':'btn-success'} btn-sm"
+          onclick="toggleProf(${p.id}, ${p.ativo})">
+          ${p.ativo ? '⛔ Desativar' : '✅ Ativar'}
+        </button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openProfModal(id) {
+  const p = id ? state.profissionais.find(x => x.id === id) : null;
+  const title = p ? `Editar ${p.nome_fantasia || p.nome}` : 'Novo Profissional';
+  const body = `<div class="form-grid">
+    <div class="field full">
+      <label>Nome Completo <span class="required">*</span></label>
+      <input id="p-nome" type="text" value="${p ? esc(p.nome) : ''}" placeholder="Nome completo"/>
+    </div>
+    <div class="field">
+      <label>Nome Fantasia</label>
+      <input id="p-fantasia" type="text" value="${p?.nome_fantasia ? esc(p.nome_fantasia) : ''}" placeholder="Nome artístico / apelido"/>
+    </div>
+    <div class="field">
+      <label>CPF <span class="required">*</span></label>
+      <input id="p-cpf" type="text" value="${p ? fmtCPF(p.cpf) : ''}"
+             placeholder="000.000.000-00" maxlength="14"
+             oninput="maskCPF(this)"/>
+    </div>
+    <div class="field">
+      <label>Data de Nascimento <span class="required">*</span></label>
+      <input id="p-nasc" type="date" value="${p?.data_nascimento || ''}"/>
+    </div>
+    <div class="field">
+      <label>Telefone <span class="required">*</span></label>
+      <input id="p-tel" type="tel" value="${p?.telefone ? esc(p.telefone) : ''}" placeholder="(11) 99999-9999"/>
+    </div>
+    <div class="field">
+      <label>E-mail</label>
+      <input id="p-email" type="email" value="${p?.email ? esc(p.email) : ''}" placeholder="email@exemplo.com"/>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveProf(${id||'null'})">${p ? 'Salvar' : 'Cadastrar'}</button>`;
+  openModal(title, body, footer);
+}
+
+function maskCPF(el) {
+  let v = el.value.replace(/\D/g,'').substring(0,11);
+  v = v.replace(/(\d{3})(\d)/,'$1.$2')
+       .replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
+       .replace(/\.(\d{3})(\d)/,'.$1-$2');
+  el.value = v;
+}
+
+async function saveProf(id) {
+  const nome           = document.getElementById('p-nome').value.trim();
+  const nome_fantasia  = document.getElementById('p-fantasia').value.trim();
+  const cpf            = document.getElementById('p-cpf').value;
+  const data_nascimento= document.getElementById('p-nasc').value;
+  const telefone       = document.getElementById('p-tel').value.trim();
+  const email          = document.getElementById('p-email').value.trim();
+  if (!nome || !cpf || !data_nascimento || !telefone)
+    return toast('Preencha os campos obrigatórios', 'err');
+  try {
+    const payload = { nome, nome_fantasia: nome_fantasia||null, cpf, data_nascimento, telefone, email: email||null, ativo: 1 };
+    if (id) await api('PUT', `/profissionais/${id}`, payload);
+    else    await api('POST', '/profissionais', payload);
+    toast(id ? 'Profissional atualizado!' : 'Profissional cadastrado!');
+    closeModal();
+    loadProfissionais();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function toggleProf(id, ativo) {
+  const p = state.profissionais.find(x => x.id === id);
+  try {
+    await api('PUT', `/profissionais/${id}`, { ...p, ativo: ativo ? 0 : 1 });
+    toast(ativo ? 'Profissional desativado' : 'Profissional ativado', 'info');
+    loadProfissionais();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MASSAGENS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadMassagens() {
+  document.getElementById('massagens-list').innerHTML = '<div class="spinner"></div>';
+  try {
+    state.massagens = await api('GET', '/massagens?todas=1');
+    renderMassagens();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderMassagens() {
+  const el = document.getElementById('massagens-list');
+  if (!state.massagens.length) {
+    el.innerHTML = `<div class="empty-day"><div class="empty-icon">💆</div>
+      <div>Nenhuma massagem cadastrada.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="item-grid">${state.massagens.map(m => `
+    <div class="item-card" style="${!m.ativa?'opacity:.7':''}">
+      ${!m.ativa ? '<div class="inactive-overlay">Inativa</div>' : ''}
+      <div class="item-title">${esc(m.nome)}</div>
+      ${m.descricao ? `<div class="item-sub">${esc(m.descricao)}</div>` : ''}
+      <div class="item-detail">⏱ ${m.duracao} minutos</div>
+      <div class="item-detail">💰 ${fmtMoeda(m.preco)}</div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openMassagemModal(${m.id})">✏️ Editar</button>
+        <button class="btn ${m.ativa?'btn-danger':'btn-success'} btn-sm"
+          onclick="toggleMassagem(${m.id}, ${m.ativa})">
+          ${m.ativa ? '⛔ Desativar' : '✅ Ativar'}
+        </button>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openMassagemModal(id) {
+  const m = id ? state.massagens.find(x => x.id === id) : null;
+  const title = m ? `Editar ${m.nome}` : 'Nova Massagem';
+  const body = `<div class="form-grid">
+    <div class="field full">
+      <label>Nome da Massagem <span class="required">*</span></label>
+      <input id="m-nome" type="text" value="${m ? esc(m.nome) : ''}" placeholder="Ex: Massagem Relaxante"/>
+    </div>
+    <div class="field full">
+      <label>Descrição</label>
+      <textarea id="m-desc" placeholder="Descreva a massagem...">${m?.descricao ? esc(m.descricao) : ''}</textarea>
+    </div>
+    <div class="field">
+      <label>Duração (minutos) <span class="required">*</span></label>
+      <input id="m-dur" type="number" value="${m?.duracao || ''}" min="5" step="5" placeholder="60"/>
+    </div>
+    <div class="field">
+      <label>Preço (R$) <span class="required">*</span></label>
+      <input id="m-preco" type="number" value="${m?.preco || ''}" min="0" step="0.01" placeholder="150.00"/>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveMassagem(${id||'null'})">${m ? 'Salvar' : 'Cadastrar'}</button>`;
+  openModal(title, body, footer);
+}
+
+async function saveMassagem(id) {
+  const nome    = document.getElementById('m-nome').value.trim();
+  const descricao= document.getElementById('m-desc').value.trim();
+  const duracao = parseInt(document.getElementById('m-dur').value);
+  const preco   = parseFloat(document.getElementById('m-preco').value);
+  if (!nome || !duracao || isNaN(preco)) return toast('Preencha os campos obrigatórios', 'err');
+  try {
+    const payload = { nome, descricao: descricao||null, duracao, preco, ativa: 1 };
+    if (id) await api('PUT', `/massagens/${id}`, payload);
+    else    await api('POST', '/massagens', payload);
+    toast(id ? 'Massagem atualizada!' : 'Massagem cadastrada!');
+    closeModal();
+    loadMassagens();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function toggleMassagem(id, ativa) {
+  const m = state.massagens.find(x => x.id === id);
+  try {
+    await api('PUT', `/massagens/${id}`, { ...m, ativa: ativa ? 0 : 1 });
+    toast(ativa ? 'Massagem desativada' : 'Massagem ativada', 'info');
+    loadMassagens();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESERVAS (Modal)
+// ═══════════════════════════════════════════════════════════════════════════
+async function ensureDropdownData() {
+  if (!state.quartos.length)       state.quartos       = await api('GET', '/quartos');
+  if (!state.profissionais.length) state.profissionais = await api('GET', '/profissionais');
+  if (!state.massagens.length)     state.massagens     = await api('GET', '/massagens');
+}
+
+async function openReservaModal(id, quartoIdPre, horaPre, horaFimPre) {
+  await ensureDropdownData();
+  const r = id ? state.reservasDia.find(x => x.id === id) : null;
+  const title = r ? `Reserva #${r.id}` : 'Nova Reserva';
+
+  const optQuartos = state.quartos.map(q =>
+    `<option value="${q.id}" ${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>
+      Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}
+    </option>`).join('');
+
+  const optProfs = state.profissionais.map(p =>
+    `<option value="${p.id}" ${r?.profissional_id===p.id?'selected':''}>
+      ${esc(p.nome_fantasia || p.nome)}
+    </option>`).join('');
+
+  const optMassagens = state.massagens.map(m =>
+    `<option value="${m.id}" ${r?.massagem_id===m.id?'selected':''}>
+      ${esc(m.nome)} (${m.duracao}min · ${fmtMoeda(m.preco)})
+    </option>`).join('');
+
+  const statusSel = r ? `
+    <div class="field">
+      <label>Status</label>
+      <select id="rv-status">
+        <option value="confirmada"${r.status==='confirmada'?' selected':''}>Confirmada</option>
+        <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
+        <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
+      </select>
+    </div>` : '';
+
+  const body = `<div class="form-grid">
+    <div class="field full">
+      <label>Data <span class="required">*</span></label>
+      <input id="rv-data" type="date" value="${r?.data || state.currentDate}"/>
+    </div>
+    <div class="field">
+      <label>Hora Início <span class="required">*</span></label>
+      <input id="rv-inicio" type="time" value="${r?.hora_inicio || horaPre || '09:00'}" step="1800"/>
+    </div>
+    <div class="field">
+      <label>Hora Fim <span class="required">*</span></label>
+      <input id="rv-fim" type="time" value="${r?.hora_fim || horaFimPre || '10:00'}" step="1800"/>
+    </div>
+    <div class="field full">
+      <label>Quarto <span class="required">*</span></label>
+      <select id="rv-quarto">${optQuartos}</select>
+    </div>
+    <div class="field full">
+      <label>Profissional <span class="required">*</span></label>
+      <select id="rv-prof">${optProfs}</select>
+    </div>
+    <div class="field full">
+      <label>Massagem <span class="required">*</span></label>
+      <select id="rv-massagem" onchange="autoFillHoraFim()">${optMassagens}</select>
+    </div>
+    <div class="field full">
+      <label>Nome do Cliente <span class="required">*</span></label>
+      <input id="rv-cliente" type="text" value="${r?.cliente_nome ? esc(r.cliente_nome) : ''}" placeholder="Nome completo do cliente"/>
+    </div>
+    <div class="field">
+      <label>Telefone do Cliente</label>
+      <input id="rv-ctel" type="tel" value="${r?.cliente_telefone ? esc(r.cliente_telefone) : ''}" placeholder="(11) 99999-9999"/>
+    </div>
+    ${statusSel}
+    <div class="field full">
+      <label>Observações</label>
+      <textarea id="rv-obs" placeholder="Anotações extras...">${r?.observacoes ? esc(r.observacoes) : ''}</textarea>
+    </div>
+  </div>`;
+
+  const footer = `
+    ${r ? `<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>` : ''}
+    <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
+    <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r ? 'Atualizar' : 'Confirmar Reserva'}</button>`;
+
+  openModal(title, body, footer);
+}
+
+function autoFillHoraFim() {
+  const mId = parseInt(document.getElementById('rv-massagem')?.value);
+  const m   = state.massagens.find(x => x.id === mId);
+  const inicio = document.getElementById('rv-inicio')?.value;
+  if (m && inicio) {
+    const fim = timeToMin(inicio) + m.duracao;
+    document.getElementById('rv-fim').value = minToTime(fim);
+  }
+}
+
+async function saveReserva(id) {
+  const data           = document.getElementById('rv-data').value;
+  const hora_inicio    = document.getElementById('rv-inicio').value;
+  const hora_fim       = document.getElementById('rv-fim').value;
+  const quarto_id      = parseInt(document.getElementById('rv-quarto').value);
+  const profissional_id= parseInt(document.getElementById('rv-prof').value);
+  const massagem_id    = parseInt(document.getElementById('rv-massagem').value);
+  const cliente_nome   = document.getElementById('rv-cliente').value.trim();
+  const cliente_telefone= document.getElementById('rv-ctel')?.value.trim();
+  const status         = document.getElementById('rv-status')?.value || 'confirmada';
+  const observacoes    = document.getElementById('rv-obs')?.value.trim();
+
+  if (!data || !hora_inicio || !hora_fim || !quarto_id || !profissional_id ||
+      !massagem_id || !cliente_nome)
+    return toast('Preencha todos os campos obrigatórios', 'err');
+
+  if (timeToMin(hora_fim) <= timeToMin(hora_inicio))
+    return toast('Hora fim deve ser maior que hora início', 'err');
+
+  try {
+    const payload = { data, hora_inicio, hora_fim, quarto_id, profissional_id,
+                      massagem_id, cliente_nome, cliente_telefone, status, observacoes };
+    if (id) await api('PUT', `/reservas/${id}`, payload);
+    else    await api('POST', '/reservas', payload);
+    toast(id ? 'Reserva atualizada!' : 'Reserva confirmada! ✅');
+    closeModal();
+    if (state.currentView === 'daily') loadDaily();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function cancelarReserva(id) {
+  if (!confirm('Confirma o cancelamento desta reserva?')) return;
+  try {
+    await api('DELETE', `/reservas/${id}`);
+    toast('Reserva cancelada', 'info');
+    closeModal();
+    loadDaily();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function viewReserva(id) {
+  openReservaModal(id);
+}
+
+// ─── Escape HTML ────────────────────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─── Inicialização ──────────────────────────────────────────────────────────
+function init() {
+  initDate();
+  initMonthSelectors();
+  loadDaily();
+}
+init();
+</script>
+</body>
+</html>
