@@ -261,7 +261,7 @@ app.put('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
 
 app.delete('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
   send(res, async () => {
-    await qRun('UPDATE clinicas SET ativo=0 WHERE id=$1', [req.params.id]);
+    await qRun('DELETE FROM clinicas WHERE id=$1', [req.params.id]);
     return { id: parseInt(req.params.id) };
   }));
 
@@ -299,7 +299,7 @@ app.put('/api/admin/admins/:id', requireAdmin, (req, res) =>
 
 app.delete('/api/admin/admins/:id', requireAdmin, (req, res) =>
   send(res, async () => {
-    await qRun('UPDATE admins SET ativo=0 WHERE id=$1', [req.params.id]);
+    await qRun('DELETE FROM admins WHERE id=$1', [req.params.id]);
     return { id: parseInt(req.params.id) };
   }));
 
@@ -386,7 +386,7 @@ app.put('/api/profissionais/:id', requireAuth, (req, res) =>
 app.delete('/api/profissionais/:id', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    await qRun('UPDATE profissionais SET ativo=0 WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    await qRun('DELETE FROM profissionais WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
     return { id: parseInt(req.params.id) };
   }));
 
@@ -425,7 +425,7 @@ app.put('/api/massagens/:id', requireAuth, (req, res) =>
 app.delete('/api/massagens/:id', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    await qRun('UPDATE massagens SET ativa=0 WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    await qRun('DELETE FROM massagens WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
     return { id: parseInt(req.params.id) };
   }));
 
