@@ -501,6 +501,13 @@ function parseDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-
 function fmtDate(s){return parseDate(s).toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}
 function fmtCPF(s){const n=(s||'').replace(/\D/g,'');return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4')}
 function fmtMoeda(v){return Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function fmtBebidasTimeline(bebida){
+  if(!bebida)return'';
+  try{
+    var dl=JSON.parse(bebida);
+    return dl.map(function(d){return '<div class="rb-prof">🍹 '+esc(d.nome)+' R$'+parseFloat(d.preco).toFixed(2).replace('.',',')+'</div>';}).join('');
+  }catch(e){return '<div class="rb-prof">🍹 '+esc(bebida)+'</div>';}
+}
 function timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m}
 function minToTime(m){return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
@@ -731,7 +738,7 @@ function renderTimeline(){
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
             <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.massagem_nome)}</div>
-            ${rb.bebida?(()=>{try{const dl=JSON.parse(rb.bebida);return dl.map(d=>`<div class="rb-prof">🍹 ${esc(d.nome)} R$${parseFloat(d.preco).toFixed(2).replace('.',',')}</div>`).join('');}catch(e){return `<div class="rb-prof">🍹 ${esc(rb.bebida)}</div>`;}})()):''}
+            ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}</div>
           </div></div>`;
       }else{
