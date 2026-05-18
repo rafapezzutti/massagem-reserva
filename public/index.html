@@ -5,1229 +5,1349 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Massagem Reserva</title>
 <style>
-/* ═══ VARIÁVEIS ════════════════════════════════════════════════════════════ */
 :root {
-  --cel:       #7fb3d3;
-  --cel-lt:    #d5e8f5;
-  --cel-pale:  #eef6fc;
-  --pec:       #e8956a;
-  --pec-lt:    #fce8d8;
-  --pec-pale:  #fff4ee;
-  --bg:        #f7f3ef;
-  --card:      #ffffff;
-  --border:    #ddd5cc;
-  --text:      #3d5a6b;
-  --text-lt:   #7a96a5;
-  --green:     #7bbf9e;
-  --green-lt:  #d4f0e4;
-  --red:       #d47a7a;
-  --red-lt:    #fce4e4;
-  --yellow:    #e8c56a;
-  --yellow-lt: #fdf5d8;
-  --shadow:    0 2px 12px rgba(61,90,107,.10);
-  --radius:    12px;
-  --font:      'Segoe UI', system-ui, sans-serif;
+  --cel:      #7fb3d3; --cel-lt:  #d5e8f5; --cel-pale: #eef6fc;
+  --pec:      #e8956a; --pec-lt:  #fce8d8; --pec-pale: #fff4ee;
+  --bg:       #f7f3ef; --card:    #ffffff;  --border:   #ddd5cc;
+  --text:     #3d5a6b; --text-lt: #7a96a5;
+  --green:    #7bbf9e; --green-lt:#d4f0e4;
+  --red:      #d47a7a; --red-lt:  #fce4e4;
+  --yellow:   #e8c56a; --yellow-lt:#fdf5d8;
+  --shadow:   0 2px 12px rgba(61,90,107,.10);
+  --radius:   12px; --font: 'Segoe UI',system-ui,sans-serif;
 }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:.93rem}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--cel-pale)}
+::-webkit-scrollbar-thumb{background:var(--cel);border-radius:3px}
 
-/* ═══ RESET ════════════════════════════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 15px; }
-body { font-family: var(--font); background: var(--bg); color: var(--text);
-       min-height: 100vh; overflow-x: hidden; }
-button { font-family: inherit; cursor: pointer; }
-input, select, textarea { font-family: inherit; font-size: .93rem; }
-
-/* ═══ SCROLLBAR ════════════════════════════════════════════════════════════ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--cel-pale); }
-::-webkit-scrollbar-thumb { background: var(--cel); border-radius: 3px; }
+/* ═══ LOGIN ════════════════════════════════════════════════════════════════ */
+#login-screen{
+  position:fixed;inset:0;background:linear-gradient(135deg,#d5e8f5 0%,#fce8d8 100%);
+  display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;
+}
+.login-card{
+  background:var(--card);border-radius:20px;padding:40px 36px;width:100%;max-width:400px;
+  box-shadow:0 20px 60px rgba(61,90,107,.2);text-align:center;
+}
+.login-logo{font-size:2.2rem;margin-bottom:6px}
+.login-title{font-size:1.4rem;font-weight:800;color:var(--text);margin-bottom:4px}
+.login-sub{font-size:.85rem;color:var(--text-lt);margin-bottom:28px}
+.login-card .field{text-align:left;margin-bottom:14px}
+.login-card .field label{font-size:.82rem;font-weight:600;color:var(--text-lt);display:block;margin-bottom:5px}
+.login-card .field input{
+  width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;
+  outline:none;transition:border-color .18s;
+}
+.login-card .field input:focus{border-color:var(--cel);box-shadow:0 0 0 3px rgba(127,179,211,.15)}
+.btn-login{
+  width:100%;background:linear-gradient(135deg,var(--cel),#5a9abf);color:#fff;
+  border:none;border-radius:10px;padding:12px;font-size:1rem;font-weight:700;
+  cursor:pointer;transition:all .2s;margin-top:6px;
+}
+.btn-login:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(127,179,211,.4)}
+.login-error{color:var(--red);font-size:.84rem;margin-top:10px;min-height:20px}
+.login-powered{font-size:.72rem;color:var(--text-lt);margin-top:18px;opacity:.7;letter-spacing:.02em}
 
 /* ═══ TOPBAR ═══════════════════════════════════════════════════════════════ */
-#topbar {
-  background: linear-gradient(135deg, var(--cel) 0%, #5a9abf 100%);
-  color: #fff; display: flex; align-items: center; gap: 12px;
-  padding: 0 20px; height: 58px; position: sticky; top: 0; z-index: 100;
-  box-shadow: 0 2px 8px rgba(61,90,107,.25);
+#app{display:none}
+#topbar{
+  background:linear-gradient(135deg,var(--cel) 0%,#5a9abf 100%);
+  color:#fff;display:flex;align-items:center;gap:10px;
+  padding:0 16px;height:58px;position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 8px rgba(61,90,107,.25);flex-wrap:wrap;
 }
-#topbar .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .4px;
-                white-space: nowrap; }
-#topbar .logo span { opacity: .7; font-weight: 400; }
-#hamburger { display: none; background: none; border: none; color: #fff;
-             font-size: 1.4rem; padding: 4px 8px; }
+#topbar .logo{font-size:1rem;font-weight:700;white-space:nowrap}
+#topbar .logo span{opacity:.7;font-weight:400}
+#hamburger{display:none;background:none;border:none;color:#fff;font-size:1.4rem;padding:4px 8px}
+#nav{display:flex;gap:4px;flex:1}
+.nav-btn{
+  background:rgba(255,255,255,.15);border:none;color:#fff;
+  padding:6px 13px;border-radius:20px;font-size:.82rem;font-weight:500;
+  transition:background .18s;white-space:nowrap;
+}
+.nav-btn:hover{background:rgba(255,255,255,.28)}
+.nav-btn.active{background:rgba(255,255,255,.35);font-weight:700;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
 
-/* ═══ NAV ══════════════════════════════════════════════════════════════════ */
-#nav { display: flex; gap: 4px; flex: 1; }
-.nav-btn {
-  background: rgba(255,255,255,.15); border: none; color: #fff;
-  padding: 6px 14px; border-radius: 20px; font-size: .85rem; font-weight: 500;
-  transition: background .18s, transform .12s;
-  white-space: nowrap;
+/* Seletor de clínica (admin) + info clínica */
+#clinica-selector-wrap{display:flex;align-items:center;gap:8px}
+#clinica-selector{
+  border:1.5px solid rgba(255,255,255,.5);border-radius:8px;
+  background:rgba(255,255,255,.18);color:#fff;padding:5px 10px;
+  font-size:.82rem;outline:none;cursor:pointer;max-width:200px;
 }
-.nav-btn:hover { background: rgba(255,255,255,.28); }
-.nav-btn.active { background: rgba(255,255,255,.35); font-weight: 700;
-                  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5); }
+#clinica-selector option{color:var(--text);background:#fff}
+.clinica-badge{
+  display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);
+  border-radius:20px;padding:4px 12px;font-size:.82rem;font-weight:600;
+  white-space:nowrap;
+}
+.btn-logout{
+  background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);
+  color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:600;
+  cursor:pointer;transition:background .18s;white-space:nowrap;
+}
+.btn-logout:hover{background:rgba(255,255,255,.3)}
 
 /* ═══ LAYOUT ═══════════════════════════════════════════════════════════════ */
-#main { max-width: 1400px; margin: 0 auto; padding: 24px 20px 40px; }
-.view { display: none; }
-.view.active { display: block; }
+#main{max-width:1400px;margin:0 auto;padding:24px 20px 40px}
+.view{display:none}
+.view.active{display:block}
 
 /* ═══ CARDS ════════════════════════════════════════════════════════════════ */
-.card {
-  background: var(--card); border-radius: var(--radius);
-  box-shadow: var(--shadow); border: 1px solid var(--border);
-}
-.card-header {
-  padding: 16px 20px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-.card-header h2 { font-size: 1rem; font-weight: 600; color: var(--text); flex: 1; }
-.card-body { padding: 20px; }
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border)}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-header h2{font-size:1rem;font-weight:600;flex:1}
+.card-body{padding:20px}
 
 /* ═══ BOTÕES ═══════════════════════════════════════════════════════════════ */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  border: none; border-radius: 8px; padding: 8px 16px;
-  font-size: .88rem; font-weight: 600; transition: all .18s; cursor: pointer;
-}
-.btn-primary { background: var(--cel); color: #fff; }
-.btn-primary:hover { background: #6aa3c5; transform: translateY(-1px); }
-.btn-secondary { background: var(--cel-lt); color: var(--text); }
-.btn-secondary:hover { background: #c8dff0; }
-.btn-peach { background: var(--pec); color: #fff; }
-.btn-peach:hover { background: #d0845c; }
-.btn-danger { background: var(--red-lt); color: var(--red); }
-.btn-danger:hover { background: #f5d0d0; }
-.btn-success { background: var(--green-lt); color: #2d7a56; }
-.btn-success:hover { background: #c0e8d4; }
-.btn-sm { padding: 4px 10px; font-size: .8rem; border-radius: 6px; }
-.btn-icon { padding: 5px 8px; font-size: .9rem; background: none;
-            border: none; color: var(--text-lt); cursor: pointer;
-            border-radius: 6px; transition: all .15s; }
-.btn-icon:hover { background: var(--cel-pale); color: var(--cel); }
+.btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:8px;padding:8px 16px;font-size:.88rem;font-weight:600;transition:all .18s;cursor:pointer}
+.btn-primary{background:var(--cel);color:#fff}.btn-primary:hover{background:#6aa3c5;transform:translateY(-1px)}
+.btn-secondary{background:var(--cel-lt);color:var(--text)}.btn-secondary:hover{background:#c8dff0}
+.btn-peach{background:var(--pec);color:#fff}.btn-peach:hover{background:#d0845c}
+.btn-danger{background:var(--red-lt);color:var(--red)}.btn-danger:hover{background:#f5d0d0}
+.btn-success{background:var(--green-lt);color:#2d7a56}.btn-success:hover{background:#c0e8d4}
+.btn-sm{padding:4px 10px;font-size:.8rem;border-radius:6px}
 
-/* ═══ FORMULÁRIOS ══════════════════════════════════════════════════════════ */
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.form-grid .full { grid-column: 1/-1; }
-.field { display: flex; flex-direction: column; gap: 5px; }
-.field label { font-size: .82rem; font-weight: 600; color: var(--text-lt); }
-.field input, .field select, .field textarea {
-  border: 1.5px solid var(--border); border-radius: 8px;
-  padding: 9px 12px; outline: none; transition: border-color .18s;
-  background: var(--card); color: var(--text);
+/* ═══ FORMS ════════════════════════════════════════════════════════════════ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:.82rem;font-weight:600;color:var(--text-lt)}
+.field input,.field select,.field textarea{
+  border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;
+  outline:none;transition:border-color .18s;background:var(--card);color:var(--text)
 }
-.field input:focus, .field select:focus, .field textarea:focus {
-  border-color: var(--cel);
-  box-shadow: 0 0 0 3px rgba(127,179,211,.15);
-}
-.field textarea { resize: vertical; min-height: 80px; }
-.required { color: var(--pec); margin-left: 2px; }
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--cel);box-shadow:0 0 0 3px rgba(127,179,211,.15)}
+.field textarea{resize:vertical;min-height:80px}
+.required{color:var(--pec);margin-left:2px}
 
-/* ═══ BADGE / STATUS ═══════════════════════════════════════════════════════ */
-.badge {
-  display: inline-block; padding: 2px 10px; border-radius: 20px;
-  font-size: .75rem; font-weight: 600;
-}
-.badge-conf { background: var(--cel-lt); color: var(--cel); }
-.badge-conc { background: var(--green-lt); color: #2d7a56; }
-.badge-canc { background: var(--red-lt); color: var(--red); }
+/* ═══ BADGES ═══════════════════════════════════════════════════════════════ */
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+.badge-conf{background:var(--cel-lt);color:var(--cel)}
+.badge-conc{background:var(--green-lt);color:#2d7a56}
+.badge-canc{background:var(--red-lt);color:var(--red)}
+.badge-admin{background:var(--pec-lt);color:var(--pec);font-size:.72rem;padding:2px 8px}
 
-/* ═══ VISÃO DIÁRIA ═════════════════════════════════════════════════════════ */
-.daily-toolbar {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.date-nav { display: flex; align-items: center; gap: 6px; }
-.date-nav .date-label {
-  font-size: 1.1rem; font-weight: 700; color: var(--text);
-  min-width: 210px; text-align: center;
-}
-#date-input {
-  border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px;
-  background: var(--card); color: var(--text); font-size: .93rem;
-  outline: none; cursor: pointer;
-}
-#date-input:focus { border-color: var(--cel); }
+/* ═══ TIMELINE ═════════════════════════════════════════════════════════════ */
+.daily-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.date-nav{display:flex;align-items:center;gap:6px}
+.date-nav .date-label{font-size:1.05rem;font-weight:700;color:var(--text);min-width:200px;text-align:center}
+#date-input{border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;background:var(--card);color:var(--text);font-size:.9rem;outline:none}
+#date-input:focus{border-color:var(--cel)}
+.timeline-wrap{overflow-x:auto;border-radius:var(--radius)}
+.timeline{display:grid;grid-template-columns:150px repeat(28,minmax(58px,1fr));min-width:1800px}
+.tl-corner{background:var(--cel-lt);border-bottom:2px solid var(--border);border-right:2px solid var(--border);padding:10px 14px;font-size:.78rem;font-weight:700;color:var(--text-lt);border-radius:var(--radius) 0 0 0;display:flex;align-items:flex-end}
+.tl-header{background:var(--cel-lt);border-bottom:2px solid var(--border);text-align:center;padding:8px 4px;font-size:.76rem;font-weight:700;color:var(--cel)}
+.tl-room-label{background:var(--pec-pale);border-right:2px solid var(--border);border-bottom:1px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:2px;justify-content:center}
+.tl-room-label .room-name{font-size:.83rem;font-weight:700}
+.tl-room-label .room-num{font-size:.72rem;color:var(--text-lt)}
+.tl-room-label .room-hydro{font-size:.72rem;color:var(--cel)}
+.tl-cell{border-bottom:1px solid var(--border);border-right:1px dashed #e8e0d8;min-height:72px;position:relative;transition:background .12s}
+.tl-cell:hover{background:var(--cel-pale);cursor:pointer}
+.tl-cell.half-border{border-right-style:solid}
+.reservation-block{position:absolute;top:4px;bottom:4px;left:2px;right:2px;border-radius:8px;padding:5px 7px;font-size:.72rem;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;gap:1px;transition:filter .15s,transform .12s;z-index:2}
+.reservation-block:hover{filter:brightness(.93);transform:scale(1.01)}
+.reservation-block .rb-client{font-weight:700;font-size:.76rem}
+.reservation-block .rb-prof{color:rgba(0,0,0,.55)}
+.reservation-block .rb-time{color:rgba(0,0,0,.45);font-size:.68rem}
+.res-conf{background:linear-gradient(135deg,#b8e0f5,#9acde8);border-left:3px solid var(--cel);color:var(--text)}
+.res-conc{background:linear-gradient(135deg,#b8e8d0,#9dd6b6);border-left:3px solid var(--green);color:#1d5a40}
+.res-canc{background:linear-gradient(135deg,#f5d0d0,#e8b8b8);border-left:3px solid var(--red);color:#7a2020;opacity:.65;text-decoration:line-through}
+.empty-day{text-align:center;padding:48px;color:var(--text-lt);font-size:.95rem}
+.empty-day .empty-icon{font-size:2.5rem;margin-bottom:10px}
 
-.timeline-wrap { overflow-x: auto; border-radius: var(--radius); }
-.timeline {
-  display: grid;
-  /* col 1 = rótulo quarto | col 2+ = slots de 30min (08:00–22:00 = 28 slots) */
-  grid-template-columns: 140px repeat(28, minmax(58px, 1fr));
-  min-width: 1720px;
-}
-.tl-corner {
-  background: var(--cel-lt); border-bottom: 2px solid var(--border);
-  border-right: 2px solid var(--border); padding: 10px 14px;
-  font-size: .78rem; font-weight: 700; color: var(--text-lt);
-  border-radius: var(--radius) 0 0 0;
-  display: flex; align-items: flex-end;
-}
-.tl-header {
-  background: var(--cel-lt); border-bottom: 2px solid var(--border);
-  text-align: center; padding: 8px 4px; font-size: .76rem; font-weight: 700;
-  color: var(--cel); position: sticky; top: 0;
-}
-.tl-room-label {
-  background: var(--pec-pale); border-right: 2px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
-  justify-content: center;
-}
-.tl-room-label .room-name { font-size: .83rem; font-weight: 700; }
-.tl-room-label .room-num  { font-size: .72rem; color: var(--text-lt); }
-.tl-room-label .room-hydro { font-size: .72rem; color: var(--cel); }
-.tl-cell {
-  border-bottom: 1px solid var(--border);
-  border-right: 1px dashed #e8e0d8;
-  min-height: 72px; position: relative;
-  transition: background .12s;
-}
-.tl-cell:hover { background: var(--cel-pale); cursor: pointer; }
-.tl-cell.half-border { border-right-style: solid; }
-
-.reservation-block {
-  position: absolute; top: 4px; bottom: 4px; left: 2px; right: 2px;
-  border-radius: 8px; padding: 5px 7px;
-  font-size: .72rem; cursor: pointer; overflow: hidden;
-  display: flex; flex-direction: column; gap: 1px;
-  transition: filter .15s, transform .12s;
-  z-index: 2;
-}
-.reservation-block:hover { filter: brightness(.93); transform: scale(1.01); }
-.reservation-block .rb-client { font-weight: 700; font-size: .76rem; }
-.reservation-block .rb-prof   { color: rgba(0,0,0,.55); }
-.reservation-block .rb-time   { color: rgba(0,0,0,.45); font-size: .68rem; }
-.res-conf { background: linear-gradient(135deg,#b8e0f5,#9acde8);
-            border-left: 3px solid var(--cel); color: var(--text); }
-.res-conc { background: linear-gradient(135deg,#b8e8d0,#9dd6b6);
-            border-left: 3px solid var(--green); color: #1d5a40; }
-.res-canc { background: linear-gradient(135deg,#f5d0d0,#e8b8b8);
-            border-left: 3px solid var(--red); color: #7a2020;
-            opacity: .65; text-decoration: line-through; }
-
-.empty-day {
-  text-align: center; padding: 48px; color: var(--text-lt);
-  font-size: .95rem;
-}
-.empty-day .empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
-
-/* ═══ VISÃO MENSAL ═════════════════════════════════════════════════════════ */
-.month-toolbar {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 20px; flex-wrap: wrap;
-}
-.month-toolbar select {
-  border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px;
-  background: var(--card); color: var(--text); outline: none;
-}
-.month-toolbar select:focus { border-color: var(--cel); }
-.calendar-grid {
-  display: grid; grid-template-columns: repeat(7, 1fr);
-  gap: 1px; background: var(--border); border-radius: var(--radius);
-  overflow: hidden; box-shadow: var(--shadow);
-}
-.cal-weekday {
-  background: var(--cel-lt); text-align: center;
-  padding: 10px 4px; font-size: .8rem; font-weight: 700; color: var(--cel);
-}
-.cal-day {
-  background: var(--card); min-height: 90px;
-  padding: 8px; cursor: pointer; transition: background .15s;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.cal-day:hover { background: var(--cel-pale); }
-.cal-day.other-month { background: #f0ece8; }
-.cal-day.today { background: var(--pec-pale);
-                 box-shadow: inset 0 0 0 2px var(--pec); }
-.cal-day .day-num {
-  font-size: .88rem; font-weight: 700; color: var(--text);
-}
-.cal-day.other-month .day-num { color: var(--text-lt); }
-.cal-day.today .day-num { color: var(--pec); }
-.cal-day .day-badge {
-  font-size: .72rem; padding: 2px 6px; border-radius: 10px;
-  background: var(--cel-lt); color: var(--cel); font-weight: 600;
-  align-self: flex-start;
-}
-.cal-day .day-badge.has-res { background: var(--cel); color: #fff; }
+/* ═══ CALENDÁRIO MENSAL ════════════════════════════════════════════════════ */
+.month-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.month-toolbar select{border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;background:var(--card);color:var(--text);outline:none}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.cal-weekday{background:var(--cel-lt);text-align:center;padding:10px 4px;font-size:.8rem;font-weight:700;color:var(--cel)}
+.cal-day{background:var(--card);min-height:90px;padding:8px;cursor:pointer;transition:background .15s;display:flex;flex-direction:column;gap:4px}
+.cal-day:hover{background:var(--cel-pale)}
+.cal-day.other-month{background:#f0ece8}
+.cal-day.today{background:var(--pec-pale);box-shadow:inset 0 0 0 2px var(--pec)}
+.cal-day .day-num{font-size:.88rem;font-weight:700}
+.cal-day.other-month .day-num{color:var(--text-lt)}
+.cal-day.today .day-num{color:var(--pec)}
+.cal-day .day-badge{font-size:.72rem;padding:2px 6px;border-radius:10px;background:var(--cel-lt);color:var(--cel);font-weight:600;align-self:flex-start}
+.cal-day .day-badge.has-res{background:var(--cel);color:#fff}
 
 /* ═══ LISTAS CRUD ══════════════════════════════════════════════════════════ */
-.list-header {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 20px; flex-wrap: wrap;
+.list-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.list-header h1{font-size:1.3rem;font-weight:700;flex:1}
+.search-box{display:flex;align-items:center;gap:6px;background:var(--card);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px}
+.search-box input{border:none;outline:none;background:none;font-size:.88rem;width:180px}
+.item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+.item-card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);transition:box-shadow .18s,transform .15s;position:relative}
+.item-card:hover{box-shadow:0 6px 20px rgba(61,90,107,.15);transform:translateY(-2px)}
+.item-card .item-title{font-size:.97rem;font-weight:700;margin-bottom:4px}
+.item-card .item-sub{font-size:.82rem;color:var(--text-lt);margin-bottom:8px}
+.item-card .item-detail{font-size:.8rem;color:var(--text);margin-bottom:2px}
+.item-card .item-actions{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.hydro-tag{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;background:var(--cel-lt);color:var(--cel);padding:2px 8px;border-radius:10px;font-weight:600}
+.inactive-overlay{position:absolute;inset:0;border-radius:var(--radius);background:rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--text-lt);font-weight:600;pointer-events:none}
+
+/* ═══ PAINEL ADMIN ═════════════════════════════════════════════════════════ */
+.admin-section{margin-bottom:36px}
+.admin-section-title{font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--text);display:flex;align-items:center;gap:8px}
+
+/* ═══ DASHBOARD ════════════════════════════════════════════════════════════ */
+.dash-section{margin-bottom:24px}
+.dash-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dash-controls select,.dash-controls input[type=date]{
+  border:1.5px solid rgba(255,255,255,.5);border-radius:8px;
+  background:rgba(255,255,255,.18);color:#fff;padding:4px 10px;
+  font-size:.82rem;outline:none;
 }
-.list-header h1 { font-size: 1.3rem; font-weight: 700; flex: 1; }
-.search-box {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--card); border: 1.5px solid var(--border);
-  border-radius: 8px; padding: 6px 12px;
-}
-.search-box input {
-  border: none; outline: none; background: none;
-  font-size: .88rem; width: 180px;
-}
-.item-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 16px;
-}
-.item-card {
-  background: var(--card); border: 1.5px solid var(--border);
-  border-radius: var(--radius); padding: 16px;
-  box-shadow: var(--shadow); transition: box-shadow .18s, transform .15s;
-  position: relative;
-}
-.item-card:hover { box-shadow: 0 6px 20px rgba(61,90,107,.15);
-                   transform: translateY(-2px); }
-.item-card .item-title {
-  font-size: .97rem; font-weight: 700; margin-bottom: 4px;
-}
-.item-card .item-sub {
-  font-size: .82rem; color: var(--text-lt); margin-bottom: 8px;
-}
-.item-card .item-detail {
-  font-size: .8rem; color: var(--text); margin-bottom: 2px;
-}
-.item-card .item-actions {
-  display: flex; gap: 6px; margin-top: 12px; padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.hydro-tag {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: .75rem; background: var(--cel-lt); color: var(--cel);
-  padding: 2px 8px; border-radius: 10px; font-weight: 600;
-}
-.inactive-overlay {
-  position: absolute; inset: 0; border-radius: var(--radius);
-  background: rgba(255,255,255,.55); display: flex; align-items: center;
-  justify-content: center; font-size: .8rem; color: var(--text-lt);
-  font-weight: 600; pointer-events: none;
-}
+.dash-controls select option{color:var(--text);background:#fff}
+.dash-table{width:100%;border-collapse:collapse;font-size:.87rem}
+.dash-table th{background:var(--cel-lt);padding:10px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:700;white-space:nowrap;color:var(--text)}
+.dash-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.dash-table tbody tr:nth-child(even){background:var(--bg)}
+.dash-table tbody tr:hover{background:var(--cel-pale)}
+.dash-table .total-row{background:var(--pec-pale)!important;font-weight:700;border-top:2px solid var(--border)}
+.dash-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.dash-table .ctr{text-align:center}
+.dash-empty{text-align:center;padding:32px;color:var(--text-lt);font-size:.9rem}
 
 /* ═══ MODAL ════════════════════════════════════════════════════════════════ */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(40,55,65,.45);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; padding: 20px; opacity: 0;
-  transition: opacity .2s;
-  pointer-events: none;
-}
-.modal-overlay.open { opacity: 1; pointer-events: all; }
-.modal {
-  background: var(--card); border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(40,55,65,.3);
-  width: 100%; max-width: 560px; max-height: 92vh;
-  overflow-y: auto; transform: translateY(16px);
-  transition: transform .22s;
-}
-.modal-overlay.open .modal { transform: translateY(0); }
-.modal-header {
-  padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
-}
-.modal-header h3 { font-size: 1.05rem; font-weight: 700; flex: 1; }
-.modal-close {
-  background: none; border: none; font-size: 1.3rem;
-  color: var(--text-lt); cursor: pointer; padding: 2px 6px;
-  border-radius: 6px; transition: background .15s;
-}
-.modal-close:hover { background: var(--red-lt); color: var(--red); }
-.modal-body { padding: 22px; }
-.modal-footer {
-  padding: 14px 22px 18px; border-top: 1px solid var(--border);
-  display: flex; gap: 10px; justify-content: flex-end;
-}
+.modal-overlay{position:fixed;inset:0;background:rgba(40,55,65,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;opacity:0;transition:opacity .2s;pointer-events:none}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--card);border-radius:16px;box-shadow:0 20px 60px rgba(40,55,65,.3);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;transform:translateY(16px);transition:transform .22s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal-header h3{font-size:1.05rem;font-weight:700;flex:1}
+.modal-close{background:none;border:none;font-size:1.3rem;color:var(--text-lt);cursor:pointer;padding:2px 6px;border-radius:6px;transition:background .15s}
+.modal-close:hover{background:var(--red-lt);color:var(--red)}
+.modal-body{padding:22px}
+.modal-footer{padding:14px 22px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
 
 /* ═══ TOAST ════════════════════════════════════════════════════════════════ */
-#toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 2000;
-              display: flex; flex-direction: column; gap: 8px; }
-.toast {
-  min-width: 220px; max-width: 340px; padding: 12px 18px;
-  border-radius: 10px; font-size: .88rem; font-weight: 600;
-  box-shadow: 0 4px 16px rgba(0,0,0,.18); animation: slideUp .25s ease;
-  display: flex; align-items: center; gap: 8px;
-}
-.toast-ok   { background: var(--green-lt); color: #1d6040; border-left: 4px solid var(--green); }
-.toast-err  { background: var(--red-lt);   color: #7a1f1f; border-left: 4px solid var(--red); }
-.toast-info { background: var(--cel-lt);   color: var(--text); border-left: 4px solid var(--cel); }
-@keyframes slideUp { from { transform: translateY(20px); opacity: 0; }
-                     to   { transform: translateY(0);    opacity: 1; } }
-
-/* ═══ LOADER ═══════════════════════════════════════════════════════════════ */
-.spinner {
-  width: 28px; height: 28px; border: 3px solid var(--cel-lt);
-  border-top-color: var(--cel); border-radius: 50%;
-  animation: spin .7s linear infinite; margin: 40px auto;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+#toast-wrap{position:fixed;bottom:24px;right:24px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{min-width:220px;max-width:340px;padding:12px 18px;border-radius:10px;font-size:.88rem;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.18);animation:slideUp .25s ease;display:flex;align-items:center;gap:8px}
+.toast-ok{background:var(--green-lt);color:#1d6040;border-left:4px solid var(--green)}
+.toast-err{background:var(--red-lt);color:#7a1f1f;border-left:4px solid var(--red)}
+.toast-info{background:var(--cel-lt);color:var(--text);border-left:4px solid var(--cel)}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.spinner{width:28px;height:28px;border:3px solid var(--cel-lt);border-top-color:var(--cel);border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ═══ RESPONSIVO ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  #hamburger { display: block; }
-  #nav { display: none; flex-direction: column; position: absolute;
-         top: 58px; left: 0; right: 0; background: #5a9abf;
-         padding: 12px; gap: 6px; z-index: 99; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-  #nav.open { display: flex; }
-  .nav-btn { border-radius: 8px; padding: 10px 16px; text-align: left; }
-  #topbar { position: relative; }
-
-  .form-grid { grid-template-columns: 1fr; }
-  .form-grid .full { grid-column: 1; }
-  #main { padding: 16px 12px 40px; }
-  .item-grid { grid-template-columns: 1fr; }
-  .daily-toolbar { gap: 8px; }
-  .date-nav .date-label { min-width: 160px; font-size: .95rem; }
-  .modal { max-width: 100%; }
-  .cal-day { min-height: 60px; padding: 5px; }
-  .cal-weekday { padding: 7px 2px; font-size: .72rem; }
-}
-@media (max-width: 480px) {
-  .timeline { min-width: 900px; grid-template-columns: 100px repeat(28, minmax(42px,1fr)); }
-  .tl-header { font-size: .65rem; padding: 5px 2px; }
-  .tl-room-label { padding: 6px 6px; }
-  .tl-room-label .room-name { font-size: .72rem; }
+@media(max-width:768px){
+  #hamburger{display:block}
+  #nav{display:none;flex-direction:column;position:absolute;top:58px;left:0;right:0;background:#5a9abf;padding:12px;gap:6px;z-index:99;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  #nav.open{display:flex}
+  .nav-btn{border-radius:8px;padding:10px 16px;text-align:left}
+  #topbar{position:relative}
+  .form-grid{grid-template-columns:1fr}
+  .form-grid .full{grid-column:1}
+  #main{padding:16px 12px 40px}
+  .item-grid{grid-template-columns:1fr}
+  #clinica-selector{max-width:130px}
+  .clinica-badge{font-size:.72rem;padding:3px 8px}
+  .dash-table{font-size:.78rem}
+  .dash-table th,.dash-table td{padding:7px 8px}
 }
 </style>
 </head>
 <body>
 
-<!-- ═══ TOPBAR ═══════════════════════════════════════════════════════════════ -->
-<header id="topbar">
-  <button id="hamburger" onclick="toggleMenu()">☰</button>
-  <div class="logo">💆 <span>Massagem</span> Reserva</div>
-  <nav id="nav">
-    <button class="nav-btn active" onclick="showView('daily')"   >📅 Hoje</button>
-    <button class="nav-btn"        onclick="showView('monthly')" >📆 Mês</button>
-    <button class="nav-btn"        onclick="showView('quartos')" >🛏 Quartos</button>
-    <button class="nav-btn"        onclick="showView('profissionais')">👤 Profissionais</button>
-    <button class="nav-btn"        onclick="showView('massagens')">💆 Massagens</button>
-  </nav>
-</header>
-
-<div id="main">
-
-  <!-- ═══ VISÃO DIÁRIA ══════════════════════════════════════════════════════ -->
-  <div id="view-daily" class="view active">
-    <div class="daily-toolbar">
-      <div class="date-nav">
-        <button class="btn btn-secondary btn-sm" onclick="changeDay(-1)">‹</button>
-        <span class="date-label" id="date-label"></span>
-        <button class="btn btn-secondary btn-sm" onclick="changeDay(1)">›</button>
-      </div>
-      <input type="date" id="date-input" onchange="onDateInput(this.value)"/>
-      <button class="btn btn-primary btn-sm" onclick="openReservaModal()">
-        ＋ Nova Reserva
-      </button>
+<!-- ═══ LOGIN ═══════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">💆</div>
+    <div class="login-title">Massagem Reserva</div>
+    <div class="login-sub">Sistema de Gestão para Spas</div>
+    <div class="field">
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="seu@email.com"
+             onkeydown="if(event.key==='Enter')doLogin()"/>
     </div>
-    <div class="card">
-      <div id="timeline-container">
-        <div class="spinner"></div>
-      </div>
+    <div class="field">
+      <label>Senha</label>
+      <input id="login-senha" type="password" placeholder="••••••••"
+             onkeydown="if(event.key==='Enter')doLogin()"/>
     </div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-powered">Powered by P. Soluções</div>
   </div>
+</div>
 
-  <!-- ═══ VISÃO MENSAL ══════════════════════════════════════════════════════ -->
-  <div id="view-monthly" class="view">
-    <div class="month-toolbar">
-      <h1 style="font-size:1.3rem;font-weight:700;flex:1">📆 Calendário Mensal</h1>
-      <select id="sel-month" onchange="loadMonthly()">
-        <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-        <option value="3">Março</option><option value="4">Abril</option>
-        <option value="5">Maio</option><option value="6">Junho</option>
-        <option value="7">Julho</option><option value="8">Agosto</option>
-        <option value="9">Setembro</option><option value="10">Outubro</option>
-        <option value="11">Novembro</option><option value="12">Dezembro</option>
+<!-- ═══ APP ══════════════════════════════════════════════════════════════════ -->
+<div id="app">
+  <header id="topbar">
+    <button id="hamburger" onclick="toggleMenu()">☰</button>
+    <div class="logo">💆 <span>Massagem</span> Reserva</div>
+    <nav id="nav">
+      <button class="nav-btn active"  onclick="showView('daily')">📅 Hoje</button>
+      <button class="nav-btn"         onclick="showView('monthly')">📆 Mês</button>
+      <button class="nav-btn"         onclick="showView('quartos')">🛏 Quartos</button>
+      <button class="nav-btn"         onclick="showView('profissionais')">👤 Profissionais</button>
+      <button class="nav-btn"         onclick="showView('massagens')">💆 Massagens</button>
+      <button class="nav-btn"         onclick="showView('dashboard')">📊 Dashboard</button>
+      <button class="nav-btn" id="nav-admin" style="display:none" onclick="showView('admin')">⚙️ Admin</button>
+    </nav>
+    <div id="clinica-selector-wrap" style="display:none">
+      <select id="clinica-selector" onchange="onClinicaSelect(this.value)">
+        <option value="">— Selecione uma Clínica —</option>
       </select>
-      <select id="sel-year" onchange="loadMonthly()"></select>
     </div>
-    <div id="monthly-container"><div class="spinner"></div></div>
-  </div>
+    <div class="clinica-badge" id="clinica-badge" style="display:none"></div>
+    <button class="btn-logout" onclick="logout()">Sair</button>
+  </header>
 
-  <!-- ═══ QUARTOS ════════════════════════════════════════════════════════════ -->
-  <div id="view-quartos" class="view">
-    <div class="list-header">
-      <h1>🛏 Quartos</h1>
-      <button class="btn btn-primary" onclick="openQuartoModal()">＋ Novo Quarto</button>
-    </div>
-    <div id="quartos-list"><div class="spinner"></div></div>
-  </div>
+  <div id="main">
 
-  <!-- ═══ PROFISSIONAIS ═════════════════════════════════════════════════════ -->
-  <div id="view-profissionais" class="view">
-    <div class="list-header">
-      <h1>👤 Profissionais</h1>
-      <div class="search-box">
-        🔍 <input id="prof-search" type="text" placeholder="Buscar..."
-                  oninput="renderProfissionais()"/>
+    <!-- Visão Diária -->
+    <div id="view-daily" class="view active">
+      <div class="daily-toolbar">
+        <div class="date-nav">
+          <button class="btn btn-secondary btn-sm" onclick="changeDay(-1)">‹</button>
+          <span class="date-label" id="date-label"></span>
+          <button class="btn btn-secondary btn-sm" onclick="changeDay(1)">›</button>
+        </div>
+        <input type="date" id="date-input" onchange="onDateInput(this.value)"/>
+        <button class="btn btn-primary btn-sm" onclick="openReservaModal()">＋ Nova Reserva</button>
       </div>
-      <button class="btn btn-primary" onclick="openProfModal()">＋ Novo Profissional</button>
+      <div class="card"><div id="timeline-container"><div class="spinner"></div></div></div>
     </div>
-    <div id="profissionais-list"><div class="spinner"></div></div>
-  </div>
 
-  <!-- ═══ MASSAGENS ═════════════════════════════════════════════════════════ -->
-  <div id="view-massagens" class="view">
-    <div class="list-header">
-      <h1>💆 Massagens</h1>
-      <button class="btn btn-primary" onclick="openMassagemModal()">＋ Nova Massagem</button>
+    <!-- Visão Mensal -->
+    <div id="view-monthly" class="view">
+      <div class="month-toolbar">
+        <h1 style="font-size:1.3rem;font-weight:700;flex:1">📆 Calendário Mensal</h1>
+        <select id="sel-month" onchange="loadMonthly()">
+          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+          <option value="3">Março</option><option value="4">Abril</option>
+          <option value="5">Maio</option><option value="6">Junho</option>
+          <option value="7">Julho</option><option value="8">Agosto</option>
+          <option value="9">Setembro</option><option value="10">Outubro</option>
+          <option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <select id="sel-year" onchange="loadMonthly()"></select>
+      </div>
+      <div id="monthly-container"><div class="spinner"></div></div>
     </div>
-    <div id="massagens-list"><div class="spinner"></div></div>
-  </div>
 
-</div><!-- #main -->
+    <!-- Quartos -->
+    <div id="view-quartos" class="view">
+      <div class="list-header">
+        <h1>🛏 Quartos</h1>
+        <button class="btn btn-primary" onclick="openQuartoModal()">＋ Novo Quarto</button>
+      </div>
+      <div id="quartos-list"><div class="spinner"></div></div>
+    </div>
 
-<!-- ═══ MODAL ══════════════════════════════════════════════════════════════ -->
+    <!-- Profissionais -->
+    <div id="view-profissionais" class="view">
+      <div class="list-header">
+        <h1>👤 Profissionais</h1>
+        <div class="search-box">🔍 <input id="prof-search" type="text" placeholder="Buscar..." oninput="renderProfissionais()"/></div>
+        <button class="btn btn-primary" onclick="openProfModal()">＋ Novo Profissional</button>
+      </div>
+      <div id="profissionais-list"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Massagens -->
+    <div id="view-massagens" class="view">
+      <div class="list-header">
+        <h1>💆 Massagens</h1>
+        <button class="btn btn-primary" onclick="openMassagemModal()">＋ Nova Massagem</button>
+      </div>
+      <div id="massagens-list"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="view-dashboard" class="view">
+      <div class="list-header"><h1>📊 Dashboard Financeiro</h1></div>
+
+      <!-- Mensal por Massagista -->
+      <div class="dash-section">
+        <div class="card">
+          <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
+            <h2 style="color:#fff">👤 Resumo Mensal por Massagista</h2>
+            <div class="dash-controls">
+              <select id="dash-mm-mes"></select>
+              <select id="dash-mm-ano"></select>
+              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
+            </div>
+          </div>
+          <div class="card-body" id="dash-mm-body"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Diário por Massagista -->
+      <div class="dash-section">
+        <div class="card">
+          <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
+            <h2 style="color:#fff">👤 Resumo Diário por Massagista</h2>
+            <div class="dash-controls">
+              <input type="date" id="dash-dm-data"/>
+              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagista()">Carregar</button>
+            </div>
+          </div>
+          <div class="card-body" id="dash-dm-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
+        </div>
+      </div>
+
+      <!-- Mensal por Tipo de Massagem -->
+      <div class="dash-section">
+        <div class="card">
+          <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
+            <h2 style="color:#fff">💆 Resumo Mensal por Tipo de Massagem</h2>
+            <div class="dash-controls">
+              <select id="dash-mt-mes"></select>
+              <select id="dash-mt-ano"></select>
+              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagem()">Carregar</button>
+            </div>
+          </div>
+          <div class="card-body" id="dash-mt-body"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Diário por Tipo de Massagem -->
+      <div class="dash-section">
+        <div class="card">
+          <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
+            <h2 style="color:#fff">💆 Resumo Diário por Tipo de Massagem</h2>
+            <div class="dash-controls">
+              <input type="date" id="dash-dt-data"/>
+              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagem()">Carregar</button>
+            </div>
+          </div>
+          <div class="card-body" id="dash-dt-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Painel Admin -->
+    <div id="view-admin" class="view">
+      <div class="list-header"><h1>⚙️ Painel Administrativo</h1></div>
+      <div class="admin-section">
+        <div class="admin-section-title">🏥 Clínicas Cadastradas
+          <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openClinicaModal()">＋ Nova Clínica</button>
+        </div>
+        <div id="clinicas-list"><div class="spinner"></div></div>
+      </div>
+      <div class="admin-section">
+        <div class="admin-section-title">👤 Administradores
+          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="openAdminModal()">＋ Novo Admin</button>
+        </div>
+        <div id="admins-list"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModalOnBg(event)">
   <div class="modal" id="modal">
     <div class="modal-header">
-      <h3 id="modal-title">Título</h3>
+      <h3 id="modal-title"></h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-footer" id="modal-footer"></div>
   </div>
 </div>
-
-<!-- ═══ TOASTS ══════════════════════════════════════════════════════════════ -->
 <div id="toast-wrap"></div>
 
-<!-- ═══ SCRIPT ══════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
-// ─── Estado ────────────────────────────────────────────────────────────────
+// ─── Estado ─────────────────────────────────────────────────────────────────
+const auth = { token: localStorage.getItem('mr_token'), user: null };
 let state = {
   currentView: 'daily',
-  currentDate: toDateStr(new Date()),
-  quartos: [],
-  profissionais: [],
-  massagens: [],
-  reservasDia: [],
-  monthData: {},
+  currentDate: '',
+  adminClinicaId: null,
+  quartos:[], profissionais:[], massagens:[], reservasDia:[]
 };
 
-// ─── Utilidades ────────────────────────────────────────────────────────────
-function toDateStr(d) {
-  return d.toFullYear ? d.toFullYear() :
-    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-Date.prototype.toFullYear = function() {
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ─── Utilidades ──────────────────────────────────────────────────────────────
+Date.prototype.toYMD = function(){
   return `${this.getFullYear()}-${String(this.getMonth()+1).padStart(2,'0')}-${String(this.getDate()).padStart(2,'0')}`;
 };
-function parseDate(s) {
-  const [y,m,d] = s.split('-').map(Number);
-  return new Date(y, m-1, d);
-}
-function fmtDate(s) {
-  const d = parseDate(s);
-  return d.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-}
-function fmtDateShort(s) {
-  return parseDate(s).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
-}
-function fmtCPF(s) {
-  const n = s.replace(/\D/g,'');
-  return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-}
-function fmtMoeda(v) {
-  return Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-}
-function timeToMin(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
-function minToTime(m) {
-  return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
-}
+function parseDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function fmtDate(s){return parseDate(s).toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}
+function fmtCPF(s){const n=(s||'').replace(/\D/g,'');return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4')}
+function fmtMoeda(v){return Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m}
+function minToTime(m){return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
-// ─── API ────────────────────────────────────────────────────────────────────
-async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch('/api' + path, opts);
-  const json = await r.json();
-  if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function api(method, path, body){
+  const opts={method,headers:{'Content-Type':'application/json','Authorization':`Bearer ${auth.token||''}`}};
+  if(body) opts.body=JSON.stringify(body);
+  const r=await fetch('/api'+path,opts);
+  if(r.status===401){logout();return}
+  const json=await r.json();
+  if(!json.ok) throw new Error(json.error||'Erro desconhecido');
   return json.data;
 }
 
-// ─── Toast ──────────────────────────────────────────────────────────────────
-function toast(msg, type = 'ok') {
-  const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
-  el.innerHTML = (type==='ok'?'✅':type==='err'?'❌':'ℹ️') + ' ' + msg;
+function cidParam(){
+  if(auth.user?.role==='admin'){
+    if(!state.adminClinicaId) return '';
+    return `clinica_id=${state.adminClinicaId}`;
+  }
+  return '';
+}
+function cidBody(){
+  if(auth.user?.role==='admin' && state.adminClinicaId) return {clinica_id:state.adminClinicaId};
+  return {};
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function toast(msg,type='ok'){
+  const el=document.createElement('div');
+  el.className=`toast toast-${type}`;
+  el.innerHTML=(type==='ok'?'✅':type==='err'?'❌':'ℹ️')+' '+msg;
   document.getElementById('toast-wrap').appendChild(el);
-  setTimeout(() => el.remove(), 3400);
+  setTimeout(()=>el.remove(),3400);
 }
 
-// ─── Nav ────────────────────────────────────────────────────────────────────
-function showView(v) {
-  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-  document.getElementById('view-' + v).classList.add('active');
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    if (btn.textContent.toLowerCase().includes(
-        v === 'daily' ? 'hoje' : v === 'monthly' ? 'mês' :
-        v === 'quartos' ? 'quartos' : v === 'profissionais' ? 'prof' : 'massa'
-    )) btn.classList.add('active');
-  });
-  // fechar menu mobile
-  document.getElementById('nav').classList.remove('open');
-  state.currentView = v;
-  if (v === 'daily') loadDaily();
-  else if (v === 'monthly') loadMonthly();
-  else if (v === 'quartos') loadQuartos();
-  else if (v === 'profissionais') loadProfissionais();
-  else if (v === 'massagens') loadMassagens();
-}
-function toggleMenu() {
-  document.getElementById('nav').classList.toggle('open');
-}
-
-// ─── Modal ──────────────────────────────────────────────────────────────────
-function openModal(title, bodyHtml, footerHtml) {
-  document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-body').innerHTML = bodyHtml;
-  document.getElementById('modal-footer').innerHTML = footerHtml;
+// ─── Modal ───────────────────────────────────────────────────────────────────
+function openModal(title,bodyHtml,footerHtml){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=bodyHtml;
+  document.getElementById('modal-footer').innerHTML=footerHtml;
   document.getElementById('modal-overlay').classList.add('open');
 }
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open')}
+function closeModalOnBg(e){if(e.target===document.getElementById('modal-overlay'))closeModal()}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const senha=document.getElementById('login-senha').value;
+  const errEl=document.getElementById('login-error');
+  errEl.textContent='';
+  if(!email||!senha){errEl.textContent='Preencha email e senha';return}
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,senha})});
+    const json=await r.json();
+    if(!json.ok){errEl.textContent=json.error;return}
+    auth.token=json.data.token;
+    auth.user=json.data.user;
+    localStorage.setItem('mr_token',auth.token);
+    initApp();
+  }catch(e){errEl.textContent='Erro de conexão. Tente novamente.'}
 }
-function closeModalOnBg(e) {
-  if (e.target === document.getElementById('modal-overlay')) closeModal();
+
+function logout(){
+  auth.token=null;auth.user=null;
+  localStorage.removeItem('mr_token');
+  // Volta para a tela de login sem recarregar
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-senha').value='';
+  document.getElementById('login-error').textContent='';
+  // Reseta o estado
+  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],reservasDia:[]};
+}
+
+async function verifyToken(){
+  if(!auth.token) return false;
+  try{
+    const r=await fetch('/api/auth/me',{headers:{'Authorization':`Bearer ${auth.token}`}});
+    const json=await r.json();
+    if(!json.ok){auth.token=null;localStorage.removeItem('mr_token');return false}
+    auth.user=json.data;
+    return true;
+  }catch{return false}
+}
+
+async function start(){
+  const valid=await verifyToken();
+  if(valid) initApp();
+}
+
+function initApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+
+  if(auth.user.role==='admin'){
+    document.getElementById('nav-admin').style.display='';
+    document.getElementById('clinica-selector-wrap').style.display='flex';
+    loadClinicaSelector();
+  } else {
+    document.getElementById('clinica-badge').style.display='flex';
+    document.getElementById('clinica-badge').textContent='🏥 '+auth.user.nome_clinica;
+  }
+
+  initDate();
+  initMonthSelectors();
+  initDashboard();
+  loadDaily();
+}
+
+// ─── Nav ─────────────────────────────────────────────────────────────────────
+function showView(v){
+  if(auth.user?.role==='admin' && !state.adminClinicaId &&
+     ['daily','monthly','quartos','profissionais','massagens','dashboard'].includes(v)){
+    toast('Selecione uma clínica no topo primeiro','info');return;
+  }
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(btn=>{
+    const t=btn.textContent.toLowerCase();
+    if((v==='daily'&&t.includes('hoje'))||(v==='monthly'&&t.includes('mês'))||
+       (v==='quartos'&&t.includes('quart'))||(v==='profissionais'&&t.includes('prof'))||
+       (v==='massagens'&&t.includes('massa'))||(v==='dashboard'&&t.includes('dashboard'))||(v==='admin'&&t.includes('admin')))
+      btn.classList.add('active');
+  });
+  document.getElementById('nav').classList.remove('open');
+  state.currentView=v;
+  if(v==='daily') loadDaily();
+  else if(v==='monthly') loadMonthly();
+  else if(v==='quartos') loadQuartos();
+  else if(v==='profissionais') loadProfissionais();
+  else if(v==='massagens') loadMassagens();
+  else if(v==='dashboard') loadDashboard();
+  else if(v==='admin') loadAdminPanel();
+}
+function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
+
+// ─── Seletor de clínica (admin) ───────────────────────────────────────────────
+async function loadClinicaSelector(){
+  try{
+    const clinicas=await api('GET','/admin/clinicas');
+    const sel=document.getElementById('clinica-selector');
+    sel.innerHTML='<option value="">— Selecione uma Clínica —</option>';
+    clinicas.filter(c=>c.ativo).forEach(c=>{
+      const opt=document.createElement('option');
+      opt.value=c.id;opt.textContent=c.nome;
+      sel.appendChild(opt);
+    });
+  }catch(e){}
+}
+function onClinicaSelect(val){
+  state.adminClinicaId=val?parseInt(val):null;
+  state.quartos=[];state.profissionais=[];state.massagens=[];
+  if(val && state.currentView!=='admin') showView(state.currentView);
+  else if(val) loadAdminPanel();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VISÃO DIÁRIA
+// VISÃO DIÁRIA — Eixo Y: Massagista, Eixo X: Horário
 // ═══════════════════════════════════════════════════════════════════════════
-const START_HOUR = 8;   // 08:00
-const END_HOUR   = 22;  // 22:00
-const SLOTS      = (END_HOUR - START_HOUR) * 2; // 28 slots de 30min
+const START_HOUR=8,END_HOUR=22,SLOTS=(END_HOUR-START_HOUR)*2;
 
-function initDate() {
-  const today = new Date().toFullYear();
-  state.currentDate = today;
-  document.getElementById('date-input').value = today;
+function initDate(){
+  state.currentDate=new Date().toYMD();
+  document.getElementById('date-input').value=state.currentDate;
   updateDateLabel();
 }
-function updateDateLabel() {
-  document.getElementById('date-label').textContent = fmtDate(state.currentDate);
-  document.getElementById('date-input').value = state.currentDate;
+function updateDateLabel(){
+  document.getElementById('date-label').textContent=fmtDate(state.currentDate);
+  document.getElementById('date-input').value=state.currentDate;
 }
-function changeDay(delta) {
-  const d = parseDate(state.currentDate);
-  d.setDate(d.getDate() + delta);
-  state.currentDate = d.toFullYear();
-  updateDateLabel();
-  loadDaily();
+function changeDay(d){
+  const dt=parseDate(state.currentDate);dt.setDate(dt.getDate()+d);
+  state.currentDate=dt.toYMD();updateDateLabel();loadDaily();
 }
-function onDateInput(v) {
-  state.currentDate = v;
-  updateDateLabel();
-  loadDaily();
-}
+function onDateInput(v){state.currentDate=v;updateDateLabel();loadDaily()}
 
-async function loadDaily() {
-  const cont = document.getElementById('timeline-container');
-  cont.innerHTML = '<div class="spinner"></div>';
-  try {
-    const [quartos, reservas] = await Promise.all([
-      api('GET', '/quartos'),
-      api('GET', `/reservas?data=${state.currentDate}`)
+async function loadDaily(){
+  const cont=document.getElementById('timeline-container');
+  cont.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const[profissionais,reservas]=await Promise.all([
+      api('GET','/profissionais?todos=1'+(cid?'&'+cid:'')),
+      api('GET',`/reservas?data=${state.currentDate}`+(cid?'&'+cid:''))
     ]);
-    state.quartos = quartos;
-    state.reservasDia = reservas;
+    state.reservasDia=reservas;
+    // Mostra ativos + quem tiver reserva hoje
+    const comRes=new Set(reservas.map(r=>r.profissional_id));
+    state.profissionais=profissionais.filter(p=>p.ativo||comRes.has(p.id));
     renderTimeline();
-  } catch(e) {
-    cont.innerHTML = `<p style="padding:20px;color:var(--red)">${e.message}</p>`;
-  }
+  }catch(e){cont.innerHTML=`<p style="padding:20px;color:var(--red)">${e.message}</p>`}
 }
 
-function renderTimeline() {
-  const cont = document.getElementById('timeline-container');
-  if (!state.quartos.length) {
-    cont.innerHTML = `<div class="empty-day">
-      <div class="empty-icon">🛏</div>
-      <div>Nenhum quarto cadastrado. <a href="#" onclick="showView('quartos');return false;">Cadastrar quartos</a></div>
-    </div>`;
-    return;
+function renderTimeline(){
+  const cont=document.getElementById('timeline-container');
+  if(!state.profissionais.length){
+    cont.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhuma massagista cadastrada.</div></div>`;return;
   }
-
-  let html = '<div class="timeline-wrap"><div class="timeline">';
-
-  // Cabeçalho
-  html += `<div class="tl-corner">Quarto</div>`;
-  for (let i = 0; i < SLOTS; i++) {
-    const min = START_HOUR * 60 + i * 30;
-    const label = minToTime(min);
-    const isHour = min % 60 === 0;
-    html += `<div class="tl-header${isHour ? ' half-border' : ''}">${label}</div>`;
+  let html='<div class="timeline-wrap"><div class="timeline">';
+  html+=`<div class="tl-corner">Massagista</div>`;
+  for(let i=0;i<SLOTS;i++){
+    const min=START_HOUR*60+i*30;const isH=min%60===0;
+    html+=`<div class="tl-header${isH?' half-border':''}">${minToTime(min)}</div>`;
   }
-
-  // Linhas por quarto
-  for (const q of state.quartos) {
-    // Label do quarto
-    html += `<div class="tl-room-label">
-      <div class="room-name">${esc(q.nome)}</div>
-      <div class="room-num">Nº ${q.numero}</div>
-      ${q.tem_hidromassagem ? '<div class="room-hydro">💧 Hidro</div>' : ''}
+  for(const prof of state.profissionais){
+    const displayName=prof.nome_fantasia||prof.nome;
+    html+=`<div class="tl-room-label">
+      <div class="room-name">${esc(displayName)}</div>
+      ${prof.nome_fantasia?`<div class="room-num">${esc(prof.nome)}</div>`:''}
+      ${!prof.ativo?'<div class="room-hydro" style="color:var(--red)">Inativa</div>':''}
     </div>`;
-
-    // Células de tempo — com reservas sobrepostas
-    const reservasQuarto = state.reservasDia.filter(r => r.quarto_id === q.id);
-
-    // Mapa de slot → reserva para renderizar como bloco
-    const slotReservas = {};
-    for (const r of reservasQuarto) {
-      const startMin = timeToMin(r.hora_inicio);
-      const endMin   = timeToMin(r.hora_fim);
-      const startSlot = Math.max(0, Math.floor((startMin - START_HOUR*60) / 30));
-      const endSlot   = Math.min(SLOTS, Math.ceil((endMin - START_HOUR*60) / 30));
-      slotReservas[startSlot] = { ...r, startSlot, endSlot, span: endSlot - startSlot };
-    }
-
-    // Renderizar células
-    for (let i = 0; i < SLOTS; i++) {
-      const cellMin = START_HOUR*60 + i*30;
-      const isHour = cellMin % 60 === 0;
-      const res = slotReservas[i];
-
-      if (res) {
-        // Célula com início de reserva — bloco relativo
-        const statusCls = res.status === 'cancelada' ? 'res-canc' :
-                          res.status === 'concluida'  ? 'res-conc' : 'res-conf';
-        const nomeMostra = res.nome_fantasia || res.profissional_nome;
-        html += `<div class="tl-cell${isHour?' half-border':''}"
-          onclick="openReservaCellModal(${q.id}, '${minToTime(cellMin)}', '${minToTime(cellMin+30)}')">
-          <div class="reservation-block ${statusCls}"
-               style="left:0;right:0;width:calc(${res.span * 100}% + ${(res.span-1)}px)"
-               onclick="event.stopPropagation();viewReserva(${res.id})">
-            <div class="rb-client">${esc(res.cliente_nome)}</div>
-            <div class="rb-prof">${esc(nomeMostra)}</div>
-            <div class="rb-time">${res.hora_inicio}–${res.hora_fim} · ${esc(res.massagem_nome)}</div>
-          </div>
-        </div>`;
-      } else {
-        // Verificar se este slot está dentro de uma reserva já renderizada
-        const occupied = reservasQuarto.some(r => {
-          const s = Math.max(0, Math.floor((timeToMin(r.hora_inicio) - START_HOUR*60)/30));
-          const e = Math.min(SLOTS, Math.ceil((timeToMin(r.hora_fim) - START_HOUR*60)/30));
-          return i > s && i < e;
-        });
-        html += `<div class="tl-cell${isHour?' half-border':''}${occupied?'':''}"
-          onclick="openReservaCellModal(${q.id}, '${minToTime(cellMin)}', '${minToTime(cellMin+30)}')"></div>`;
+    const res=state.reservasDia.filter(r=>r.profissional_id===prof.id);
+    const startMap={};
+    res.forEach(r=>{
+      const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-START_HOUR*60)/30));
+      const se=Math.min(SLOTS,Math.ceil((timeToMin(r.hora_fim)-START_HOUR*60)/30));
+      startMap[ss]={...r,startSlot:ss,endSlot:se,span:se-ss};
+    });
+    for(let i=0;i<SLOTS;i++){
+      const cm=START_HOUR*60+i*30;const isH=cm%60===0;const rb=startMap[i];
+      if(rb){
+        const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':'res-conf';
+        html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
+          <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
+            <div class="rb-client">${esc(rb.cliente_nome)}</div>
+            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.massagem_nome)}</div>
+            ${rb.bebida?`<div class="rb-prof">🍹 ${esc(rb.bebida)}</div>`:''}
+            <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}</div>
+          </div></div>`;
+      }else{
+        html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})"></div>`;
       }
     }
   }
-  html += '</div></div>';
-  cont.innerHTML = html;
-}
-
-function openReservaCellModal(quartoId, horaInicio, horaFim) {
-  openReservaModal(null, quartoId, horaInicio, horaFim);
+  html+='</div></div>';
+  cont.innerHTML=html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VISÃO MENSAL
 // ═══════════════════════════════════════════════════════════════════════════
-function initMonthSelectors() {
-  const today = new Date();
-  const selYear = document.getElementById('sel-year');
-  const selMonth = document.getElementById('sel-month');
-  for (let y = today.getFullYear() - 3; y <= today.getFullYear() + 1; y++) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = y;
-    if (y === today.getFullYear()) opt.selected = true;
-    selYear.appendChild(opt);
+function initMonthSelectors(){
+  const t=new Date();const sy=document.getElementById('sel-year');
+  for(let y=t.getFullYear()-3;y<=t.getFullYear()+1;y++){
+    const o=document.createElement('option');o.value=y;o.textContent=y;
+    if(y===t.getFullYear())o.selected=true;sy.appendChild(o);
   }
-  selMonth.value = today.getMonth() + 1;
+  document.getElementById('sel-month').value=t.getMonth()+1;
 }
-
-async function loadMonthly() {
-  const mes  = document.getElementById('sel-month').value;
-  const ano  = document.getElementById('sel-year').value;
-  const cont = document.getElementById('monthly-container');
-  cont.innerHTML = '<div class="spinner"></div>';
-  try {
-    const resumo = await api('GET', `/reservas/resumo-mensal?mes=${mes}&ano=${ano}`);
-    const map = {};
-    resumo.forEach(r => { map[r.data] = r; });
-    renderCalendar(parseInt(ano), parseInt(mes), map);
-  } catch(e) {
-    cont.innerHTML = `<p style="padding:20px;color:var(--red)">${e.message}</p>`;
+async function loadMonthly(){
+  const mes=document.getElementById('sel-month').value,ano=document.getElementById('sel-year').value;
+  const cont=document.getElementById('monthly-container');
+  cont.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const resumo=await api('GET',`/reservas/resumo-mensal?mes=${mes}&ano=${ano}`+(cid?'&'+cid:''));
+    const map={};resumo.forEach(r=>{map[r.data]=r});
+    renderCalendar(parseInt(ano),parseInt(mes),map);
+  }catch(e){cont.innerHTML=`<p style="padding:20px;color:var(--red)">${e.message}</p>`}
+}
+function renderCalendar(year,month,map){
+  const today=new Date().toYMD(),fd=new Date(year,month-1,1),ld=new Date(year,month,0);
+  const DIAS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let html='<div class="calendar-grid">';
+  DIAS.forEach(d=>html+=`<div class="cal-weekday">${d}</div>`);
+  const totalCells=Math.ceil((ld.getDate()+fd.getDay())/7)*7;
+  for(let i=0;i<totalCells;i++){
+    const col=i-fd.getDay()+1;
+    if(col<1||col>ld.getDate()){html+=`<div class="cal-day other-month"></div>`;continue}
+    const ds=`${year}-${String(month).padStart(2,'0')}-${String(col).padStart(2,'0')}`;
+    const info=map[ds];const isT=ds===today;
+    const total=info?(parseInt(info.confirmadas||0)+parseInt(info.concluidas||0)):0;
+    html+=`<div class="cal-day${isT?' today':''}" onclick="goToDay('${ds}')">
+      <div class="day-num">${col}</div>
+      ${total>0?`<span class="day-badge has-res">${total} reserva${total>1?'s':''}</span>`:
+        (info&&parseInt(info.canceladas||0)>0?`<span class="day-badge">${info.canceladas} cancel.</span>`:'')}
+    </div>`;
   }
+  html+='</div>';
+  document.getElementById('monthly-container').innerHTML=html;
 }
-
-function renderCalendar(year, month, map) {
-  const today = new Date().toFullYear();
-  const firstDay = new Date(year, month-1, 1);
-  const lastDay  = new Date(year, month, 0);
-  let startDow = firstDay.getDay(); // 0=Dom
-
-  const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let html = '<div class="calendar-grid">';
-  DIAS.forEach(d => html += `<div class="cal-weekday">${d}</div>`);
-
-  let day = 1;
-  const totalCells = Math.ceil((lastDay.getDate() + startDow) / 7) * 7;
-
-  for (let i = 0; i < totalCells; i++) {
-    const col = i - startDow + 1;
-    if (col < 1 || col > lastDay.getDate()) {
-      html += `<div class="cal-day other-month"><div class="day-num" style="opacity:.4">${col<1?'':col}</div></div>`;
-    } else {
-      const ds = `${year}-${String(month).padStart(2,'0')}-${String(col).padStart(2,'0')}`;
-      const info = map[ds];
-      const isToday = ds === today;
-      const total = info ? (info.confirmadas + info.concluidas) : 0;
-      html += `<div class="cal-day${isToday?' today':''}" onclick="goToDay('${ds}')">
-        <div class="day-num">${col}</div>
-        ${total > 0 ? `<span class="day-badge has-res">${total} reserva${total>1?'s':''}</span>` :
-          (info && info.canceladas > 0 ? `<span class="day-badge">${info.canceladas} cancel.</span>` : '')}
-      </div>`;
-    }
-  }
-  html += '</div>';
-  document.getElementById('monthly-container').innerHTML = html;
-}
-
-function goToDay(dateStr) {
-  state.currentDate = dateStr;
-  showView('daily');
-}
+function goToDay(d){state.currentDate=d;showView('daily')}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUARTOS
 // ═══════════════════════════════════════════════════════════════════════════
-async function loadQuartos() {
-  document.getElementById('quartos-list').innerHTML = '<div class="spinner"></div>';
-  try {
-    state.quartos = await api('GET', '/quartos');
-    renderQuartos();
-  } catch(e) { toast(e.message, 'err'); }
+async function loadQuartos(){
+  document.getElementById('quartos-list').innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{state.quartos=await api('GET','/quartos'+(cid?'?'+cid:''));renderQuartos()}
+  catch(e){toast(e.message,'err')}
 }
-
-function renderQuartos() {
-  const el = document.getElementById('quartos-list');
-  if (!state.quartos.length) {
-    el.innerHTML = `<div class="empty-day"><div class="empty-icon">🛏</div>
-      <div>Nenhum quarto cadastrado.</div></div>`;
-    return;
-  }
-  el.innerHTML = `<div class="item-grid">${state.quartos.map(q => `
+function renderQuartos(){
+  const el=document.getElementById('quartos-list');
+  if(!state.quartos.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">🛏</div><div>Nenhum quarto cadastrado.</div></div>`;return}
+  el.innerHTML=`<div class="item-grid">${state.quartos.map(q=>`
     <div class="item-card">
       <div class="item-title">Quarto ${q.numero} — ${esc(q.nome)}</div>
-      <div class="item-sub">${q.tem_hidromassagem ?
-        '<span class="hydro-tag">💧 Hidromassagem</span>' :
-        '<span style="font-size:.75rem;color:var(--text-lt)">Sem hidromassagem</span>'}</div>
+      <div class="item-sub">${q.tem_hidromassagem?'<span class="hydro-tag">💧 Hidromassagem</span>':'<span style="font-size:.75rem;color:var(--text-lt)">Sem hidromassagem</span>'}</div>
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openQuartoModal(${q.id})">✏️ Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteQuarto(${q.id},'${esc(q.nome)}')">🗑 Excluir</button>
       </div>
-    </div>`).join('')}
-  </div>`;
+    </div>`).join('')}</div>`;
 }
-
-function openQuartoModal(id) {
-  const q = id ? state.quartos.find(x => x.id === id) : null;
-  const title = q ? `Editar Quarto ${q.numero}` : 'Novo Quarto';
-  const body = `<div class="form-grid">
-    <div class="field full">
-      <label>Nome do Quarto <span class="required">*</span></label>
-      <input id="q-nome" type="text" value="${q ? esc(q.nome) : ''}" placeholder="Ex: Suite Relax"/>
-    </div>
-    <div class="field full">
-      <label>Hidromassagem</label>
-      <select id="q-hidro">
-        <option value="0"${!q?.tem_hidromassagem?' selected':''}>Não</option>
-        <option value="1"${q?.tem_hidromassagem?' selected':''}>Sim</option>
-      </select>
-    </div>
-  </div>`;
-  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-    <button class="btn btn-primary" onclick="saveQuarto(${id||'null'})">
-      ${q ? 'Salvar' : 'Cadastrar'}
-    </button>`;
-  openModal(title, body, footer);
+function openQuartoModal(id){
+  const q=id?state.quartos.find(x=>x.id===id):null;
+  openModal(q?`Editar Quarto ${q.numero}`:'Novo Quarto',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="q-nome" type="text" value="${q?esc(q.nome):''}" placeholder="Ex: Suite Relax"/></div>
+      <div class="field full"><label>Hidromassagem</label>
+        <select id="q-hidro"><option value="0"${!q?.tem_hidromassagem?' selected':''}>Não</option>
+        <option value="1"${q?.tem_hidromassagem?' selected':''}>Sim</option></select></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveQuarto(${id||'null'})">${q?'Salvar':'Cadastrar'}</button>`);
 }
-
-async function saveQuarto(id) {
-  const nome  = document.getElementById('q-nome').value.trim();
-  const hidro = document.getElementById('q-hidro').value === '1';
-  if (!nome) return toast('Nome é obrigatório', 'err');
-  try {
-    if (id) await api('PUT', `/quartos/${id}`, { nome, tem_hidromassagem: hidro });
-    else    await api('POST', '/quartos', { nome, tem_hidromassagem: hidro });
-    toast(id ? 'Quarto atualizado!' : 'Quarto cadastrado!');
-    closeModal();
-    loadQuartos();
-  } catch(e) { toast(e.message, 'err'); }
+async function saveQuarto(id){
+  const nome=document.getElementById('q-nome').value.trim();
+  const hidro=document.getElementById('q-hidro').value==='1';
+  if(!nome)return toast('Nome é obrigatório','err');
+  try{
+    const body={nome,tem_hidromassagem:hidro,...cidBody()};
+    if(id) await api('PUT',`/quartos/${id}`,body);
+    else   await api('POST','/quartos',body);
+    toast(id?'Quarto atualizado!':'Quarto cadastrado!');closeModal();loadQuartos();
+  }catch(e){toast(e.message,'err')}
 }
-
-async function deleteQuarto(id, nome) {
-  if (!confirm(`Excluir o quarto "${nome}"? Esta ação não pode ser desfeita.`)) return;
-  try {
-    await api('DELETE', `/quartos/${id}`);
-    toast('Quarto excluído');
-    loadQuartos();
-  } catch(e) { toast(e.message, 'err'); }
+async function deleteQuarto(id,nome){
+  if(!confirm(`Excluir o quarto "${nome}"?`))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/quartos/${id}`+(cid?'?'+cid:''));toast('Quarto excluído');loadQuartos()}
+  catch(e){toast(e.message,'err')}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROFISSIONAIS
 // ═══════════════════════════════════════════════════════════════════════════
-async function loadProfissionais() {
-  document.getElementById('profissionais-list').innerHTML = '<div class="spinner"></div>';
-  try {
-    state.profissionais = await api('GET', '/profissionais?todos=1');
-    renderProfissionais();
-  } catch(e) { toast(e.message, 'err'); }
+async function loadProfissionais(){
+  document.getElementById('profissionais-list').innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{state.profissionais=await api('GET','/profissionais?todos=1'+(cid?'&'+cid:''));renderProfissionais()}
+  catch(e){toast(e.message,'err')}
 }
-
-function renderProfissionais() {
-  const q   = (document.getElementById('prof-search')?.value || '').toLowerCase();
-  const arr = state.profissionais.filter(p =>
-    p.nome.toLowerCase().includes(q) ||
-    (p.nome_fantasia||'').toLowerCase().includes(q));
-  const el = document.getElementById('profissionais-list');
-  if (!arr.length) {
-    el.innerHTML = `<div class="empty-day"><div class="empty-icon">👤</div>
-      <div>Nenhum profissional encontrado.</div></div>`;
-    return;
-  }
-  el.innerHTML = `<div class="item-grid">${arr.map(p => {
-    const nascDate = p.data_nascimento ? fmtDateShort(p.data_nascimento) : '';
-    return `<div class="item-card" style="${!p.ativo?'opacity:.7':''}">
-      ${!p.ativo ? '<div class="inactive-overlay">Inativo</div>' : ''}
+function renderProfissionais(){
+  const q=(document.getElementById('prof-search')?.value||'').toLowerCase();
+  const arr=state.profissionais.filter(p=>p.nome.toLowerCase().includes(q)||(p.nome_fantasia||'').toLowerCase().includes(q));
+  const el=document.getElementById('profissionais-list');
+  if(!arr.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhum profissional encontrado.</div></div>`;return}
+  el.innerHTML=`<div class="item-grid">${arr.map(p=>`
+    <div class="item-card" style="${!p.ativo?'opacity:.7':''}">
+      ${!p.ativo?'<div class="inactive-overlay">Inativa</div>':''}
       <div class="item-title">${esc(p.nome)}</div>
-      ${p.nome_fantasia ? `<div class="item-sub" style="color:var(--pec)">✨ ${esc(p.nome_fantasia)}</div>` : ''}
-      <div class="item-detail">📋 CPF: ${fmtCPF(p.cpf)}</div>
-      ${p.data_nascimento ? `<div class="item-detail">🎂 ${nascDate}</div>` : ''}
-      ${p.telefone ? `<div class="item-detail">📱 ${esc(p.telefone)}</div>` : ''}
-      ${p.email    ? `<div class="item-detail">📧 ${esc(p.email)}</div>` : ''}
+      ${p.nome_fantasia?`<div class="item-sub" style="color:var(--pec)">✨ ${esc(p.nome_fantasia)}</div>`:''}
+      <div class="item-detail">📋 ${fmtCPF(p.cpf)}</div>
+      ${p.telefone?`<div class="item-detail">📱 ${esc(p.telefone)}</div>`:''}
+      ${p.email?`<div class="item-detail">📧 ${esc(p.email)}</div>`:''}
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openProfModal(${p.id})">✏️ Editar</button>
-        <button class="btn ${p.ativo?'btn-danger':'btn-success'} btn-sm"
-          onclick="toggleProf(${p.id}, ${p.ativo})">
-          ${p.ativo ? '⛔ Desativar' : '✅ Ativar'}
-        </button>
+        <button class="btn ${p.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleProf(${p.id},${p.ativo})">
+          ${p.ativo?'⛔ Desativar':'✅ Ativar'}</button>
       </div>
-    </div>`;
-  }).join('')}</div>`;
+    </div>`).join('')}</div>`;
 }
-
-function openProfModal(id) {
-  const p = id ? state.profissionais.find(x => x.id === id) : null;
-  const title = p ? `Editar ${p.nome_fantasia || p.nome}` : 'Novo Profissional';
-  const body = `<div class="form-grid">
-    <div class="field full">
-      <label>Nome Completo <span class="required">*</span></label>
-      <input id="p-nome" type="text" value="${p ? esc(p.nome) : ''}" placeholder="Nome completo"/>
-    </div>
-    <div class="field">
-      <label>Nome Fantasia</label>
-      <input id="p-fantasia" type="text" value="${p?.nome_fantasia ? esc(p.nome_fantasia) : ''}" placeholder="Nome artístico / apelido"/>
-    </div>
-    <div class="field">
-      <label>CPF <span class="required">*</span></label>
-      <input id="p-cpf" type="text" value="${p ? fmtCPF(p.cpf) : ''}"
-             placeholder="000.000.000-00" maxlength="14"
-             oninput="maskCPF(this)"/>
-    </div>
-    <div class="field">
-      <label>Data de Nascimento <span class="required">*</span></label>
-      <input id="p-nasc" type="date" value="${p?.data_nascimento || ''}"/>
-    </div>
-    <div class="field">
-      <label>Telefone <span class="required">*</span></label>
-      <input id="p-tel" type="tel" value="${p?.telefone ? esc(p.telefone) : ''}" placeholder="(11) 99999-9999"/>
-    </div>
-    <div class="field">
-      <label>E-mail</label>
-      <input id="p-email" type="email" value="${p?.email ? esc(p.email) : ''}" placeholder="email@exemplo.com"/>
-    </div>
-  </div>`;
-  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-    <button class="btn btn-primary" onclick="saveProf(${id||'null'})">${p ? 'Salvar' : 'Cadastrar'}</button>`;
-  openModal(title, body, footer);
+function openProfModal(id){
+  const p=id?state.profissionais.find(x=>x.id===id):null;
+  openModal(p?`Editar ${p.nome_fantasia||p.nome}`:'Novo Profissional',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="p-nome" type="text" value="${p?esc(p.nome):''}" placeholder="Nome completo"/></div>
+      <div class="field"><label>Nome Fantasia</label>
+        <input id="p-fantasia" type="text" value="${p?.nome_fantasia?esc(p.nome_fantasia):''}" placeholder="Apelido"/></div>
+      <div class="field"><label>CPF</label>
+        <input id="p-cpf" type="text" value="${p?fmtCPF(p.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
+      <div class="field"><label>Nascimento</label>
+        <input id="p-nasc" type="date" value="${p?.data_nascimento||''}"/></div>
+      <div class="field"><label>Telefone <span class="required">*</span></label>
+        <input id="p-tel" type="tel" value="${p?.telefone?esc(p.telefone):''}" placeholder="(11) 99999-9999"/></div>
+      <div class="field"><label>E-mail</label>
+        <input id="p-email" type="email" value="${p?.email?esc(p.email):''}" placeholder="email@exemplo.com"/></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveProf(${id||'null'})">${p?'Salvar':'Cadastrar'}</button>`);
 }
-
-function maskCPF(el) {
-  let v = el.value.replace(/\D/g,'').substring(0,11);
-  v = v.replace(/(\d{3})(\d)/,'$1.$2')
-       .replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
-       .replace(/\.(\d{3})(\d)/,'.$1-$2');
-  el.value = v;
+function maskCPF(el){let v=el.value.replace(/\D/g,'').substring(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1-$2');el.value=v}
+async function saveProf(id){
+  const nome=document.getElementById('p-nome').value.trim();
+  const cpf=document.getElementById('p-cpf').value;
+  const data_nascimento=document.getElementById('p-nasc').value;
+  const telefone=document.getElementById('p-tel').value.trim();
+  const email=document.getElementById('p-email').value.trim();
+  const nome_fantasia=document.getElementById('p-fantasia').value.trim();
+  if(!nome||!telefone)return toast('Nome e telefone são obrigatórios','err');
+  try{
+    const body={nome,nome_fantasia:nome_fantasia||null,cpf,data_nascimento,telefone,email:email||null,ativo:1,...cidBody()};
+    if(id) await api('PUT',`/profissionais/${id}`,body);
+    else   await api('POST','/profissionais',body);
+    toast(id?'Atualizado!':'Cadastrado!');closeModal();loadProfissionais();
+  }catch(e){toast(e.message,'err')}
 }
-
-async function saveProf(id) {
-  const nome           = document.getElementById('p-nome').value.trim();
-  const nome_fantasia  = document.getElementById('p-fantasia').value.trim();
-  const cpf            = document.getElementById('p-cpf').value;
-  const data_nascimento= document.getElementById('p-nasc').value;
-  const telefone       = document.getElementById('p-tel').value.trim();
-  const email          = document.getElementById('p-email').value.trim();
-  if (!nome || !cpf || !data_nascimento || !telefone)
-    return toast('Preencha os campos obrigatórios', 'err');
-  try {
-    const payload = { nome, nome_fantasia: nome_fantasia||null, cpf, data_nascimento, telefone, email: email||null, ativo: 1 };
-    if (id) await api('PUT', `/profissionais/${id}`, payload);
-    else    await api('POST', '/profissionais', payload);
-    toast(id ? 'Profissional atualizado!' : 'Profissional cadastrado!');
-    closeModal();
-    loadProfissionais();
-  } catch(e) { toast(e.message, 'err'); }
-}
-
-async function toggleProf(id, ativo) {
-  const p = state.profissionais.find(x => x.id === id);
-  try {
-    await api('PUT', `/profissionais/${id}`, { ...p, ativo: ativo ? 0 : 1 });
-    toast(ativo ? 'Profissional desativado' : 'Profissional ativado', 'info');
-    loadProfissionais();
-  } catch(e) { toast(e.message, 'err'); }
+async function toggleProf(id,ativo){
+  const p=state.profissionais.find(x=>x.id===id);
+  try{await api('PUT',`/profissionais/${id}`,{...p,ativo:ativo?0:1,...cidBody()});
+    toast(ativo?'Desativada':'Ativada','info');loadProfissionais()}
+  catch(e){toast(e.message,'err')}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MASSAGENS
 // ═══════════════════════════════════════════════════════════════════════════
-async function loadMassagens() {
-  document.getElementById('massagens-list').innerHTML = '<div class="spinner"></div>';
-  try {
-    state.massagens = await api('GET', '/massagens?todas=1');
-    renderMassagens();
-  } catch(e) { toast(e.message, 'err'); }
+async function loadMassagens(){
+  document.getElementById('massagens-list').innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{state.massagens=await api('GET','/massagens?todas=1'+(cid?'&'+cid:''));renderMassagens()}
+  catch(e){toast(e.message,'err')}
 }
-
-function renderMassagens() {
-  const el = document.getElementById('massagens-list');
-  if (!state.massagens.length) {
-    el.innerHTML = `<div class="empty-day"><div class="empty-icon">💆</div>
-      <div>Nenhuma massagem cadastrada.</div></div>`;
-    return;
-  }
-  el.innerHTML = `<div class="item-grid">${state.massagens.map(m => `
+function renderMassagens(){
+  const el=document.getElementById('massagens-list');
+  if(!state.massagens.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">💆</div><div>Nenhuma massagem cadastrada.</div></div>`;return}
+  el.innerHTML=`<div class="item-grid">${state.massagens.map(m=>`
     <div class="item-card" style="${!m.ativa?'opacity:.7':''}">
-      ${!m.ativa ? '<div class="inactive-overlay">Inativa</div>' : ''}
+      ${!m.ativa?'<div class="inactive-overlay">Inativa</div>':''}
       <div class="item-title">${esc(m.nome)}</div>
-      ${m.descricao ? `<div class="item-sub">${esc(m.descricao)}</div>` : ''}
+      ${m.descricao?`<div class="item-sub">${esc(m.descricao)}</div>`:''}
       <div class="item-detail">⏱ ${m.duracao} minutos</div>
       <div class="item-detail">💰 ${fmtMoeda(m.preco)}</div>
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openMassagemModal(${m.id})">✏️ Editar</button>
-        <button class="btn ${m.ativa?'btn-danger':'btn-success'} btn-sm"
-          onclick="toggleMassagem(${m.id}, ${m.ativa})">
-          ${m.ativa ? '⛔ Desativar' : '✅ Ativar'}
-        </button>
+        <button class="btn ${m.ativa?'btn-danger':'btn-success'} btn-sm" onclick="toggleMassagem(${m.id},${m.ativa})">
+          ${m.ativa?'⛔ Desativar':'✅ Ativar'}</button>
       </div>
-    </div>`).join('')}
-  </div>`;
+    </div>`).join('')}</div>`;
 }
-
-function openMassagemModal(id) {
-  const m = id ? state.massagens.find(x => x.id === id) : null;
-  const title = m ? `Editar ${m.nome}` : 'Nova Massagem';
-  const body = `<div class="form-grid">
-    <div class="field full">
-      <label>Nome da Massagem <span class="required">*</span></label>
-      <input id="m-nome" type="text" value="${m ? esc(m.nome) : ''}" placeholder="Ex: Massagem Relaxante"/>
-    </div>
-    <div class="field full">
-      <label>Descrição</label>
-      <textarea id="m-desc" placeholder="Descreva a massagem...">${m?.descricao ? esc(m.descricao) : ''}</textarea>
-    </div>
-    <div class="field">
-      <label>Duração (minutos) <span class="required">*</span></label>
-      <input id="m-dur" type="number" value="${m?.duracao || ''}" min="5" step="5" placeholder="60"/>
-    </div>
-    <div class="field">
-      <label>Preço (R$) <span class="required">*</span></label>
-      <input id="m-preco" type="number" value="${m?.preco || ''}" min="0" step="0.01" placeholder="150.00"/>
-    </div>
-  </div>`;
-  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-    <button class="btn btn-primary" onclick="saveMassagem(${id||'null'})">${m ? 'Salvar' : 'Cadastrar'}</button>`;
-  openModal(title, body, footer);
+function openMassagemModal(id){
+  const m=id?state.massagens.find(x=>x.id===id):null;
+  openModal(m?`Editar ${m.nome}`:'Nova Massagem',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="m-nome" type="text" value="${m?esc(m.nome):''}" placeholder="Ex: Massagem Relaxante"/></div>
+      <div class="field full"><label>Descrição</label>
+        <textarea id="m-desc" placeholder="Descreva a massagem...">${m?.descricao?esc(m.descricao):''}</textarea></div>
+      <div class="field"><label>Duração (min) <span class="required">*</span></label>
+        <input id="m-dur" type="number" value="${m?.duracao||''}" min="5" step="5" placeholder="60"/></div>
+      <div class="field"><label>Preço (R$) <span class="required">*</span></label>
+        <input id="m-preco" type="number" value="${m?.preco||''}" min="0" step="0.01" placeholder="150.00"/></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveMassagem(${id||'null'})">${m?'Salvar':'Cadastrar'}</button>`);
 }
-
-async function saveMassagem(id) {
-  const nome    = document.getElementById('m-nome').value.trim();
-  const descricao= document.getElementById('m-desc').value.trim();
-  const duracao = parseInt(document.getElementById('m-dur').value);
-  const preco   = parseFloat(document.getElementById('m-preco').value);
-  if (!nome || !duracao || isNaN(preco)) return toast('Preencha os campos obrigatórios', 'err');
-  try {
-    const payload = { nome, descricao: descricao||null, duracao, preco, ativa: 1 };
-    if (id) await api('PUT', `/massagens/${id}`, payload);
-    else    await api('POST', '/massagens', payload);
-    toast(id ? 'Massagem atualizada!' : 'Massagem cadastrada!');
-    closeModal();
-    loadMassagens();
-  } catch(e) { toast(e.message, 'err'); }
+async function saveMassagem(id){
+  const nome=document.getElementById('m-nome').value.trim();
+  const descricao=document.getElementById('m-desc').value.trim();
+  const duracao=parseInt(document.getElementById('m-dur').value);
+  const preco=parseFloat(document.getElementById('m-preco').value);
+  if(!nome||!duracao||isNaN(preco))return toast('Preencha os campos obrigatórios','err');
+  try{
+    const body={nome,descricao:descricao||null,duracao,preco,ativa:1,...cidBody()};
+    if(id) await api('PUT',`/massagens/${id}`,body);
+    else   await api('POST','/massagens',body);
+    toast(id?'Atualizado!':'Cadastrado!');closeModal();loadMassagens();
+  }catch(e){toast(e.message,'err')}
 }
-
-async function toggleMassagem(id, ativa) {
-  const m = state.massagens.find(x => x.id === id);
-  try {
-    await api('PUT', `/massagens/${id}`, { ...m, ativa: ativa ? 0 : 1 });
-    toast(ativa ? 'Massagem desativada' : 'Massagem ativada', 'info');
-    loadMassagens();
-  } catch(e) { toast(e.message, 'err'); }
+async function toggleMassagem(id,ativa){
+  const m=state.massagens.find(x=>x.id===id);
+  try{await api('PUT',`/massagens/${id}`,{...m,ativa:ativa?0:1,...cidBody()});
+    toast(ativa?'Desativada':'Ativada','info');loadMassagens()}
+  catch(e){toast(e.message,'err')}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RESERVAS (Modal)
+// RESERVAS
 // ═══════════════════════════════════════════════════════════════════════════
-async function ensureDropdownData() {
-  if (!state.quartos.length)       state.quartos       = await api('GET', '/quartos');
-  if (!state.profissionais.length) state.profissionais = await api('GET', '/profissionais');
-  if (!state.massagens.length)     state.massagens     = await api('GET', '/massagens');
+async function ensureData(){
+  const cid=cidParam();
+  if(!state.quartos.length)       state.quartos=      await api('GET','/quartos'+(cid?'?'+cid:''));
+  if(!state.profissionais.length) state.profissionais=await api('GET','/profissionais'+(cid?'?'+cid:''));
+  if(!state.massagens.length)     state.massagens=    await api('GET','/massagens'+(cid?'?'+cid:''));
 }
 
-async function openReservaModal(id, quartoIdPre, horaPre, horaFimPre) {
-  await ensureDropdownData();
-  const r = id ? state.reservasDia.find(x => x.id === id) : null;
-  const title = r ? `Reserva #${r.id}` : 'Nova Reserva';
+async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalIdPre){
+  await ensureData();
+  const r=id?state.reservasDia.find(x=>x.id===id):null;
+  const optQ=state.quartos.map(q=>`<option value="${q.id}"${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}</option>`).join('');
+  const optP=state.profissionais.filter(p=>p.ativo||r?.profissional_id===p.id).map(p=>`<option value="${p.id}"${(r?.profissional_id===p.id||profissionalIdPre===p.id)?'selected':''}>${esc(p.nome_fantasia||p.nome)}</option>`).join('');
+  const optM=state.massagens.map(m=>`<option value="${m.id}"${r?.massagem_id===m.id?'selected':''}>${esc(m.nome)} (${m.duracao}min · ${fmtMoeda(m.preco)})</option>`).join('');
+  const statusSel=r?`<div class="field"><label>Status</label><select id="rv-status">
+    <option value="confirmada"${r.status==='confirmada'?' selected':''}>Confirmada</option>
+    <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
+    <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
+  </select></div>`:'';
+  openModal(r?`Reserva #${r.id}`:'Nova Reserva',
+    `<div class="form-grid">
+      <div class="field full"><label>Data <span class="required">*</span></label>
+        <input id="rv-data" type="date" value="${r?.data||state.currentDate}"/></div>
+      <div class="field"><label>Hora Início <span class="required">*</span></label>
+        <input id="rv-inicio" type="time" value="${r?.hora_inicio||horaPre||'09:00'}" step="1800" onchange="autoFillHoraFim()"/></div>
+      <div class="field"><label>Hora Fim <span class="required">*</span></label>
+        <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"/></div>
+      <div class="field full"><label>Massagista <span class="required">*</span></label>
+        <select id="rv-prof">${optP}</select></div>
+      <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
+        <select id="rv-quarto">${optQ}</select></div>
+      <div class="field full"><label>Tipo de Massagem <span class="required">*</span></label>
+        <select id="rv-massagem" onchange="autoFillHoraFim()">${optM}</select></div>
+      <div class="field full"><label>Nome do Cliente <span class="required">*</span></label>
+        <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
+      <div class="field"><label>Telefone do Cliente</label>
+        <input id="rv-ctel" type="tel" value="${r?.cliente_telefone?esc(r.cliente_telefone):''}"/></div>
+      ${statusSel}
+      <div class="field"><label>🍹 Bebida</label>
+        <input id="rv-bebida" type="text" value="${r?.bebida?esc(r.bebida):''}" placeholder="Ex: Água de coco, Suco..."/></div>
+      <div class="field"><label>💰 Preço da Bebida (R$)</label>
+        <input id="rv-preco-bebida" type="number" value="${r?.preco_bebida&&parseFloat(r.preco_bebida)>0?parseFloat(r.preco_bebida):''}" min="0" step="0.01" placeholder="0,00"/></div>
+      <div class="field full"><label>Observações</label>
+        <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
+    </div>`,
+    `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
+     <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
+     <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
+}
+function autoFillHoraFim(){
+  const m=state.massagens.find(x=>x.id===parseInt(document.getElementById('rv-massagem')?.value));
+  const i=document.getElementById('rv-inicio')?.value;
+  if(m&&i) document.getElementById('rv-fim').value=minToTime(timeToMin(i)+m.duracao);
+}
+async function saveReserva(id){
+  const data=document.getElementById('rv-data').value;
+  const hora_inicio=document.getElementById('rv-inicio').value;
+  const hora_fim=document.getElementById('rv-fim').value;
+  const quarto_id=parseInt(document.getElementById('rv-quarto').value);
+  const profissional_id=parseInt(document.getElementById('rv-prof').value);
+  const massagem_id=parseInt(document.getElementById('rv-massagem').value);
+  const cliente_nome=document.getElementById('rv-cliente').value.trim();
+  const cliente_telefone=document.getElementById('rv-ctel')?.value.trim();
+  const status=document.getElementById('rv-status')?.value||'confirmada';
+  const observacoes=document.getElementById('rv-obs')?.value.trim();
+  const bebida=document.getElementById('rv-bebida')?.value.trim()||null;
+  const preco_bebida=parseFloat(document.getElementById('rv-preco-bebida')?.value)||0;
+  if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
+    return toast('Preencha todos os campos obrigatórios','err');
+  if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
+  try{
+    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,cliente_nome,
+      cliente_telefone,status,observacoes,bebida,preco_bebida,...cidBody()};
+    if(id) await api('PUT',`/reservas/${id}`,body);
+    else   await api('POST','/reservas',body);
+    toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
+    if(state.currentView==='daily') loadDaily();
+  }catch(e){toast(e.message,'err')}
+}
+async function cancelarReserva(id){
+  if(!confirm('Confirma o cancelamento?'))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/reservas/${id}`+(cid?'?'+cid:''));toast('Reserva cancelada','info');closeModal();loadDaily()}
+  catch(e){toast(e.message,'err')}
+}
+function viewReserva(id){openReservaModal(id)}
 
-  const optQuartos = state.quartos.map(q =>
-    `<option value="${q.id}" ${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>
-      Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}
-    </option>`).join('');
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD FINANCEIRO
+// ═══════════════════════════════════════════════════════════════════════════
+function initDashboard(){
+  const t=new Date();
+  const ym=t.getFullYear();
+  const mm=t.getMonth()+1;
+  const today=new Date().toYMD();
 
-  const optProfs = state.profissionais.map(p =>
-    `<option value="${p.id}" ${r?.profissional_id===p.id?'selected':''}>
-      ${esc(p.nome_fantasia || p.nome)}
-    </option>`).join('');
+  ['mm','mt'].forEach(pre=>{
+    const selM=document.getElementById(`dash-${pre}-mes`);
+    const selA=document.getElementById(`dash-${pre}-ano`);
+    if(!selM||!selA)return;
+    selM.innerHTML=MESES.map((m,i)=>`<option value="${i+1}"${i+1===mm?' selected':''}>${m}</option>`).join('');
+    selA.innerHTML='';
+    for(let y=ym-2;y<=ym+1;y++){
+      const o=document.createElement('option');
+      o.value=y;o.textContent=y;if(y===ym)o.selected=true;selA.appendChild(o);
+    }
+  });
+  const dmEl=document.getElementById('dash-dm-data');
+  const dtEl=document.getElementById('dash-dt-data');
+  if(dmEl)dmEl.value=today;
+  if(dtEl)dtEl.value=today;
+}
 
-  const optMassagens = state.massagens.map(m =>
-    `<option value="${m.id}" ${r?.massagem_id===m.id?'selected':''}>
-      ${esc(m.nome)} (${m.duracao}min · ${fmtMoeda(m.preco)})
-    </option>`).join('');
+function renderDashTable(data,containerId,type){
+  const el=document.getElementById(containerId);
+  if(!data||!data.length){
+    el.innerHTML='<div class="dash-empty">Nenhum dado encontrado para este período.</div>';return;
+  }
+  const isMassagem=(type==='massagem');
+  const sumAtend=data.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
+  const sumTotal=data.reduce((s,r)=>s+parseFloat(r.total||0),0);
+  const sumBebidas=data.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
+  const sumConf= data.reduce((s,r)=>s+parseInt(r.confirmadas||0),0);
+  const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
+  const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
 
-  const statusSel = r ? `
-    <div class="field">
-      <label>Status</label>
-      <select id="rv-status">
-        <option value="confirmada"${r.status==='confirmada'?' selected':''}>Confirmada</option>
-        <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
-        <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
-      </select>
-    </div>` : '';
+  let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
+  html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
+  if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
+  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th><th class="num">Total Geral</th><th class="num">Média/Atend.</th>';
+  html+='<th class="ctr">✅ Conc.</th><th class="ctr">📋 Conf.</th><th class="ctr">❌ Canc.</th>';
+  html+='</tr></thead><tbody>';
 
-  const body = `<div class="form-grid">
-    <div class="field full">
-      <label>Data <span class="required">*</span></label>
-      <input id="rv-data" type="date" value="${r?.data || state.currentDate}"/>
-    </div>
-    <div class="field">
-      <label>Hora Início <span class="required">*</span></label>
-      <input id="rv-inicio" type="time" value="${r?.hora_inicio || horaPre || '09:00'}" step="1800"/>
-    </div>
-    <div class="field">
-      <label>Hora Fim <span class="required">*</span></label>
-      <input id="rv-fim" type="time" value="${r?.hora_fim || horaFimPre || '10:00'}" step="1800"/>
-    </div>
-    <div class="field full">
-      <label>Quarto <span class="required">*</span></label>
-      <select id="rv-quarto">${optQuartos}</select>
-    </div>
-    <div class="field full">
-      <label>Profissional <span class="required">*</span></label>
-      <select id="rv-prof">${optProfs}</select>
-    </div>
-    <div class="field full">
-      <label>Massagem <span class="required">*</span></label>
-      <select id="rv-massagem" onchange="autoFillHoraFim()">${optMassagens}</select>
-    </div>
-    <div class="field full">
-      <label>Nome do Cliente <span class="required">*</span></label>
-      <input id="rv-cliente" type="text" value="${r?.cliente_nome ? esc(r.cliente_nome) : ''}" placeholder="Nome completo do cliente"/>
-    </div>
-    <div class="field">
-      <label>Telefone do Cliente</label>
-      <input id="rv-ctel" type="tel" value="${r?.cliente_telefone ? esc(r.cliente_telefone) : ''}" placeholder="(11) 99999-9999"/>
-    </div>
-    ${statusSel}
-    <div class="field full">
-      <label>Observações</label>
-      <textarea id="rv-obs" placeholder="Anotações extras...">${r?.observacoes ? esc(r.observacoes) : ''}</textarea>
-    </div>
+  data.forEach(r=>{
+    const atend=parseInt(r.atendimentos||0);
+    const valor=parseFloat(r.total||0);
+    const bebidas=parseFloat(r.total_bebidas||0);
+    const massagens=valor-bebidas;
+    const media=atend>0?valor/atend:null;
+    const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
+    const nomeCompleto=!isMassagem&&r.nome_display&&r.nome_display!==r.nome_completo?r.nome_completo:null;
+    const corValor=valor>0?'color:#2d7a56;font-weight:700':'color:var(--text-lt)';
+    html+=`<tr>
+      <td><strong>${esc(nome)}</strong>${nomeCompleto?`<br><small style="color:var(--text-lt);font-weight:400">${esc(nomeCompleto)}</small>`:''}</td>
+      ${isMassagem?`<td class="ctr">${r.duracao}min</td><td class="num">${fmtMoeda(r.preco_unitario)}</td>`:''}
+      <td class="ctr">${atend}</td>
+      <td class="num">${fmtMoeda(massagens)}</td>
+      <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
+      <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
+      <td class="num">${media!==null?fmtMoeda(media):'—'}</td>
+      <td class="ctr">${r.concluidas||0}</td>
+      <td class="ctr">${r.confirmadas||0}</td>
+      <td class="ctr" style="color:var(--red)">${r.canceladas||0}</td>
+    </tr>`;
+  });
+
+  html+=`<tr class="total-row">
+    <td>TOTAL GERAL</td>
+    ${isMassagem?'<td></td><td></td>':''}
+    <td class="ctr">${sumAtend}</td>
+    <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal-sumBebidas)}</td>
+    <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
+    <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
+    <td class="num">${sumAtend>0?fmtMoeda(sumTotal/sumAtend):'—'}</td>
+    <td class="ctr">${sumConc}</td>
+    <td class="ctr">${sumConf}</td>
+    <td class="ctr" style="color:var(--red)">${sumCanc}</td>
+  </tr>`;
+
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+async function loadDashMensalMassagista(){
+  const mes=document.getElementById('dash-mm-mes').value;
+  const ano=document.getElementById('dash-mm-ano').value;
+  const el=document.getElementById('dash-mm-body');
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const data=await api('GET',`/dashboard/massagista-mensal?mes=${mes}&ano=${ano}`+(cid?'&'+cid:''));
+    renderDashTable(data,'dash-mm-body','massagista');
+  }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
+}
+
+async function loadDashDiarioMassagista(){
+  const data=document.getElementById('dash-dm-data').value;
+  const el=document.getElementById('dash-dm-body');
+  if(!data){el.innerHTML='<div class="dash-empty">Selecione uma data.</div>';return}
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const result=await api('GET',`/dashboard/massagista-diario?data=${data}`+(cid?'&'+cid:''));
+    renderDashTable(result,'dash-dm-body','massagista');
+  }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
+}
+
+async function loadDashMensalMassagem(){
+  const mes=document.getElementById('dash-mt-mes').value;
+  const ano=document.getElementById('dash-mt-ano').value;
+  const el=document.getElementById('dash-mt-body');
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const data=await api('GET',`/dashboard/massagem-mensal?mes=${mes}&ano=${ano}`+(cid?'&'+cid:''));
+    renderDashTable(data,'dash-mt-body','massagem');
+  }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
+}
+
+async function loadDashDiarioMassagem(){
+  const data=document.getElementById('dash-dt-data').value;
+  const el=document.getElementById('dash-dt-body');
+  if(!data){el.innerHTML='<div class="dash-empty">Selecione uma data.</div>';return}
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const result=await api('GET',`/dashboard/massagem-diario?data=${data}`+(cid?'&'+cid:''));
+    renderDashTable(result,'dash-dt-body','massagem');
+  }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
+}
+
+async function loadDashboard(){
+  await Promise.all([
+    loadDashMensalMassagista(),
+    loadDashDiarioMassagista(),
+    loadDashMensalMassagem(),
+    loadDashDiarioMassagem()
+  ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL ADMIN
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadAdminPanel(){
+  await Promise.all([loadClinicasList(), loadAdminsList()]);
+}
+
+async function loadClinicasList(){
+  document.getElementById('clinicas-list').innerHTML='<div class="spinner"></div>';
+  try{
+    const clinicas=await api('GET','/admin/clinicas');
+    const el=document.getElementById('clinicas-list');
+    if(!clinicas.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">🏥</div><div>Nenhuma clínica cadastrada.</div></div>`;return}
+    el.innerHTML=`<div class="item-grid">${clinicas.map(c=>`
+      <div class="item-card" style="${!c.ativo?'opacity:.7':''}">
+        ${!c.ativo?'<div class="inactive-overlay">Inativa</div>':''}
+        <div class="item-title">🏥 ${esc(c.nome)}</div>
+        <div class="item-detail">🔑 ${esc(c.email)}</div>
+        ${c.emails_adicionais?(c.emails_adicionais.split(';').filter(Boolean).map(e=>`<div class="item-detail" style="color:var(--text-lt)">📧 ${esc(e.trim())}</div>`).join('')):''}
+        ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
+        ${c.endereco?`<div class="item-detail">📍 ${esc(c.endereco)}</div>`:''}
+        <div class="item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
+          <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
+          <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        </div>
+      </div>`).join('')}</div>`;
+  }catch(e){toast(e.message,'err')}
+}
+
+function openClinicaModal(id){
+  const body=`<div class="form-grid">
+    <div class="field full"><label>Nome da Clínica <span class="required">*</span></label>
+      <input id="cl-nome" type="text" placeholder="Ex: Spa Serene"/></div>
+    <div class="field"><label>Email de Login <span class="required">*</span></label>
+      <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
+    <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+      <input id="cl-senha" type="password" placeholder="••••••••"/></div>
+    <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+      <input id="cl-senha2" type="password" placeholder="••••••••"/></div>
+    <div class="field"><label>Telefone</label>
+      <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
+    <div class="field full"><label>Endereço</label>
+      <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
+    <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
+      <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
   </div>`;
-
-  const footer = `
-    ${r ? `<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>` : ''}
-    <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
-    <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r ? 'Atualizar' : 'Confirmar Reserva'}</button>`;
-
-  openModal(title, body, footer);
-}
-
-function autoFillHoraFim() {
-  const mId = parseInt(document.getElementById('rv-massagem')?.value);
-  const m   = state.massagens.find(x => x.id === mId);
-  const inicio = document.getElementById('rv-inicio')?.value;
-  if (m && inicio) {
-    const fim = timeToMin(inicio) + m.duracao;
-    document.getElementById('rv-fim').value = minToTime(fim);
+  openModal(id?'Editar Clínica':'Nova Clínica', body,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveClinica(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+  if(id){
+    api('GET','/admin/clinicas').then(cs=>{
+      const c=cs.find(x=>x.id===id);if(!c)return;
+      document.getElementById('cl-nome').value=c.nome||'';
+      document.getElementById('cl-email').value=c.email||'';
+      document.getElementById('cl-tel').value=c.telefone||'';
+      document.getElementById('cl-end').value=c.endereco||'';
+      // Converte ";" para quebras de linha
+      const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
+      document.getElementById('cl-emails-add').value=emails;
+    });
   }
 }
-
-async function saveReserva(id) {
-  const data           = document.getElementById('rv-data').value;
-  const hora_inicio    = document.getElementById('rv-inicio').value;
-  const hora_fim       = document.getElementById('rv-fim').value;
-  const quarto_id      = parseInt(document.getElementById('rv-quarto').value);
-  const profissional_id= parseInt(document.getElementById('rv-prof').value);
-  const massagem_id    = parseInt(document.getElementById('rv-massagem').value);
-  const cliente_nome   = document.getElementById('rv-cliente').value.trim();
-  const cliente_telefone= document.getElementById('rv-ctel')?.value.trim();
-  const status         = document.getElementById('rv-status')?.value || 'confirmada';
-  const observacoes    = document.getElementById('rv-obs')?.value.trim();
-
-  if (!data || !hora_inicio || !hora_fim || !quarto_id || !profissional_id ||
-      !massagem_id || !cliente_nome)
-    return toast('Preencha todos os campos obrigatórios', 'err');
-
-  if (timeToMin(hora_fim) <= timeToMin(hora_inicio))
-    return toast('Hora fim deve ser maior que hora início', 'err');
-
-  try {
-    const payload = { data, hora_inicio, hora_fim, quarto_id, profissional_id,
-                      massagem_id, cliente_nome, cliente_telefone, status, observacoes };
-    if (id) await api('PUT', `/reservas/${id}`, payload);
-    else    await api('POST', '/reservas', payload);
-    toast(id ? 'Reserva atualizada!' : 'Reserva confirmada! ✅');
-    closeModal();
-    if (state.currentView === 'daily') loadDaily();
-  } catch(e) { toast(e.message, 'err'); }
+async function saveClinica(id){
+  const nome=document.getElementById('cl-nome').value.trim();
+  const email=document.getElementById('cl-email').value.trim();
+  const senha=document.getElementById('cl-senha').value;
+  const senha2=document.getElementById('cl-senha2').value;
+  const telefone=document.getElementById('cl-tel').value.trim();
+  const endereco=document.getElementById('cl-end').value.trim();
+  const emailsRaw=document.getElementById('cl-emails-add').value;
+  // Normaliza emails adicionais: uma por linha ou separadas por vírgula, armazena com ";"
+  const emails_adicionais=emailsRaw.split(/[\n,]+/).map(e=>e.trim()).filter(Boolean).join(';')||null;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(!id&&!senha)return toast('Senha é obrigatória para nova clínica','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,ativo:1};
+    if(senha) body.senha=senha;
+    if(id) await api('PUT',`/admin/clinicas/${id}`,body);
+    else   await api('POST','/admin/clinicas',body);
+    toast(id?'Clínica atualizada!':'Clínica cadastrada! ✅');closeModal();
+    loadClinicasList();loadClinicaSelector();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleClinica(id,ativo){
+  try{
+    const cs=await api('GET','/admin/clinicas');
+    const c=cs.find(x=>x.id===id);
+    if(!c)return;
+    await api('PUT',`/admin/clinicas/${id}`,{...c,ativo:ativo?0:1});
+    toast(ativo?'Clínica desativada':'Clínica ativada','info');
+    loadClinicasList();loadClinicaSelector();
+  }catch(e){toast(e.message,'err')}
 }
 
-async function cancelarReserva(id) {
-  if (!confirm('Confirma o cancelamento desta reserva?')) return;
-  try {
-    await api('DELETE', `/reservas/${id}`);
-    toast('Reserva cancelada', 'info');
-    closeModal();
-    loadDaily();
-  } catch(e) { toast(e.message, 'err'); }
+async function loadAdminsList(){
+  document.getElementById('admins-list').innerHTML='<div class="spinner"></div>';
+  try{
+    const admins=await api('GET','/admin/admins');
+    const el=document.getElementById('admins-list');
+    if(!admins.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhum admin.</div></div>`;return}
+    el.innerHTML=`<div class="item-grid">${admins.map(a=>`
+      <div class="item-card" style="${!a.ativo?'opacity:.7':''}">
+        ${!a.ativo?'<div class="inactive-overlay">Inativo</div>':''}
+        <div class="item-title">👤 ${esc(a.nome)}</div>
+        <div class="item-detail">📧 ${esc(a.email)}</div>
+        <div class="item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openAdminModal(${a.id})">✏️ Editar</button>
+          <button class="btn ${a.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleAdmin(${a.id},${a.ativo})">${a.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        </div>
+      </div>`).join('')}</div>`;
+  }catch(e){toast(e.message,'err')}
+}
+function openAdminModal(id){
+  openModal(id?'Editar Administrador':'Novo Administrador',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="ad-nome" type="text" placeholder="Nome completo"/></div>
+      <div class="field"><label>Email <span class="required">*</span></label>
+        <input id="ad-email" type="email" placeholder="admin@email.com"/></div>
+      <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha" type="password" placeholder="••••••••"/></div>
+      <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha2" type="password" placeholder="••••••••"/></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveAdmin(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+  if(id){
+    api('GET','/admin/admins').then(as=>{
+      const a=as.find(x=>x.id===id);if(!a)return;
+      document.getElementById('ad-nome').value=a.nome||'';
+      document.getElementById('ad-email').value=a.email||'';
+    });
+  }
+}
+async function saveAdmin(id){
+  const nome=document.getElementById('ad-nome').value.trim();
+  const email=document.getElementById('ad-email').value.trim();
+  const senha=document.getElementById('ad-senha').value;
+  const senha2=document.getElementById('ad-senha2').value;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(!id&&!senha)return toast('Senha é obrigatória','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,ativo:1};if(senha)body.senha=senha;
+    if(id) await api('PUT',`/admin/admins/${id}`,body);
+    else   await api('POST','/admin/admins',body);
+    toast(id?'Admin atualizado!':'Admin cadastrado!');closeModal();loadAdminsList();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleAdmin(id,ativo){
+  try{
+    const as=await api('GET','/admin/admins');const a=as.find(x=>x.id===id);
+    if(a) await api('PUT',`/admin/admins/${id}`,{...a,ativo:ativo?0:1});
+    toast(ativo?'Desativado':'Ativado','info');loadAdminsList();
+  }catch(e){toast(e.message,'err')}
 }
 
-function viewReserva(id) {
-  openReservaModal(id);
-}
-
-// ─── Escape HTML ────────────────────────────────────────────────────────────
-function esc(s) {
-  if (!s) return '';
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-// ─── Inicialização ──────────────────────────────────────────────────────────
-function init() {
-  initDate();
-  initMonthSelectors();
-  loadDaily();
-}
-init();
+// ─── Start ───────────────────────────────────────────────────────────────────
+start();
 </script>
 </body>
 </html>
