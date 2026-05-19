@@ -536,6 +536,13 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         </div>
         <div id="admins-list"><div class="spinner"></div></div>
       </div>
+      <div class="admin-section">
+        <div class="admin-section-title">👔 Gerentes
+          <button class="btn btn-sm" style="margin-left:auto;background:var(--green);color:#fff" onclick="openGerenteModal()">＋ Novo Gerente</button>
+        </div>
+        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Acesso operacional completo ao CRM — sem Dashboard e sem % de Repasse.</p>
+        <div id="gerentes-list"><div class="spinner"></div></div>
+      </div>
     </div>
 
   </div><!-- /main -->
@@ -688,10 +695,11 @@ function initApp(){
     loadClinicaSelector();
   } else {
     document.getElementById('clinica-badge').style.display='flex';
-    document.getElementById('clinica-badge').textContent='🏥 '+auth.user.nome_clinica;
-    // Gerente: esconde o Dashboard
-    if(auth.user.perfil==='gerente'){
+    document.getElementById('clinica-badge').textContent='🏥 '+(auth.user.nome_clinica||auth.user.nome||auth.user.email);
+    // Gerente: esconde Dashboard e Repasse
+    if(auth.user.role==='gerente'){
       document.getElementById('nav-dashboard').style.display='none';
+      document.getElementById('nav-repasse').style.display='none';
     }
   }
 
@@ -1577,7 +1585,7 @@ async function saveRepasse(){
 // PAINEL ADMIN
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadAdminPanel(){
-  await Promise.all([loadClinicasList(), loadAdminsList()]);
+  await Promise.all([loadClinicasList(), loadAdminsList(), loadGerentes()]);
 }
 
 async function loadClinicasList(){
@@ -1591,15 +1599,13 @@ async function loadClinicasList(){
         ${!c.ativo?'<div class="inactive-overlay">Inativa</div>':''}
         <div class="item-title">🏥 ${esc(c.nome)}</div>
         <div class="item-detail">🔑 ${esc(c.email)}</div>
-        <div class="item-detail">${c.perfil==='gerente'?'👔 <strong style="color:var(--pec)">Gerente</strong>':'🏥 Clínica'}</div>
         ${c.emails_adicionais?(c.emails_adicionais.split(';').filter(Boolean).map(e=>`<div class="item-detail" style="color:var(--text-lt)">📧 ${esc(e.trim())}</div>`).join('')):''}
         ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
         ${c.endereco?`<div class="item-detail">📍 ${esc(c.endereco)}</div>`:''}
         <div class="item-actions">
           <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
           <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
-          <button class="btn btn-sm" style="background:var(--yellow-lt);color:#7a5c00" onclick="setPerfilClinica(${c.id},'${c.perfil==='gerente'?'clinica':'gerente'}')">
-            ${c.perfil==='gerente'?'🏥 → Clínica':'👔 → Gerente'}</button>
+
           <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
         </div>
@@ -1679,14 +1685,86 @@ async function deleteClinica(id,nome){
   catch(e){toast(e.message,'err')}
 }
 
-async function setPerfilClinica(id, perfil){
-  const label = perfil === 'gerente' ? 'Gerente' : 'Clínica';
-  if(!confirm('Alterar perfil para ' + label + '?')) return;
-  try {
-    await api('PUT', '/admin/clinicas/' + id + '/perfil', {perfil});
-    toast('Perfil alterado para ' + label, 'info');
-    loadClinicasList();
-  } catch(e) { toast(e.message, 'err'); }
+
+
+// Gerentes
+async function loadGerentes(){
+  document.getElementById('gerentes-list').innerHTML='<div class="spinner"></div>';
+  try{
+    const list=await api('GET','/admin/gerentes');
+    const el=document.getElementById('gerentes-list');
+    if(!list.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">👔</div><div>Nenhum gerente cadastrado.</div></div>';return}
+    el.innerHTML='<div class="item-grid">'+list.map(g=>{
+      return '<div class="item-card" style="'+(g.ativo?'':'opacity:.7')+'">'
+        +(g.ativo?'':'<div class="inactive-overlay">Inativo</div>')
+        +'<div class="item-title">👔 '+esc(g.nome)+'</div>'
+        +'<div class="item-detail">📧 '+esc(g.email)+'</div>'
+        +'<div class="item-detail">🏥 '+esc(g.clinica_nome||'—')+'</div>'
+        +'<div class="item-actions">'
+        +'<button class="btn btn-primary btn-sm" onclick="openGerenteModal('+g.id+')">✏️ Editar</button>'
+        +'<button class="btn '+(g.ativo?'btn-danger':'btn-success')+' btn-sm" onclick="toggleGerente('+g.id+','+g.ativo+')">'+(g.ativo?'⛔ Desativar':'✅ Ativar')+'</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="deleteGerente('+g.id+')">🗑 Deletar</button>'
+        +'</div></div>';
+    }).join('')+'</div>';
+  }catch(e){toast(e.message,'err')}
+}
+async function openGerenteModal(id){
+  const clinicas=await api('GET','/admin/clinicas').catch(()=>[]);
+  const opts=clinicas.filter(c=>c.ativo).map(c=>'<option value="'+c.id+'">'+esc(c.nome)+'</option>').join('');
+  openModal(id?'Editar Gerente':'Novo Gerente',
+    '<div class="form-grid">'
+    +'<div class="field full"><label>Nome <span class="required">*</span></label>'
+    +'<input id="gr-nome" type="text" placeholder="Nome completo"/></div>'
+    +'<div class="field"><label>Email <span class="required">*</span></label>'
+    +'<input id="gr-email" type="email" placeholder="gerente@email.com"/></div>'
+    +'<div class="field full"><label>Clínica <span class="required">*</span></label>'
+    +'<select id="gr-clinica"><option value="">Selecione...</option>'+opts+'</select></div>'
+    +'<div class="field"><label>'+(id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>')+'</label>'
+    +'<input id="gr-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch(\'gr-senha\',\'gr-senha2\',\'gr-pwd-hint\')"/></div>'
+    +'<div class="field"><label>'+(id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>')+'</label>'
+    +'<input id="gr-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch(\'gr-senha\',\'gr-senha2\',\'gr-pwd-hint\')"/>'
+    +'<div id="gr-pwd-hint" class="pwd-hint"></div></div>'
+    +'</div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="saveGerente('+(id||'null')+')">'+(id?'Salvar':'Cadastrar')+'</button>');
+  if(id){
+    api('GET','/admin/gerentes').then(gs=>{
+      const g=gs.find(x=>x.id===id);if(!g)return;
+      document.getElementById('gr-nome').value=g.nome||'';
+      document.getElementById('gr-email').value=g.email||'';
+      document.getElementById('gr-clinica').value=g.clinica_id||'';
+    });
+  }
+}
+async function saveGerente(id){
+  const nome=document.getElementById('gr-nome').value.trim();
+  const email=document.getElementById('gr-email').value.trim();
+  const clinica_id=document.getElementById('gr-clinica').value;
+  const senha=document.getElementById('gr-senha').value;
+  const senha2=document.getElementById('gr-senha2').value;
+  if(!nome||!email)return toast('Nome e email sao obrigatorios','err');
+  if(!clinica_id)return toast('Selecione a clinica do gerente','err');
+  if(!id&&!senha)return toast('Senha e obrigatoria','err');
+  if(senha&&senha!==senha2)return toast('As senhas nao coincidem','err');
+  const body={nome,email,clinica_id:parseInt(clinica_id),ativo:1};
+  if(senha)body.senha=senha;
+  try{
+    if(id) await api('PUT','/admin/gerentes/'+id,body);
+    else   await api('POST','/admin/gerentes',body);
+    toast(id?'Gerente atualizado!':'Gerente cadastrado!');closeModal();loadGerentes();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleGerente(id,ativo){
+  try{
+    const gs=await api('GET','/admin/gerentes');const g=gs.find(x=>x.id===id);
+    if(g) await api('PUT','/admin/gerentes/'+id,{...g,ativo:ativo?0:1});
+    toast(ativo?'Desativado':'Ativado','info');loadGerentes();
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteGerente(id){
+  if(!confirm('Deletar permanentemente este gerente? Esta acao nao pode ser desfeita.'))return;
+  try{await api('DELETE','/admin/gerentes/'+id);toast('Gerente deletado','info');loadGerentes()}
+  catch(e){toast(e.message,'err')}
 }
 
 async function loadAdminsList(){

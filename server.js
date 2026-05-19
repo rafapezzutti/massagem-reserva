@@ -135,9 +135,17 @@ async function initDB() {
     );
   `);
 
-  // 3e. Coluna perfil em clinicas para suporte ao gerente
+  // 3e. Tabela de gerentes (perfil operacional, sem dashboard/repasse)
   await pool.query(`
-    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS perfil TEXT NOT NULL DEFAULT 'clinica';
+    CREATE TABLE IF NOT EXISTS gerentes (
+      id          SERIAL PRIMARY KEY,
+      nome        TEXT NOT NULL,
+      email       TEXT NOT NULL UNIQUE,
+      senha_hash  TEXT NOT NULL,
+      clinica_id  INTEGER REFERENCES clinicas(id),
+      ativo       INTEGER NOT NULL DEFAULT 1,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    );
   `);
 
   // 4. Seed do admin padrão
@@ -191,7 +199,7 @@ function requireAdmin(req, res, next) {
 // Bloqueia gerentes do dashboard
 function requireDashboard(req, res, next) {
   requireAuth(req, res, () => {
-    if (req.user.role === 'clinica' && req.user.perfil === 'gerente')
+    if (req.user.role === 'gerente')
       return res.status(403).json({ ok: false, error: 'Gerentes não têm acesso ao dashboard' });
     next();
   });
@@ -236,14 +244,24 @@ app.post('/api/auth/login', async (req, res) => {
 
     const clinica = await qOne('SELECT * FROM clinicas WHERE email=$1 AND ativo=1', [em]);
     if (clinica && await bcrypt.compare(senha, clinica.senha_hash)) {
-      const perfil = clinica.perfil || 'clinica';
       const token = jwt.sign(
-        { id: clinica.id, email: clinica.email, role: 'clinica', perfil,
+        { id: clinica.id, email: clinica.email, role: 'clinica',
           clinica_id: clinica.id, nome_clinica: clinica.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
       return res.json({ ok: true, data: { token,
-        user: { role: 'clinica', perfil, nome_clinica: clinica.nome, email: clinica.email, clinica_id: clinica.id } } });
+        user: { role: 'clinica', nome_clinica: clinica.nome, email: clinica.email, clinica_id: clinica.id } } });
+    }
+
+    const gerente = await qOne('SELECT * FROM gerentes WHERE email=$1 AND ativo=1', [em]);
+    if (gerente && await bcrypt.compare(senha, gerente.senha_hash)) {
+      const token = jwt.sign(
+        { id: gerente.id, email: gerente.email, role: 'gerente',
+          clinica_id: gerente.clinica_id, nome: gerente.nome },
+        JWT_SECRET, { expiresIn: '10h' }
+      );
+      return res.json({ ok: true, data: { token,
+        user: { role: 'gerente', nome: gerente.nome, email: gerente.email, clinica_id: gerente.clinica_id } } });
     }
 
     res.json({ ok: false, error: 'Email ou senha incorretos' });
@@ -335,6 +353,53 @@ app.put('/api/admin/admins/:id', requireAdmin, (req, res) =>
 app.delete('/api/admin/admins/:id', requireAdmin, (req, res) =>
   send(res, async () => {
     await qRun('DELETE FROM admins WHERE id=$1', [req.params.id]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN — Gerentes
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/admin/gerentes', requireAdmin, (req, res) =>
+  send(res, () => q(`
+    SELECT g.id, g.nome, g.email, g.ativo, g.criado_em, g.clinica_id, c.nome AS clinica_nome
+    FROM gerentes g LEFT JOIN clinicas c ON g.clinica_id=c.id
+    ORDER BY g.nome
+  `)));
+
+app.post('/api/admin/gerentes', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const { nome, email, senha, clinica_id } = req.body;
+    if (!nome || !email || !senha) throw new Error('Nome, email e senha sao obrigatorios');
+    if (!clinica_id) throw new Error('Selecione a clinica do gerente');
+    const hash = await bcrypt.hash(senha, 10);
+    return qOne(
+      'INSERT INTO gerentes (nome,email,senha_hash,clinica_id) VALUES ($1,$2,$3,$4) RETURNING id,nome,email,ativo,clinica_id,criado_em',
+      [nome.trim(), email.toLowerCase().trim(), hash, clinica_id]
+    );
+  }));
+
+app.put('/api/admin/gerentes/:id', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const { nome, email, senha, clinica_id, ativo } = req.body;
+    if (!nome || !email) throw new Error('Nome e email sao obrigatorios');
+    if (senha) {
+      const hash = await bcrypt.hash(senha, 10);
+      await qRun(
+        'UPDATE gerentes SET nome=$1,email=$2,senha_hash=$3,clinica_id=$4,ativo=$5 WHERE id=$6',
+        [nome.trim(), email.toLowerCase().trim(), hash, clinica_id, ativo??1, req.params.id]
+      );
+    } else {
+      await qRun(
+        'UPDATE gerentes SET nome=$1,email=$2,clinica_id=$3,ativo=$4 WHERE id=$5',
+        [nome.trim(), email.toLowerCase().trim(), clinica_id, ativo??1, req.params.id]
+      );
+    }
+    return qOne('SELECT id,nome,email,ativo,clinica_id,criado_em FROM gerentes WHERE id=$1', [req.params.id]);
+  }));
+
+app.delete('/api/admin/gerentes/:id', requireAdmin, (req, res) =>
+  send(res, async () => {
+    await qRun('DELETE FROM gerentes WHERE id=$1', [req.params.id]);
     return { id: parseInt(req.params.id) };
   }));
 
