@@ -103,15 +103,41 @@ async function initDB() {
     ALTER TABLE clinicas      ADD COLUMN IF NOT EXISTS emails_adicionais TEXT;
   `);
 
-  // 3b. Campos de bebida na reserva
+  // 3b. Campos de bebida + recepcionista na reserva
   await pool.query(`
     ALTER TABLE reservas ADD COLUMN IF NOT EXISTS bebida TEXT;
     ALTER TABLE reservas ADD COLUMN IF NOT EXISTS preco_bebida NUMERIC(10,2) NOT NULL DEFAULT 0;
+    ALTER TABLE reservas ADD COLUMN IF NOT EXISTS recepcionista_id INTEGER;
   `);
 
   // 3c. Remove constraint única global de numero em quartos (incompatível com multi-clínica)
   await pool.query(`
     ALTER TABLE quartos DROP CONSTRAINT IF EXISTS quartos_numero_key;
+  `);
+
+  // 3d. Novas tabelas
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS recepcionistas (
+      id              SERIAL PRIMARY KEY,
+      nome            TEXT NOT NULL,
+      cpf             TEXT,
+      data_nascimento TEXT,
+      telefone        TEXT,
+      email           TEXT,
+      ativo           INTEGER NOT NULL DEFAULT 1,
+      clinica_id      INTEGER REFERENCES clinicas(id),
+      criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS repasse_config (
+      id         SERIAL PRIMARY KEY,
+      clinica_id INTEGER NOT NULL UNIQUE REFERENCES clinicas(id),
+      percentual NUMERIC(5,2) NOT NULL DEFAULT 0
+    );
+  `);
+
+  // 3e. Coluna perfil em clinicas para suporte ao gerente
+  await pool.query(`
+    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS perfil TEXT NOT NULL DEFAULT 'clinica';
   `);
 
   // 4. Seed do admin padrão
@@ -162,6 +188,14 @@ function requireAdmin(req, res, next) {
     next();
   });
 }
+// Bloqueia gerentes do dashboard
+function requireDashboard(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role === 'clinica' && req.user.perfil === 'gerente')
+      return res.status(403).json({ ok: false, error: 'Gerentes não têm acesso ao dashboard' });
+    next();
+  });
+}
 
 function getClinicaId(req) {
   if (req.user.role === 'admin') {
@@ -202,13 +236,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     const clinica = await qOne('SELECT * FROM clinicas WHERE email=$1 AND ativo=1', [em]);
     if (clinica && await bcrypt.compare(senha, clinica.senha_hash)) {
+      const perfil = clinica.perfil || 'clinica';
       const token = jwt.sign(
-        { id: clinica.id, email: clinica.email, role: 'clinica',
+        { id: clinica.id, email: clinica.email, role: 'clinica', perfil,
           clinica_id: clinica.id, nome_clinica: clinica.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
       return res.json({ ok: true, data: { token,
-        user: { role: 'clinica', nome_clinica: clinica.nome, email: clinica.email, clinica_id: clinica.id } } });
+        user: { role: 'clinica', perfil, nome_clinica: clinica.nome, email: clinica.email, clinica_id: clinica.id } } });
     }
 
     res.json({ ok: false, error: 'Email ou senha incorretos' });
@@ -437,11 +472,13 @@ const RJ = `
     q.nome AS quarto_nome, q.numero AS quarto_numero, q.tem_hidromassagem,
     p.nome AS profissional_nome, p.nome_fantasia,
     m.nome AS massagem_nome, m.duracao AS massagem_duracao, m.preco AS massagem_preco,
-    r.bebida, r.preco_bebida
+    r.bebida, r.preco_bebida,
+    rc.nome AS recepcionista_nome
   FROM reservas r
   JOIN quartos q ON r.quarto_id=q.id
   JOIN profissionais p ON r.profissional_id=p.id
   JOIN massagens m ON r.massagem_id=m.id
+  LEFT JOIN recepcionistas rc ON r.recepcionista_id=rc.id
 `;
 
 app.get('/api/reservas/resumo-mensal', requireAuth, (req, res) =>
@@ -476,23 +513,21 @@ app.post('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, cliente_nome, cliente_telefone, observacoes,
-            bebida, preco_bebida } = req.body;
+            bebida, preco_bebida, recepcionista_id } = req.body;
     const cid = getClinicaId(req);
     if (!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
-    // Verificar conflito de sala
     const cQ = await qOne(
       `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
       [cid, quarto_id, data, hora_fim, hora_inicio]);
     if (cQ) throw new Error('Sala já reservada neste horário');
-    // Verificar conflito de profissional
     const cP = await qOne(
       `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
       [cid, profissional_id, data, hora_fim, hora_inicio]);
     if (cP) throw new Error('Massagista já tem atendimento neste horário');
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
-      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0]);
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,recepcionista_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id',
+      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -502,7 +537,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, cliente_nome, cliente_telefone, status, observacoes,
-            bebida, preco_bebida } = req.body;
+            bebida, preco_bebida, recepcionista_id } = req.body;
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
     if (status !== 'cancelada') {
       const cQ = await qOne(
@@ -515,10 +550,10 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,cliente_nome=$7,cliente_telefone=$8,status=$9,observacoes=$10,bebida=$11,preco_bebida=$12 WHERE id=$13 AND clinica_id=$14',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,cliente_nome=$7,cliente_telefone=$8,status=$9,observacoes=$10,bebida=$11,preco_bebida=$12,recepcionista_id=$13 WHERE id=$14 AND clinica_id=$15',
       [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
-       bebida||null, parseFloat(preco_bebida)||0, id, cid]);
+       bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -532,7 +567,7 @@ app.delete('/api/reservas/:id', requireAuth, (req, res) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD FINANCEIRO
 // ═══════════════════════════════════════════════════════════════════════════════
-app.get('/api/dashboard/massagista-mensal', requireAuth, (req, res) =>
+app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
@@ -558,7 +593,7 @@ app.get('/api/dashboard/massagista-mensal', requireAuth, (req, res) =>
     `, [cid, pref]);
   }));
 
-app.get('/api/dashboard/massagista-diario', requireAuth, (req, res) =>
+app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { data } = req.query;
@@ -583,7 +618,7 @@ app.get('/api/dashboard/massagista-diario', requireAuth, (req, res) =>
     `, [cid, data]);
   }));
 
-app.get('/api/dashboard/massagem-mensal', requireAuth, (req, res) =>
+app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
@@ -609,7 +644,7 @@ app.get('/api/dashboard/massagem-mensal', requireAuth, (req, res) =>
     `, [cid, pref]);
   }));
 
-app.get('/api/dashboard/massagem-diario', requireAuth, (req, res) =>
+app.get('/api/dashboard/massagem-diario', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { data } = req.query;
@@ -632,6 +667,106 @@ app.get('/api/dashboard/massagem-diario', requireAuth, (req, res) =>
       GROUP BY m.id, m.nome, m.duracao, m.preco
       ORDER BY total DESC NULLS LAST, m.nome
     `, [cid, data]);
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RECEPCIONISTAS
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/recepcionistas', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return q('SELECT * FROM recepcionistas WHERE clinica_id=$1 ORDER BY nome', [cid]);
+  }));
+
+app.post('/api/recepcionistas', requireAuth, (req, res) =>
+  send(res, async () => {
+    const { nome, cpf, data_nascimento, telefone, email } = req.body;
+    const cid = getClinicaId(req);
+    if (!nome) throw new Error('Nome é obrigatório');
+    return qOne(
+      'INSERT INTO recepcionistas (nome,cpf,data_nascimento,telefone,email,clinica_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [nome.trim(), cpf||null, data_nascimento||null, telefone||null, email||null, cid]
+    );
+  }));
+
+app.put('/api/recepcionistas/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const { nome, cpf, data_nascimento, telefone, email, ativo } = req.body;
+    const cid = getClinicaId(req);
+    if (!nome) throw new Error('Nome é obrigatório');
+    await qRun(
+      'UPDATE recepcionistas SET nome=$1,cpf=$2,data_nascimento=$3,telefone=$4,email=$5,ativo=$6 WHERE id=$7 AND clinica_id=$8',
+      [nome.trim(), cpf||null, data_nascimento||null, telefone||null, email||null, ativo??1, req.params.id, cid]
+    );
+    return qOne('SELECT * FROM recepcionistas WHERE id=$1', [req.params.id]);
+  }));
+
+app.delete('/api/recepcionistas/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM recepcionistas WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REPASSE CONFIG
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/repasse', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const r = await qOne('SELECT percentual FROM repasse_config WHERE clinica_id=$1', [cid]);
+    return { percentual: r ? parseFloat(r.percentual) : 0 };
+  }));
+
+app.put('/api/repasse', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { percentual } = req.body;
+    const pct = parseFloat(percentual) || 0;
+    await qRun(
+      'INSERT INTO repasse_config (clinica_id, percentual) VALUES ($1,$2) ON CONFLICT (clinica_id) DO UPDATE SET percentual=$2',
+      [cid, pct]
+    );
+    return { percentual: pct };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD — RECEPCIONISTA MENSAL
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/dashboard/recepcionista-mensal', requireDashboard, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { mes, ano } = req.query;
+    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    return q(`
+      SELECT
+        rc.id,
+        rc.nome,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS total_agendamentos,
+        COUNT(CASE WHEN r.status = 'confirmada'  THEN 1 END) AS confirmadas,
+        COUNT(CASE WHEN r.status = 'concluida'   THEN 1 END) AS concluidas,
+        COUNT(CASE WHEN r.status = 'cancelada'   THEN 1 END) AS canceladas,
+        json_agg(
+          json_build_object('massagem', m.nome, 'status', r.status)
+          ORDER BY m.nome
+        ) FILTER (WHERE r.id IS NOT NULL) AS detalhes_massagens
+      FROM recepcionistas rc
+      LEFT JOIN reservas r   ON r.recepcionista_id = rc.id AND r.clinica_id = $1 AND r.data LIKE $2
+      LEFT JOIN massagens m  ON m.id = r.massagem_id
+      WHERE rc.clinica_id = $1 AND rc.ativo = 1
+      GROUP BY rc.id, rc.nome
+      ORDER BY total_agendamentos DESC NULLS LAST, rc.nome
+    `, [cid, pref]);
+  }));
+
+// Endpoint para gerenciar perfil das clínicas (admin)
+app.put('/api/admin/clinicas/:id/perfil', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const { perfil } = req.body;
+    if (!['clinica','gerente'].includes(perfil)) throw new Error('Perfil inválido');
+    await qRun('UPDATE clinicas SET perfil=$1 WHERE id=$2', [perfil, req.params.id]);
+    return qOne('SELECT id,nome,email,ativo,perfil FROM clinicas WHERE id=$1', [req.params.id]);
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────

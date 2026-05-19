@@ -126,6 +126,22 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .field textarea{resize:vertical;min-height:80px}
 .required{color:var(--pec);margin-left:2px}
 
+/* ═══ DASHBOARD LAYOUT ══════════════════════════════════════════════════════ */
+.dash-layout{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
+.dash-sidebar{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;position:sticky;top:80px}
+.dash-sidebar-title{font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;padding:6px 8px 10px}
+.dash-menu-btn{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:9px 12px;border-radius:8px;font-size:.84rem;cursor:pointer;transition:background .15s;margin-bottom:2px}
+.dash-menu-btn:hover{background:var(--cel-pale)}
+.dash-menu-btn.active{background:var(--cel-lt);color:var(--text);font-weight:600}
+.dash-panel{display:none}
+.dash-panel.active{display:block}
+@media(max-width:700px){
+  .dash-layout{grid-template-columns:1fr}
+  .dash-sidebar{position:static;display:flex;flex-wrap:wrap;gap:4px;padding:8px}
+  .dash-menu-btn{width:auto;padding:6px 12px;font-size:.78rem}
+  .dash-sidebar-title{display:none}
+}
+
 /* ═══ DRINKS BOX ═══════════════════════════════════════════════════════════ */
 .drinks-box{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
 .drinks-add-row{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--cel-pale);border-bottom:1px solid var(--border)}
@@ -309,7 +325,9 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="nav-btn"         onclick="showView('quartos')">🛏 Quartos</button>
       <button class="nav-btn"         onclick="showView('profissionais')">👤 Profissionais</button>
       <button class="nav-btn"         onclick="showView('massagens')">💆 Massagens</button>
-      <button class="nav-btn"         onclick="showView('dashboard')">📊 Dashboard</button>
+      <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
+      <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
+      <button class="nav-btn" id="nav-dashboard"       onclick="showView('dashboard')">📊 Dashboard</button>
       <button class="nav-btn" id="nav-admin" style="display:none" onclick="showView('admin')">⚙️ Admin</button>
     </nav>
     <div id="clinica-selector-wrap" style="display:none">
@@ -382,65 +400,123 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <div id="massagens-list"><div class="spinner"></div></div>
     </div>
 
+    <!-- Recepcionistas -->
+    <div id="view-recepcionistas" class="view">
+      <div class="list-header">
+        <h1>🗂 Recepcionistas</h1>
+        <button class="btn btn-primary" onclick="openRecepModal()">＋ Nova Recepcionista</button>
+      </div>
+      <div id="recepcionistas-list"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Repasse -->
+    <div id="view-repasse" class="view">
+      <div class="list-header"><h1>💸 Configuração de Repasse</h1></div>
+      <div class="card" style="max-width:480px;margin:0 auto">
+        <div class="card-header" style="background:var(--green);border-radius:var(--radius) var(--radius) 0 0">
+          <h2 style="color:#fff">💸 Repasse para Massagistas</h2>
+        </div>
+        <div class="card-body" style="padding:28px">
+          <p style="margin-bottom:18px;color:var(--text-lt);font-size:.9rem">
+            Defina o percentual de repasse que será pago às massagistas sobre o valor das massagens (excluindo bebidas).
+          </p>
+          <div class="field">
+            <label>Percentual de Repasse (%)</label>
+            <div style="display:flex;gap:10px;align-items:center">
+              <input id="repasse-pct" type="number" min="0" max="100" step="0.1" placeholder="Ex: 40" style="flex:1"/>
+              <button class="btn btn-primary" onclick="saveRepasse()">💾 Salvar</button>
+            </div>
+          </div>
+          <div id="repasse-preview" style="margin-top:16px;padding:12px;background:var(--green-lt);border-radius:8px;display:none">
+            <p style="color:#1d6040;font-size:.9rem">✅ Repasse salvo: <strong id="repasse-saved-pct"></strong></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Dashboard -->
     <div id="view-dashboard" class="view">
       <div class="list-header"><h1>📊 Dashboard Financeiro</h1></div>
-
-      <!-- Mensal por Massagista -->
-      <div class="dash-section">
-        <div class="card">
-          <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
-            <h2 style="color:#fff">👤 Resumo Mensal por Massagista</h2>
-            <div class="dash-controls">
-              <select id="dash-mm-mes"></select>
-              <select id="dash-mm-ano"></select>
-              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
-            </div>
-          </div>
-          <div class="card-body" id="dash-mm-body"><div class="spinner"></div></div>
+      <div class="dash-layout">
+        <!-- Sidebar de relatórios -->
+        <div class="dash-sidebar">
+          <div class="dash-sidebar-title">📋 Relatórios</div>
+          <button class="dash-menu-btn active" onclick="showDashPanel('dash-mm')" id="dmbtn-dash-mm">👤 Mensal Massagista</button>
+          <button class="dash-menu-btn" onclick="showDashPanel('dash-dm')" id="dmbtn-dash-dm">👤 Diário Massagista</button>
+          <button class="dash-menu-btn" onclick="showDashPanel('dash-mt')" id="dmbtn-dash-mt">💆 Mensal Massagem</button>
+          <button class="dash-menu-btn" onclick="showDashPanel('dash-dt')" id="dmbtn-dash-dt">💆 Diário Massagem</button>
+          <button class="dash-menu-btn" onclick="showDashPanel('dash-rc')" id="dmbtn-dash-rc">🗂 Recepcionistas</button>
         </div>
-      </div>
-
-      <!-- Diário por Massagista -->
-      <div class="dash-section">
-        <div class="card">
-          <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
-            <h2 style="color:#fff">👤 Resumo Diário por Massagista</h2>
-            <div class="dash-controls">
-              <input type="date" id="dash-dm-data"/>
-              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagista()">Carregar</button>
+        <!-- Conteúdo principal -->
+        <div class="dash-content">
+          <!-- Mensal por Massagista -->
+          <div class="dash-panel active" id="panel-dash-mm">
+            <div class="card">
+              <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">👤 Resumo Mensal por Massagista</h2>
+                <div class="dash-controls">
+                  <select id="dash-mm-mes"></select>
+                  <select id="dash-mm-ano"></select>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-mm-body"><div class="spinner"></div></div>
             </div>
           </div>
-          <div class="card-body" id="dash-dm-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
-        </div>
-      </div>
-
-      <!-- Mensal por Tipo de Massagem -->
-      <div class="dash-section">
-        <div class="card">
-          <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
-            <h2 style="color:#fff">💆 Resumo Mensal por Tipo de Massagem</h2>
-            <div class="dash-controls">
-              <select id="dash-mt-mes"></select>
-              <select id="dash-mt-ano"></select>
-              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagem()">Carregar</button>
+          <!-- Diário por Massagista -->
+          <div class="dash-panel" id="panel-dash-dm">
+            <div class="card">
+              <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">👤 Resumo Diário por Massagista</h2>
+                <div class="dash-controls">
+                  <input type="date" id="dash-dm-data"/>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagista()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-dm-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
             </div>
           </div>
-          <div class="card-body" id="dash-mt-body"><div class="spinner"></div></div>
-        </div>
-      </div>
-
-      <!-- Diário por Tipo de Massagem -->
-      <div class="dash-section">
-        <div class="card">
-          <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
-            <h2 style="color:#fff">💆 Resumo Diário por Tipo de Massagem</h2>
-            <div class="dash-controls">
-              <input type="date" id="dash-dt-data"/>
-              <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagem()">Carregar</button>
+          <!-- Mensal por Tipo de Massagem -->
+          <div class="dash-panel" id="panel-dash-mt">
+            <div class="card">
+              <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">💆 Resumo Mensal por Tipo de Massagem</h2>
+                <div class="dash-controls">
+                  <select id="dash-mt-mes"></select>
+                  <select id="dash-mt-ano"></select>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagem()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-mt-body"><div class="spinner"></div></div>
             </div>
           </div>
-          <div class="card-body" id="dash-dt-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
+          <!-- Diário por Tipo de Massagem -->
+          <div class="dash-panel" id="panel-dash-dt">
+            <div class="card">
+              <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">💆 Resumo Diário por Tipo de Massagem</h2>
+                <div class="dash-controls">
+                  <input type="date" id="dash-dt-data"/>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagem()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-dt-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
+            </div>
+          </div>
+          <!-- Mensal por Recepcionista -->
+          <div class="dash-panel" id="panel-dash-rc">
+            <div class="card">
+              <div class="card-header" style="background:var(--green);border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">🗂 Controle Mensal de Recepcionistas</h2>
+                <div class="dash-controls">
+                  <select id="dash-rc-mes"></select>
+                  <select id="dash-rc-ano"></select>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashRecepcionista()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-rc-body"><div class="dash-empty">Selecione mês/ano e clique em Carregar.</div></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -487,7 +563,8 @@ let state = {
   currentView: 'daily',
   currentDate: '',
   adminClinicaId: null,
-  quartos:[], profissionais:[], massagens:[], reservasDia:[]
+  quartos:[], profissionais:[], massagens:[], reservasDia:[],
+  recepcionistas:[], repasse:0
 };
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -612,6 +689,10 @@ function initApp(){
   } else {
     document.getElementById('clinica-badge').style.display='flex';
     document.getElementById('clinica-badge').textContent='🏥 '+auth.user.nome_clinica;
+    // Gerente: esconde o Dashboard
+    if(auth.user.perfil==='gerente'){
+      document.getElementById('nav-dashboard').style.display='none';
+    }
   }
 
   initDate();
@@ -629,12 +710,10 @@ function showView(v){
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
+  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
   document.querySelectorAll('.nav-btn').forEach(btn=>{
     const t=btn.textContent.toLowerCase();
-    if((v==='daily'&&t.includes('hoje'))||(v==='monthly'&&t.includes('mês'))||
-       (v==='quartos'&&t.includes('quart'))||(v==='profissionais'&&t.includes('prof'))||
-       (v==='massagens'&&t.includes('massa'))||(v==='dashboard'&&t.includes('dashboard'))||(v==='admin'&&t.includes('admin')))
-      btn.classList.add('active');
+    if(navMap[v]&&t.includes(navMap[v])) btn.classList.add('active');
   });
   document.getElementById('nav').classList.remove('open');
   state.currentView=v;
@@ -643,6 +722,8 @@ function showView(v){
   else if(v==='quartos') loadQuartos();
   else if(v==='profissionais') loadProfissionais();
   else if(v==='massagens') loadMassagens();
+  else if(v==='recepcionistas') loadRecepcionistas();
+  else if(v==='repasse') loadRepasse();
   else if(v==='dashboard') loadDashboard();
   else if(v==='admin') loadAdminPanel();
 }
@@ -1001,9 +1082,10 @@ async function deleteMassagem(id,nome){
 // ═══════════════════════════════════════════════════════════════════════════
 async function ensureData(){
   const cid=cidParam();
-  if(!state.quartos.length)       state.quartos=      await api('GET','/quartos'+(cid?'?'+cid:''));
-  if(!state.profissionais.length) state.profissionais=await api('GET','/profissionais'+(cid?'?'+cid:''));
-  if(!state.massagens.length)     state.massagens=    await api('GET','/massagens'+(cid?'?'+cid:''));
+  if(!state.quartos.length)         state.quartos=        await api('GET','/quartos'+(cid?'?'+cid:''));
+  if(!state.profissionais.length)   state.profissionais=  await api('GET','/profissionais'+(cid?'?'+cid:''));
+  if(!state.massagens.length)       state.massagens=      await api('GET','/massagens'+(cid?'?'+cid:''));
+  if(!state.recepcionistas.length)  state.recepcionistas= await api('GET','/recepcionistas'+(cid?'?'+cid:''));
 }
 
 async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalIdPre){
@@ -1037,6 +1119,11 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
         <input id="rv-ctel" type="tel" value="${r?.cliente_telefone?esc(r.cliente_telefone):''}"/></div>
+      <div class="field full"><label>Recepcionista <span class="required">*</span></label>
+        <select id="rv-recep">
+          <option value="">— Selecione —</option>
+          ${state.recepcionistas.filter(rc=>rc.ativo||r?.recepcionista_id===rc.id).map(rc=>`<option value="${rc.id}"${r?.recepcionista_id===rc.id?'selected':''}>${esc(rc.nome)}</option>`).join('')}
+        </select></div>
       ${statusSel}
       <div class="field full">
         <label>🍹 Bebidas</label>
@@ -1121,12 +1208,14 @@ async function saveReserva(id){
   const observacoes=document.getElementById('rv-obs')?.value.trim();
   const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
+  const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
   if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
+  if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
@@ -1150,7 +1239,7 @@ function initDashboard(){
   const mm=t.getMonth()+1;
   const today=new Date().toYMD();
 
-  ['mm','mt'].forEach(pre=>{
+  ['mm','mt','rc'].forEach(pre=>{
     const selM=document.getElementById(`dash-${pre}-mes`);
     const selA=document.getElementById(`dash-${pre}-ano`);
     if(!selM||!selA)return;
@@ -1166,6 +1255,12 @@ function initDashboard(){
   if(dmEl)dmEl.value=today;
   if(dtEl)dtEl.value=today;
 }
+function showDashPanel(id){
+  document.querySelectorAll('.dash-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.dash-menu-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+id)?.classList.add('active');
+  document.getElementById('dmbtn-'+id)?.classList.add('active');
+}
 
 function renderDashTable(data,containerId,type){
   const el=document.getElementById(containerId);
@@ -1173,18 +1268,23 @@ function renderDashTable(data,containerId,type){
     el.innerHTML='<div class="dash-empty">Nenhum dado encontrado para este período.</div>';return;
   }
   const isMassagem=(type==='massagem');
+  const pct=state.repasse;
+  const showRepasse=!isMassagem&&pct>0;
   const sumAtend=data.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumTotal=data.reduce((s,r)=>s+parseFloat(r.total||0),0);
   const sumBebidas=data.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
   const sumConf= data.reduce((s,r)=>s+parseInt(r.confirmadas||0),0);
   const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
+  const sumMassagens=sumTotal-sumBebidas;
+  const sumRepasse=showRepasse?sumMassagens*(pct/100):0;
 
   let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
   if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
-  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th><th class="num">Total Geral</th><th class="num">Média/Atend.</th>';
-  html+='<th class="ctr">✅ Conc.</th><th class="ctr">📋 Conf.</th><th class="ctr">❌ Canc.</th>';
+  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th><th class="num">Total Geral</th>';
+  if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th>`;
+  html+='<th class="num">Média/Atend.</th><th class="ctr">✅ Conc.</th><th class="ctr">📋 Conf.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
 
   data.forEach(r=>{
@@ -1192,17 +1292,19 @@ function renderDashTable(data,containerId,type){
     const valor=parseFloat(r.total||0);
     const bebidas=parseFloat(r.total_bebidas||0);
     const massagens=valor-bebidas;
+    const valRepasse=showRepasse?massagens*(pct/100):0;
     const media=atend>0?valor/atend:null;
     const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
     const nomeCompleto=!isMassagem&&r.nome_display&&r.nome_display!==r.nome_completo?r.nome_completo:null;
     const corValor=valor>0?'color:#2d7a56;font-weight:700':'color:var(--text-lt)';
     html+=`<tr>
-      <td><strong>${esc(nome)}</strong>${nomeCompleto?`<br><small style="color:var(--text-lt);font-weight:400">${esc(nomeCompleto)}</small>`:''}</td>
+      <td><strong>${esc(nome)}</strong>${nomeCompleto?'<br><small style="color:var(--text-lt);font-weight:400">'+esc(nomeCompleto)+'</small>':''}</td>
       ${isMassagem?`<td class="ctr">${r.duracao}min</td><td class="num">${fmtMoeda(r.preco_unitario)}</td>`:''}
       <td class="ctr">${atend}</td>
       <td class="num">${fmtMoeda(massagens)}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
+      ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td>`:''}
       <td class="num">${media!==null?fmtMoeda(media):'—'}</td>
       <td class="ctr">${r.concluidas||0}</td>
       <td class="ctr">${r.confirmadas||0}</td>
@@ -1214,9 +1316,10 @@ function renderDashTable(data,containerId,type){
     <td>TOTAL GERAL</td>
     ${isMassagem?'<td></td><td></td>':''}
     <td class="ctr">${sumAtend}</td>
-    <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal-sumBebidas)}</td>
+    <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
     <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
+    ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
     <td class="num">${sumAtend>0?fmtMoeda(sumTotal/sumAtend):'—'}</td>
     <td class="ctr">${sumConc}</td>
     <td class="ctr">${sumConf}</td>
@@ -1276,189 +1379,84 @@ async function loadDashDiarioMassagem(){
 }
 
 async function loadDashboard(){
-  await Promise.all([
-    loadDashMensalMassagista(),
-    loadDashDiarioMassagista(),
-    loadDashMensalMassagem(),
-    loadDashDiarioMassagem()
-  ]);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PAINEL ADMIN
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAdminPanel(){
-  await Promise.all([loadClinicasList(), loadAdminsList()]);
-}
-
-async function loadClinicasList(){
-  document.getElementById('clinicas-list').innerHTML='<div class="spinner"></div>';
+  // Garante repasse atualizado antes de renderizar
   try{
-    const clinicas=await api('GET','/admin/clinicas');
-    const el=document.getElementById('clinicas-list');
-    if(!clinicas.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">🏥</div><div>Nenhuma clínica cadastrada.</div></div>`;return}
-    el.innerHTML=`<div class="item-grid">${clinicas.map(c=>`
-      <div class="item-card" style="${!c.ativo?'opacity:.7':''}">
-        ${!c.ativo?'<div class="inactive-overlay">Inativa</div>':''}
-        <div class="item-title">🏥 ${esc(c.nome)}</div>
-        <div class="item-detail">🔑 ${esc(c.email)}</div>
-        ${c.emails_adicionais?(c.emails_adicionais.split(';').filter(Boolean).map(e=>`<div class="item-detail" style="color:var(--text-lt)">📧 ${esc(e.trim())}</div>`).join('')):''}
-        ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
-        ${c.endereco?`<div class="item-detail">📍 ${esc(c.endereco)}</div>`:''}
-        <div class="item-actions">
-          <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
-          <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
-          <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
-        </div>
-      </div>`).join('')}</div>`;
-  }catch(e){toast(e.message,'err')}
+    const cid=cidParam();
+    const rep=await api('GET','/repasse'+(cid?'?'+cid:''));
+    state.repasse=parseFloat(rep.percentual)||0;
+  }catch(e){state.repasse=0;}
+  // Carrega apenas o painel ativo
+  const active=document.querySelector('.dash-panel.active');
+  if(!active) return;
+  const id=active.id.replace('panel-','');
+  if(id==='dash-mm') await loadDashMensalMassagista();
+  else if(id==='dash-dm') await loadDashDiarioMassagista();
+  else if(id==='dash-mt') await loadDashMensalMassagem();
+  else if(id==='dash-dt') await loadDashDiarioMassagem();
+  else if(id==='dash-rc') await loadDashRecepcionista();
 }
 
-function openClinicaModal(id){
-  const body=`<div class="form-grid">
-    <div class="field full"><label>Nome da Clínica <span class="required">*</span></label>
-      <input id="cl-nome" type="text" placeholder="Ex: Spa Serene"/></div>
-    <div class="field"><label>Email de Login <span class="required">*</span></label>
-      <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
-    <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/></div>
-    <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/>
-      <div id="cl-pwd-hint" class="pwd-hint"></div></div>
-    <div class="field"><label>Telefone</label>
-      <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
-    <div class="field full"><label>Endereço</label>
-      <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
-    <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
-      <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
-  </div>`;
-  openModal(id?'Editar Clínica':'Nova Clínica', body,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveClinica(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
-  if(id){
-    api('GET','/admin/clinicas').then(cs=>{
-      const c=cs.find(x=>x.id===id);if(!c)return;
-      document.getElementById('cl-nome').value=c.nome||'';
-      document.getElementById('cl-email').value=c.email||'';
-      document.getElementById('cl-tel').value=c.telefone||'';
-      document.getElementById('cl-end').value=c.endereco||'';
-      // Converte ";" para quebras de linha
-      const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
-      document.getElementById('cl-emails-add').value=emails;
+async function loadDashRecepcionista(){
+  const mes=document.getElementById('dash-rc-mes').value;
+  const ano=document.getElementById('dash-rc-ano').value;
+  const el=document.getElementById('dash-rc-body');
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const data=await api('GET',`/dashboard/recepcionista-mensal?mes=${mes}&ano=${ano}`+(cid?'&'+cid:''));
+    renderDashRecepcionista(data,'dash-rc-body');
+  }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
+}
+
+// Massagens que contam em dobro para comissão de recepcionista
+const MASSAGENS_DUPLAS=['vivencia','ofuro','ofuro premium','externo nuru','externo vivencia four hands'];
+function pesoMassagem(nome){
+  const n=(nome||'').toLowerCase().trim();
+  return MASSAGENS_DUPLAS.some(x=>n.includes(x))?2:1;
+}
+function calcComissao(pontos){
+  if(pontos>=200) return 900;
+  if(pontos>=150) return 700;
+  if(pontos>=100) return 500;
+  if(pontos>=50)  return 300;
+  return 0;
+}
+function renderDashRecepcionista(data,containerId){
+  const el=document.getElementById(containerId);
+  if(!data||!data.length){el.innerHTML='<div class="dash-empty">Nenhum dado encontrado.</div>';return;}
+  let html='';
+  data.forEach(rc=>{
+    const total=parseInt(rc.total_agendamentos||0);
+    // Contar pontos (massagens duplas valem 2)
+    let pontos=0;
+    const tiposMap={};
+    (rc.detalhes_massagens||[]).forEach(d=>{
+      if(d.status==='cancelada')return;
+      const p=pesoMassagem(d.massagem);
+      pontos+=p;
+      tiposMap[d.massagem]=(tiposMap[d.massagem]||{count:0,pontos:0});
+      tiposMap[d.massagem].count++;
+      tiposMap[d.massagem].pontos+=p;
     });
-  }
-}
-async function saveClinica(id){
-  const nome=document.getElementById('cl-nome').value.trim();
-  const email=document.getElementById('cl-email').value.trim();
-  const senha=document.getElementById('cl-senha').value;
-  const senha2=document.getElementById('cl-senha2').value;
-  const telefone=document.getElementById('cl-tel').value.trim();
-  const endereco=document.getElementById('cl-end').value.trim();
-  const emailsRaw=document.getElementById('cl-emails-add').value;
-  // Normaliza emails adicionais: uma por linha ou separadas por vírgula, armazena com ";"
-  const emails_adicionais=emailsRaw.split(/[\n,]+/).map(e=>e.trim()).filter(Boolean).join(';')||null;
-  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
-  if(!id&&!senha)return toast('Senha é obrigatória para nova clínica','err');
-  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
-  try{
-    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,ativo:1};
-    if(senha) body.senha=senha;
-    if(id) await api('PUT',`/admin/clinicas/${id}`,body);
-    else   await api('POST','/admin/clinicas',body);
-    toast(id?'Clínica atualizada!':'Clínica cadastrada! ✅');closeModal();
-    loadClinicasList();loadClinicaSelector();
-  }catch(e){toast(e.message,'err')}
-}
-async function toggleClinica(id,ativo){
-  try{
-    const cs=await api('GET','/admin/clinicas');
-    const c=cs.find(x=>x.id===id);
-    if(!c)return;
-    await api('PUT',`/admin/clinicas/${id}`,{...c,ativo:ativo?0:1});
-    toast(ativo?'Clínica desativada':'Clínica ativada','info');
-    loadClinicasList();loadClinicaSelector();
-  }catch(e){toast(e.message,'err')}
-}
-async function deleteClinica(id,nome){
-  if(!confirm(`Deletar permanentemente a clínica "${nome}"?\nTodos os dados (reservas, profissionais, etc.) serão excluídos. Esta ação não pode ser desfeita.`))return;
-  try{await api('DELETE',`/admin/clinicas/${id}`);toast('Clínica deletada','info');loadClinicasList();loadClinicaSelector()}
-  catch(e){toast(e.message,'err')}
-}
-
-async function loadAdminsList(){
-  document.getElementById('admins-list').innerHTML='<div class="spinner"></div>';
-  try{
-    const admins=await api('GET','/admin/admins');
-    const el=document.getElementById('admins-list');
-    if(!admins.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhum admin.</div></div>`;return}
-    el.innerHTML=`<div class="item-grid">${admins.map(a=>`
-      <div class="item-card" style="${!a.ativo?'opacity:.7':''}">
-        ${!a.ativo?'<div class="inactive-overlay">Inativo</div>':''}
-        <div class="item-title">👤 ${esc(a.nome)}</div>
-        <div class="item-detail">📧 ${esc(a.email)}</div>
-        <div class="item-actions">
-          <button class="btn btn-secondary btn-sm" onclick="openAdminModal(${a.id})">✏️ Editar</button>
-          <button class="btn ${a.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleAdmin(${a.id},${a.ativo})">${a.ativo?'⛔ Desativar':'✅ Ativar'}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteAdmin(${a.id},'${esc(a.nome)}')">🗑 Deletar</button>
+    const comissao=calcComissao(pontos);
+    html+=`<div class="card" style="margin-bottom:20px">
+      <div class="card-header" style="background:var(--green);border-radius:var(--radius) var(--radius) 0 0;display:flex;justify-content:space-between;align-items:center">
+        <h3 style="color:#fff">🗂 ${esc(rc.nome)}</h3>
+        <span style="color:#fff;font-size:.85rem">${total} agendamentos · ${pontos} pontos</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px">
+          <div style="background:var(--green-lt);border-radius:8px;padding:12px 20px;text-align:center">
+            <div style="font-size:1.6rem;font-weight:800;color:#2d7a56">${pontos}</div>
+            <div style="font-size:.78rem;color:#2d7a56">Pontos</div>
+          </div>
+          <div style="background:${comissao>0?'#d4f0e4':'var(--cel-pale)'};border-radius:8px;padding:12px 20px;text-align:center">
+            <div style="font-size:1.6rem;font-weight:800;color:${comissao>0?'#2d7a56':'var(--text-lt)'}">${comissao>0?fmtMoeda(comissao):'—'}</div>
+            <div style="font-size:.78rem;color:${comissao>0?'#2d7a56':'var(--text-lt)'}">Comissão</div>
+          </div>
+          <div style="background:var(--cel-pale);border-radius:8px;padding:12px 20px;text-align:center">
+            <div style="font-size:1.1rem;font-weight:700;color:var(--text)">${rc.concluidas||0} ✅ ${rc.confirmadas||0} 📋 ${rc.canceladas||0} ❌</div>
+            <div style="font-size:.78rem;color:var(--text-lt)">Concluídas / Confirmadas / Canceladas</div>
+          </div>
         </div>
-      </div>`).join('')}</div>`;
-  }catch(e){toast(e.message,'err')}
-}
-function openAdminModal(id){
-  openModal(id?'Editar Administrador':'Novo Administrador',
-    `<div class="form-grid">
-      <div class="field full"><label>Nome <span class="required">*</span></label>
-        <input id="ad-nome" type="text" placeholder="Nome completo"/></div>
-      <div class="field"><label>Email <span class="required">*</span></label>
-        <input id="ad-email" type="email" placeholder="admin@email.com"/></div>
-      <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
-        <input id="ad-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/></div>
-      <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
-        <input id="ad-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/>
-        <div id="ad-pwd-hint" class="pwd-hint"></div></div>
-    </div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveAdmin(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
-  if(id){
-    api('GET','/admin/admins').then(as=>{
-      const a=as.find(x=>x.id===id);if(!a)return;
-      document.getElementById('ad-nome').value=a.nome||'';
-      document.getElementById('ad-email').value=a.email||'';
-    });
-  }
-}
-async function saveAdmin(id){
-  const nome=document.getElementById('ad-nome').value.trim();
-  const email=document.getElementById('ad-email').value.trim();
-  const senha=document.getElementById('ad-senha').value;
-  const senha2=document.getElementById('ad-senha2').value;
-  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
-  if(!id&&!senha)return toast('Senha é obrigatória','err');
-  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
-  try{
-    const body={nome,email,ativo:1};if(senha)body.senha=senha;
-    if(id) await api('PUT',`/admin/admins/${id}`,body);
-    else   await api('POST','/admin/admins',body);
-    toast(id?'Admin atualizado!':'Admin cadastrado!');closeModal();loadAdminsList();
-  }catch(e){toast(e.message,'err')}
-}
-async function toggleAdmin(id,ativo){
-  try{
-    const as=await api('GET','/admin/admins');const a=as.find(x=>x.id===id);
-    if(a) await api('PUT',`/admin/admins/${id}`,{...a,ativo:ativo?0:1});
-    toast(ativo?'Desativado':'Ativado','info');loadAdminsList();
-  }catch(e){toast(e.message,'err')}
-}
-async function deleteAdmin(id,nome){
-  if(!confirm(`Deletar permanentemente o admin "${nome}"?\nEsta ação não pode ser desfeita.`))return;
-  try{await api('DELETE',`/admin/admins/${id}`);toast('Admin deletado','info');loadAdminsList()}
-  catch(e){toast(e.message,'err')}
-}
-
-// ─── Start ───────────────────────────────────────────────────────────────────
-start();
-</script>
-</body>
-</html>
+        <div style="font-size:.82rem;color:var(--t
