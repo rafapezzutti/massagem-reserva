@@ -454,6 +454,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
           <button class="dash-menu-btn" onclick="showDashPanel('dash-mt')" id="dmbtn-dash-mt">💆 Mensal Massagem</button>
           <button class="dash-menu-btn" onclick="showDashPanel('dash-dt')" id="dmbtn-dash-dt">💆 Diário Massagem</button>
           <button class="dash-menu-btn" onclick="showDashPanel('dash-rc')" id="dmbtn-dash-rc">🗂 Recepcionistas</button>
+          <button class="dash-menu-btn" onclick="showDashPanel('dash-pg')" id="dmbtn-dash-pg">💳 Pagamentos</button>
         </div>
         <!-- Conteúdo principal -->
         <div class="dash-content">
@@ -523,6 +524,20 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                 </div>
               </div>
               <div class="card-body" id="dash-rc-body"><div class="dash-empty">Selecione mês/ano e clique em Carregar.</div></div>
+            </div>
+          </div>
+          <!-- Mensal por Método de Pagamento -->
+          <div class="dash-panel" id="panel-dash-pg">
+            <div class="card">
+              <div class="card-header" style="background:#8b6fbf;border-radius:var(--radius) var(--radius) 0 0">
+                <h2 style="color:#fff">💳 Controle de Métodos de Pagamento</h2>
+                <div class="dash-controls">
+                  <select id="dash-pg-mes"></select>
+                  <select id="dash-pg-ano"></select>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashPagamentos()">Carregar</button>
+                </div>
+              </div>
+              <div class="card-body" id="dash-pg-body"><div class="dash-empty">Selecione mês/ano e clique em Carregar.</div></div>
             </div>
           </div>
         </div>
@@ -1297,6 +1312,13 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
           <div id="rv-drinks-total" class="drinks-total" style="display:none"></div>
         </div>
       </div>
+      <div class="field"><label>💳 Método de Pagamento</label>
+        <select id="rv-pagamento">
+          <option value="">— Selecione —</option>
+          <option value="Pix"${r?.pagamento==='Pix'?' selected':''}>Pix</option>
+          <option value="Crédito"${r?.pagamento==='Crédito'?' selected':''}>Crédito</option>
+          <option value="Débito"${r?.pagamento==='Débito'?' selected':''}>Débito</option>
+        </select></div>
       <div class="field full"><label>Observações</label>
         <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
     </div>`,
@@ -1369,13 +1391,14 @@ async function saveReserva(id){
   const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
+  const pagamento=document.getElementById('rv-pagamento')?.value||null;
   if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,pagamento,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
@@ -1390,6 +1413,56 @@ async function cancelarReserva(id){
 }
 function viewReserva(id){openReservaModal(id)}
 
+async function loadDashPagamentos(){
+  const mes=document.getElementById('dash-pg-mes')?.value;
+  const ano=document.getElementById('dash-pg-ano')?.value;
+  if(!mes||!ano)return;
+  const body=document.getElementById('dash-pg-body');
+  if(!body)return;
+  body.innerHTML='<div class="spinner"></div>';
+  try{
+    const cid=cidParam();
+    const res=await api('GET','/dashboard/pagamentos?mes='+mes+'&ano='+ano+(cid?'&'+cid:''));
+    const {rows,totais}=res;
+    if(!rows||!rows.length){body.innerHTML='<div class="dash-empty">Nenhuma reserva encontrada neste período.</div>';return;}
+    const ICONES={'Pix':'📱','Crédito':'💳','Débito':'💳','Não informado':'❓'};
+    const CORES={'Pix':'var(--green)','Crédito':'var(--cel)','Débito':'var(--pec)','Não informado':'var(--text-lt)'};
+    body.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
+        ${rows.map(r=>`
+          <div style="background:${CORES[r.metodo]||'var(--cel)'};border-radius:12px;padding:20px;color:#fff;text-align:center">
+            <div style="font-size:2rem;margin-bottom:6px">${ICONES[r.metodo]||'💳'}</div>
+            <div style="font-size:1rem;font-weight:700;margin-bottom:4px">${r.metodo}</div>
+            <div style="font-size:1.5rem;font-weight:800">${fmtMoeda(r.total_geral)}</div>
+            <div style="font-size:.8rem;opacity:.85;margin-top:4px">${r.qtd} atendimento${r.qtd!=1?'s':''}</div>
+          </div>`).join('')}
+      </div>
+      <div class="dash-table-wrap"><table class="dash-table">
+        <thead><tr>
+          <th>Método</th><th>Qtd</th><th>Massagens</th><th>Bebidas</th><th>Total</th><th>% do Total</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr>
+            <td><strong>${ICONES[r.metodo]||'💳'} ${r.metodo}</strong></td>
+            <td style="text-align:center">${r.qtd}</td>
+            <td>${fmtMoeda(r.total_massagens)}</td>
+            <td>${fmtMoeda(r.total_bebidas)}</td>
+            <td><strong>${fmtMoeda(r.total_geral)}</strong></td>
+            <td style="text-align:center">${totais.total_geral>0?Math.round(r.total_geral/totais.total_geral*100):0}%</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr style="font-weight:700;background:var(--cel-pale)">
+          <td>TOTAL</td>
+          <td style="text-align:center">${totais.qtd_total}</td>
+          <td>${fmtMoeda(totais.total_massagens)}</td>
+          <td>${fmtMoeda(totais.total_bebidas)}</td>
+          <td>${fmtMoeda(totais.total_geral)}</td>
+          <td>100%</td>
+        </tr></tfoot>
+      </table></div>`;
+  }catch(e){document.getElementById('dash-pg-body').innerHTML='<div class="dash-empty err">'+e.message+'</div>';}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD FINANCEIRO
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1399,7 +1472,7 @@ function initDashboard(){
   const mm=t.getMonth()+1;
   const today=new Date().toYMD();
 
-  ['mm','mt','rc'].forEach(pre=>{
+  ['mm','mt','rc','pg'].forEach(pre=>{
     const selM=document.getElementById(`dash-${pre}-mes`);
     const selA=document.getElementById(`dash-${pre}-ano`);
     if(!selM||!selA)return;

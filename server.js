@@ -167,6 +167,11 @@ async function initDB() {
     );
   `);
 
+  // 3f. Coluna de método de pagamento nas reservas
+  await pool.query(`
+    ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamento TEXT;
+  `);
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -595,7 +600,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, cliente_nome, cliente_telefone, observacoes,
-            bebida, preco_bebida, recepcionista_id } = req.body;
+            bebida, preco_bebida, recepcionista_id, pagamento } = req.body;
     const cid = getClinicaId(req);
     if (!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
@@ -608,8 +613,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       [cid, profissional_id, data, hora_fim, hora_inicio]);
     if (cP) throw new Error('Massagista já tem atendimento neste horário');
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,recepcionista_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id',
-      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null]);
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',
+      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -619,7 +624,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, cliente_nome, cliente_telefone, status, observacoes,
-            bebida, preco_bebida, recepcionista_id } = req.body;
+            bebida, preco_bebida, recepcionista_id, pagamento } = req.body;
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
     if (status !== 'cancelada') {
       const cQ = await qOne(
@@ -632,10 +637,10 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,cliente_nome=$7,cliente_telefone=$8,status=$9,observacoes=$10,bebida=$11,preco_bebida=$12,recepcionista_id=$13 WHERE id=$14 AND clinica_id=$15',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,cliente_nome=$7,cliente_telefone=$8,status=$9,observacoes=$10,bebida=$11,preco_bebida=$12,recepcionista_id=$13,pagamento=$14 WHERE id=$15 AND clinica_id=$16',
       [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
-       bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, id, cid]);
+       bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -644,6 +649,39 @@ app.delete('/api/reservas/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     await qRun("UPDATE reservas SET status='cancelada' WHERE id=$1 AND clinica_id=$2", [req.params.id, cid]);
     return { id: parseInt(req.params.id) };
+  }));
+
+// ─── Dashboard pagamentos ────────────────────────────────────────────────────
+app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { mes, ano } = req.query;
+    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    const rows = await q(`
+      SELECT
+        COALESCE(pagamento, 'Não informado') AS metodo,
+        COUNT(*) AS qtd,
+        SUM(m.preco) AS total_massagens,
+        SUM(r.preco_bebida) AS total_bebidas,
+        SUM(m.preco + r.preco_bebida) AS total_geral
+      FROM reservas r
+      JOIN massagens m ON r.massagem_id = m.id
+      WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada'
+      GROUP BY metodo
+      ORDER BY total_geral DESC
+    `, [cid, pref]);
+    const totais = await qOne(`
+      SELECT
+        COUNT(*) AS qtd_total,
+        SUM(m.preco) AS total_massagens,
+        SUM(r.preco_bebida) AS total_bebidas,
+        SUM(m.preco + r.preco_bebida) AS total_geral
+      FROM reservas r
+      JOIN massagens m ON r.massagem_id = m.id
+      WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada'
+    `, [cid, pref]);
+    return { rows, totais };
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════════
