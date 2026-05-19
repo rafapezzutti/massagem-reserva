@@ -1459,4 +1459,309 @@ function renderDashRecepcionista(data,containerId){
             <div style="font-size:.78rem;color:var(--text-lt)">Concluídas / Confirmadas / Canceladas</div>
           </div>
         </div>
-        <div style="font-size:.82rem;color:var(--t
+        <div style="font-size:.82rem;color:var(--text-lt);margin-bottom:8px">
+          <strong>Faixas:</strong> 50pts=R$300 · 100pts=R$500 · 150pts=R$700 · 200pts=R$900 · Massagens especiais contam em dobro ✕2
+        </div>
+        ${Object.keys(tiposMap).length?`<table class="dash-table"><thead><tr><th>Tipo de Massagem</th><th class="ctr">Qtd</th><th class="ctr">Peso</th><th class="ctr">Pontos</th></tr></thead><tbody>`+
+          Object.entries(tiposMap).sort((a,b)=>b[1].pontos-a[1].pontos).map(([nome,v])=>
+            `<tr><td>${esc(nome)}${pesoMassagem(nome)===2?' <span style="color:var(--green);font-size:.75rem">✕2</span>':''}</td><td class="ctr">${v.count}</td><td class="ctr">${pesoMassagem(nome)===2?'2':'1'}</td><td class="ctr"><strong>${v.pontos}</strong></td></tr>`
+          ).join('')+'</tbody></table>':'<div class="dash-empty">Nenhuma massagem registrada.</div>'}
+      </div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECEPCIONISTAS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadRecepcionistas(){
+  document.getElementById('recepcionistas-list').innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    state.recepcionistas=await api('GET','/recepcionistas'+(cid?'?'+cid:''));
+    renderRecepcionistas();
+  }catch(e){toast(e.message,'err')}
+}
+function renderRecepcionistas(){
+  const el=document.getElementById('recepcionistas-list');
+  if(!state.recepcionistas.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">🗂</div><div>Nenhuma recepcionista cadastrada.</div></div>';return;}
+  el.innerHTML='<div class="item-grid">'+state.recepcionistas.map(rc=>`
+    <div class="item-card" style="${!rc.ativo?'opacity:.7':''}">
+      ${!rc.ativo?'<div class="inactive-overlay">Inativa</div>':''}
+      <div class="item-title">${esc(rc.nome)}</div>
+      ${rc.cpf?`<div class="item-detail">📋 ${fmtCPF(rc.cpf)}</div>`:''}
+      ${rc.telefone?`<div class="item-detail">📱 ${esc(rc.telefone)}</div>`:''}
+      ${rc.email?`<div class="item-detail">📧 ${esc(rc.email)}</div>`:''}
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openRecepModal(${rc.id})">✏️ Editar</button>
+        <button class="btn ${rc.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleRecep(${rc.id},${rc.ativo})">${rc.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecep(${rc.id},'${esc(rc.nome)}')">🗑 Deletar</button>
+      </div>
+    </div>`).join('')+'</div>';
+}
+function openRecepModal(id){
+  const rc=id?state.recepcionistas.find(x=>x.id===id):null;
+  openModal(rc?`Editar ${rc.nome}`:'Nova Recepcionista',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="rc-nome" type="text" value="${rc?esc(rc.nome):''}" placeholder="Nome completo"/></div>
+      <div class="field"><label>CPF</label>
+        <input id="rc-cpf" type="text" value="${rc?fmtCPF(rc.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
+      <div class="field"><label>Nascimento</label>
+        <input id="rc-nasc" type="date" value="${rc?.data_nascimento||''}"/></div>
+      <div class="field"><label>Telefone</label>
+        <input id="rc-tel" type="tel" value="${rc?.telefone?esc(rc.telefone):''}" placeholder="(11) 99999-9999"/></div>
+      <div class="field"><label>E-mail</label>
+        <input id="rc-email" type="email" value="${rc?.email?esc(rc.email):''}" placeholder="email@exemplo.com"/></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveRecep(${id||'null'})">${rc?'Salvar':'Cadastrar'}</button>`);
+}
+async function saveRecep(id){
+  const nome=document.getElementById('rc-nome').value.trim();
+  const cpf=document.getElementById('rc-cpf').value;
+  const data_nascimento=document.getElementById('rc-nasc').value;
+  const telefone=document.getElementById('rc-tel').value.trim();
+  const email=document.getElementById('rc-email').value.trim();
+  if(!nome)return toast('Nome é obrigatório','err');
+  try{
+    const body={nome,cpf:cpf||null,data_nascimento:data_nascimento||null,telefone:telefone||null,email:email||null,...cidBody()};
+    if(id) await api('PUT',`/recepcionistas/${id}`,body);
+    else   await api('POST','/recepcionistas',body);
+    toast(id?'Atualizado!':'Cadastrado!');closeModal();loadRecepcionistas();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleRecep(id,ativo){
+  const rc=state.recepcionistas.find(x=>x.id===id);
+  try{await api('PUT',`/recepcionistas/${id}`,{...rc,ativo:ativo?0:1,...cidBody()});
+    toast(ativo?'Desativada':'Ativada','info');loadRecepcionistas()}
+  catch(e){toast(e.message,'err')}
+}
+async function deleteRecep(id,nome){
+  if(!confirm(`Deletar "${nome}" permanentemente?`))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/recepcionistas/${id}`+(cid?'?'+cid:''));toast('Deletada','info');loadRecepcionistas()}
+  catch(e){toast(e.message,'err')}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPASSE
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadRepasse(){
+  const cid=cidParam();
+  try{
+    const rep=await api('GET','/repasse'+(cid?'?'+cid:''));
+    state.repasse=parseFloat(rep.percentual)||0;
+    const el=document.getElementById('repasse-pct');
+    if(el) el.value=state.repasse>0?state.repasse:'';
+    if(state.repasse>0){
+      document.getElementById('repasse-preview').style.display='block';
+      document.getElementById('repasse-saved-pct').textContent=state.repasse+'%';
+    }
+  }catch(e){toast(e.message,'err')}
+}
+async function saveRepasse(){
+  const pct=parseFloat(document.getElementById('repasse-pct').value)||0;
+  const cid=cidParam();
+  try{
+    await api('PUT','/repasse'+(cid?'?'+cid:''),{percentual:pct,...cidBody()});
+    state.repasse=pct;
+    toast('Repasse salvo! '+pct+'%');
+    document.getElementById('repasse-preview').style.display='block';
+    document.getElementById('repasse-saved-pct').textContent=pct+'%';
+  }catch(e){toast(e.message,'err')}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL ADMIN
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadAdminPanel(){
+  await Promise.all([loadClinicasList(), loadAdminsList()]);
+}
+
+async function loadClinicasList(){
+  document.getElementById('clinicas-list').innerHTML='<div class="spinner"></div>';
+  try{
+    const clinicas=await api('GET','/admin/clinicas');
+    const el=document.getElementById('clinicas-list');
+    if(!clinicas.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">🏥</div><div>Nenhuma clínica cadastrada.</div></div>`;return}
+    el.innerHTML=`<div class="item-grid">${clinicas.map(c=>`
+      <div class="item-card" style="${!c.ativo?'opacity:.7':''}">
+        ${!c.ativo?'<div class="inactive-overlay">Inativa</div>':''}
+        <div class="item-title">🏥 ${esc(c.nome)}</div>
+        <div class="item-detail">🔑 ${esc(c.email)}</div>
+        <div class="item-detail">${c.perfil==='gerente'?'👔 <strong style="color:var(--pec)">Gerente</strong>':'🏥 Clínica'}</div>
+        ${c.emails_adicionais?(c.emails_adicionais.split(';').filter(Boolean).map(e=>`<div class="item-detail" style="color:var(--text-lt)">📧 ${esc(e.trim())}</div>`).join('')):''}
+        ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
+        ${c.endereco?`<div class="item-detail">📍 ${esc(c.endereco)}</div>`:''}
+        <div class="item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
+          <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
+          <button class="btn btn-sm" style="background:var(--yellow-lt);color:#7a5c00" onclick="setPerfilClinica(${c.id},'${c.perfil==='gerente'?'clinica':'gerente'}')">
+            ${c.perfil==='gerente'?'🏥 → Clínica':'👔 → Gerente'}</button>
+          <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
+        </div>
+      </div>`).join('')}</div>`;
+  }catch(e){toast(e.message,'err')}
+}
+
+function openClinicaModal(id){
+  const body=`<div class="form-grid">
+    <div class="field full"><label>Nome da Clínica <span class="required">*</span></label>
+      <input id="cl-nome" type="text" placeholder="Ex: Spa Serene"/></div>
+    <div class="field"><label>Email de Login <span class="required">*</span></label>
+      <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
+    <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+      <input id="cl-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/></div>
+    <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+      <input id="cl-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/>
+      <div id="cl-pwd-hint" class="pwd-hint"></div></div>
+    <div class="field"><label>Telefone</label>
+      <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
+    <div class="field full"><label>Endereço</label>
+      <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
+    <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
+      <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
+  </div>`;
+  openModal(id?'Editar Clínica':'Nova Clínica', body,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveClinica(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+  if(id){
+    api('GET','/admin/clinicas').then(cs=>{
+      const c=cs.find(x=>x.id===id);if(!c)return;
+      document.getElementById('cl-nome').value=c.nome||'';
+      document.getElementById('cl-email').value=c.email||'';
+      document.getElementById('cl-tel').value=c.telefone||'';
+      document.getElementById('cl-end').value=c.endereco||'';
+      // Converte ";" para quebras de linha
+      const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
+      document.getElementById('cl-emails-add').value=emails;
+    });
+  }
+}
+async function saveClinica(id){
+  const nome=document.getElementById('cl-nome').value.trim();
+  const email=document.getElementById('cl-email').value.trim();
+  const senha=document.getElementById('cl-senha').value;
+  const senha2=document.getElementById('cl-senha2').value;
+  const telefone=document.getElementById('cl-tel').value.trim();
+  const endereco=document.getElementById('cl-end').value.trim();
+  const emailsRaw=document.getElementById('cl-emails-add').value;
+  // Normaliza emails adicionais: uma por linha ou separadas por vírgula, armazena com ";"
+  const emails_adicionais=emailsRaw.split(/[\n,]+/).map(e=>e.trim()).filter(Boolean).join(';')||null;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(!id&&!senha)return toast('Senha é obrigatória para nova clínica','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,ativo:1};
+    if(senha) body.senha=senha;
+    if(id) await api('PUT',`/admin/clinicas/${id}`,body);
+    else   await api('POST','/admin/clinicas',body);
+    toast(id?'Clínica atualizada!':'Clínica cadastrada! ✅');closeModal();
+    loadClinicasList();loadClinicaSelector();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleClinica(id,ativo){
+  try{
+    const cs=await api('GET','/admin/clinicas');
+    const c=cs.find(x=>x.id===id);
+    if(!c)return;
+    await api('PUT',`/admin/clinicas/${id}`,{...c,ativo:ativo?0:1});
+    toast(ativo?'Clínica desativada':'Clínica ativada','info');
+    loadClinicasList();loadClinicaSelector();
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteClinica(id,nome){
+  if(!confirm(`Deletar permanentemente a clínica "${nome}"?\nTodos os dados (reservas, profissionais, etc.) serão excluídos. Esta ação não pode ser desfeita.`))return;
+  try{await api('DELETE',`/admin/clinicas/${id}`);toast('Clínica deletada','info');loadClinicasList();loadClinicaSelector()}
+  catch(e){toast(e.message,'err')}
+}
+
+async function setPerfilClinica(id, perfil){
+  const label = perfil === 'gerente' ? 'Gerente' : 'Clínica';
+  if(!confirm('Alterar perfil para ' + label + '?')) return;
+  try {
+    await api('PUT', '/admin/clinicas/' + id + '/perfil', {perfil});
+    toast('Perfil alterado para ' + label, 'info');
+    loadClinicasList();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function loadAdminsList(){
+  document.getElementById('admins-list').innerHTML='<div class="spinner"></div>';
+  try{
+    const admins=await api('GET','/admin/admins');
+    const el=document.getElementById('admins-list');
+    if(!admins.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhum admin.</div></div>`;return}
+    el.innerHTML=`<div class="item-grid">${admins.map(a=>`
+      <div class="item-card" style="${!a.ativo?'opacity:.7':''}">
+        ${!a.ativo?'<div class="inactive-overlay">Inativo</div>':''}
+        <div class="item-title">👤 ${esc(a.nome)}</div>
+        <div class="item-detail">📧 ${esc(a.email)}</div>
+        <div class="item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openAdminModal(${a.id})">✏️ Editar</button>
+          <button class="btn ${a.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleAdmin(${a.id},${a.ativo})">${a.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAdmin(${a.id},'${esc(a.nome)}')">🗑 Deletar</button>
+        </div>
+      </div>`).join('')}</div>`;
+  }catch(e){toast(e.message,'err')}
+}
+function openAdminModal(id){
+  openModal(id?'Editar Administrador':'Novo Administrador',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="ad-nome" type="text" placeholder="Nome completo"/></div>
+      <div class="field"><label>Email <span class="required">*</span></label>
+        <input id="ad-email" type="email" placeholder="admin@email.com"/></div>
+      <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/></div>
+      <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/>
+        <div id="ad-pwd-hint" class="pwd-hint"></div></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveAdmin(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+  if(id){
+    api('GET','/admin/admins').then(as=>{
+      const a=as.find(x=>x.id===id);if(!a)return;
+      document.getElementById('ad-nome').value=a.nome||'';
+      document.getElementById('ad-email').value=a.email||'';
+    });
+  }
+}
+async function saveAdmin(id){
+  const nome=document.getElementById('ad-nome').value.trim();
+  const email=document.getElementById('ad-email').value.trim();
+  const senha=document.getElementById('ad-senha').value;
+  const senha2=document.getElementById('ad-senha2').value;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(!id&&!senha)return toast('Senha é obrigatória','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,ativo:1};if(senha)body.senha=senha;
+    if(id) await api('PUT',`/admin/admins/${id}`,body);
+    else   await api('POST','/admin/admins',body);
+    toast(id?'Admin atualizado!':'Admin cadastrado!');closeModal();loadAdminsList();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleAdmin(id,ativo){
+  try{
+    const as=await api('GET','/admin/admins');const a=as.find(x=>x.id===id);
+    if(a) await api('PUT',`/admin/admins/${id}`,{...a,ativo:ativo?0:1});
+    toast(ativo?'Desativado':'Ativado','info');loadAdminsList();
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteAdmin(id,nome){
+  if(!confirm(`Deletar permanentemente o admin "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  try{await api('DELETE',`/admin/admins/${id}`);toast('Admin deletado','info');loadAdminsList()}
+  catch(e){toast(e.message,'err')}
+}
+
+
+// Start
+start();
+</script>
+</body>
+</html>
