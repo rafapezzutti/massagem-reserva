@@ -167,17 +167,6 @@ async function initDB() {
     );
   `);
 
-  // 4. Seed do admin padrão
-  const existe = await qOne('SELECT id FROM admins WHERE email=$1', ['rafael@unimidia.tv']);
-  if (!existe) {
-    const hash = await bcrypt.hash('Admin@2024', 10);
-    await qRun('INSERT INTO admins (nome, email, senha_hash) VALUES ($1,$2,$3)',
-      ['Rafael', 'rafael@unimidia.tv', hash]);
-    console.log('\n🔑 Admin padrão criado:');
-    console.log('   Email : rafael@unimidia.tv');
-    console.log('   Senha : Admin@2024');
-    console.log('   ⚠️  Altere a senha após o primeiro login!\n');
-  }
   console.log('✅ Banco de dados pronto');
 }
 
