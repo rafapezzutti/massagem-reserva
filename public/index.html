@@ -786,7 +786,22 @@ function onClinicaSelect(val){
 // ═══════════════════════════════════════════════════════════════════════════
 // VISÃO DIÁRIA — Eixo Y: Massagista, Eixo X: Horário
 // ═══════════════════════════════════════════════════════════════════════════
-const START_HOUR=8,END_HOUR=22,SLOTS=(END_HOUR-START_HOUR)*2;
+// START/END dinâmico baseado no horário da clínica
+function getTimeRange(){
+  let startMin=8*60, endMin=23*60;
+  if(state.horario&&state.currentDate){
+    const key=getDiaKey(state.currentDate);
+    const info=state.horario[key];
+    if(info&&info.aberto){
+      const ab=timeToMin(info.abertura);
+      const fe=timeToMin(info.fechamento);
+      if(ab>0)startMin=ab;
+      if(fe>ab)endMin=fe;
+    }
+  }
+  const slots=Math.ceil((endMin-startMin)/30);
+  return{startMin,endMin,slots};
+}
 
 function initDate(){
   state.currentDate=new Date().toYMD();
@@ -924,13 +939,22 @@ async function loadDaily(){
 
 function renderTimeline(){
   const cont=document.getElementById('timeline-container');
+  // Mostra fechado se o horario da clinica indicar fechado hoje
+  if(state.horario&&state.currentDate){
+    const key=getDiaKey(state.currentDate);
+    const info=state.horario[key];
+    if(info&&!info.aberto){
+      cont.innerHTML='<div class="empty-day"><div class="empty-icon">🔒</div><div>Fechado hoje</div></div>';return;
+    }
+  }
   if(!state.profissionais.length){
     cont.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhuma massagista cadastrada.</div></div>`;return;
   }
+  const{startMin,endMin,slots}=getTimeRange();
   let html='<div class="timeline-wrap"><div class="timeline">';
   html+=`<div class="tl-corner">Massagista</div>`;
-  for(let i=0;i<SLOTS;i++){
-    const min=START_HOUR*60+i*30;const isH=min%60===0;
+  for(let i=0;i<slots;i++){
+    const min=startMin+i*30;const isH=min%60===0;
     html+=`<div class="tl-header${isH?' half-border':''}">${minToTime(min)}</div>`;
   }
   for(const prof of state.profissionais){
@@ -943,12 +967,12 @@ function renderTimeline(){
     const res=state.reservasDia.filter(r=>r.profissional_id===prof.id);
     const startMap={};
     res.forEach(r=>{
-      const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-START_HOUR*60)/30));
-      const se=Math.min(SLOTS,Math.ceil((timeToMin(r.hora_fim)-START_HOUR*60)/30));
+      const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-startMin)/30));
+      const se=Math.min(slots,Math.ceil((timeToMin(r.hora_fim)-startMin)/30));
       startMap[ss]={...r,startSlot:ss,endSlot:se,span:se-ss};
     });
-    for(let i=0;i<SLOTS;i++){
-      const cm=START_HOUR*60+i*30;const isH=cm%60===0;const rb=startMap[i];
+    for(let i=0;i<slots;i++){
+      const cm=startMin+i*30;const isH=cm%60===0;const rb=startMap[i];
       if(rb){
         const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':'res-conf';
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
