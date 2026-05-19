@@ -135,6 +135,25 @@ async function initDB() {
     );
   `);
 
+  // 3e-b. Horário de funcionamento por clinica
+  await pool.query(`
+    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS horario_funcionamento TEXT;
+  `);
+
+  // 3e-c. Seed horario Bali Spa (10h-24h seg-sab, fechado dom)
+  await pool.query(`
+    UPDATE clinicas SET horario_funcionamento = $1
+    WHERE nome ILIKE '%bali%' AND horario_funcionamento IS NULL
+  `, [JSON.stringify({
+    seg:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    ter:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    qua:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    qui:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    sex:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    sab:{aberto:true,abertura:'10:00',fechamento:'24:00'},
+    dom:{aberto:false,abertura:'',fechamento:''}
+  })]);
+
   // 3e. Tabela de gerentes (perfil operacional, sem dashboard/repasse)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS gerentes (
@@ -277,39 +296,39 @@ app.get('/api/auth/me', requireAuth, (req, res) =>
 // ADMIN — Clínicas
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/admin/clinicas', requireAdmin, (req, res) =>
-  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,criado_em FROM clinicas ORDER BY nome')));
+  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,horario_funcionamento,criado_em FROM clinicas ORDER BY nome')));
 
 app.post('/api/admin/clinicas', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, telefone, endereco, emails_adicionais } = req.body;
+    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento } = req.body;
     if (!nome)  throw new Error('Nome é obrigatório');
     if (!email) throw new Error('Email é obrigatório');
     if (!senha) throw new Error('Senha é obrigatória');
     const hash = await bcrypt.hash(senha, 10);
     return qOne(
-      'INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,nome,email,telefone,endereco,emails_adicionais,ativo,criado_em',
-      [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null]
+      'INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais,horario_funcionamento) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em',
+      [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null, horario_funcionamento||null]
     );
   }));
 
 app.put('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, telefone, endereco, emails_adicionais, ativo } = req.body;
+    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento, ativo } = req.body;
     if (!nome)  throw new Error('Nome é obrigatório');
     if (!email) throw new Error('Email é obrigatório');
     if (senha) {
       const hash = await bcrypt.hash(senha, 10);
       await qRun(
-        'UPDATE clinicas SET nome=$1,email=$2,senha_hash=$3,telefone=$4,endereco=$5,emails_adicionais=$6,ativo=$7 WHERE id=$8',
-        [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null, ativo??1, req.params.id]
+        'UPDATE clinicas SET nome=$1,email=$2,senha_hash=$3,telefone=$4,endereco=$5,emails_adicionais=$6,ativo=$7,horario_funcionamento=$8 WHERE id=$9',
+        [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, req.params.id]
       );
     } else {
       await qRun(
-        'UPDATE clinicas SET nome=$1,email=$2,telefone=$3,endereco=$4,emails_adicionais=$5,ativo=$6 WHERE id=$7',
-        [nome.trim(), email.toLowerCase().trim(), telefone||null, endereco||null, emails_adicionais||null, ativo??1, req.params.id]
+        'UPDATE clinicas SET nome=$1,email=$2,telefone=$3,endereco=$4,emails_adicionais=$5,ativo=$6,horario_funcionamento=$7 WHERE id=$8',
+        [nome.trim(), email.toLowerCase().trim(), telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, req.params.id]
       );
     }
-    return qOne('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,criado_em FROM clinicas WHERE id=$1', [req.params.id]);
+    return qOne('SELECT id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em FROM clinicas WHERE id=$1', [req.params.id]);
   }));
 
 app.delete('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
@@ -354,6 +373,15 @@ app.delete('/api/admin/admins/:id', requireAdmin, (req, res) =>
   send(res, async () => {
     await qRun('DELETE FROM admins WHERE id=$1', [req.params.id]);
     return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLINICA INFO
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/clinica/info', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return qOne('SELECT id,nome,horario_funcionamento FROM clinicas WHERE id=$1', [cid]);
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════════

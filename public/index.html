@@ -288,6 +288,13 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
   .dash-table{font-size:.78rem}
   .dash-table th,.dash-table td{padding:7px 8px}
 }
+.horario-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:.83rem;font-weight:600;background:var(--green-lt);color:#1d6040;margin-bottom:12px}
+.horario-badge.fechado{background:var(--red-lt);color:var(--red)}
+.horario-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:4px}
+.horario-table td,.horario-table th{padding:5px 8px;vertical-align:middle}
+.horario-table thead tr{background:var(--cel-pale)}
+.horario-table select{border:1.5px solid var(--border);border-radius:6px;padding:3px 6px;font-size:.82rem;background:#fff}
+.horario-table input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--cel)}
 </style>
 </head>
 <body>
@@ -352,6 +359,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         <input type="date" id="date-input" onchange="onDateInput(this.value)"/>
         <button class="btn btn-primary btn-sm" onclick="openReservaModal()">＋ Nova Reserva</button>
       </div>
+      <div id="horario-badge" style="display:none"></div>
       <div class="card"><div id="timeline-container"><div class="spinner"></div></div></div>
     </div>
 
@@ -571,7 +579,7 @@ let state = {
   currentDate: '',
   adminClinicaId: null,
   quartos:[], profissionais:[], massagens:[], reservasDia:[],
-  recepcionistas:[], repasse:0
+  recepcionistas:[], repasse:0, horario: null
 };
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -706,6 +714,15 @@ function initApp(){
   initDate();
   initMonthSelectors();
   initDashboard();
+  // Load horario for clinica/gerente users
+  if(auth.user.role!=='admin'){
+    api('GET','/clinica/info').then(info=>{
+      if(info&&info.horario_funcionamento){
+        try{state.horario=JSON.parse(info.horario_funcionamento)}catch(e){}
+      }
+      renderHorarioBadge();
+    }).catch(()=>{});
+  }
   loadDaily();
 }
 
@@ -753,6 +770,15 @@ async function loadClinicaSelector(){
 function onClinicaSelect(val){
   state.adminClinicaId=val?parseInt(val):null;
   state.quartos=[];state.profissionais=[];state.massagens=[];
+  state.horario=null;renderHorarioBadge();
+  if(val){
+    api('GET','/clinica/info?'+cidParam()).then(info=>{
+      if(info&&info.horario_funcionamento){
+        try{state.horario=JSON.parse(info.horario_funcionamento)}catch(e){}
+      }
+      renderHorarioBadge();
+    }).catch(()=>{});
+  }
   if(val && state.currentView!=='admin') showView(state.currentView);
   else if(val) loadAdminPanel();
 }
@@ -770,12 +796,114 @@ function initDate(){
 function updateDateLabel(){
   document.getElementById('date-label').textContent=fmtDate(state.currentDate);
   document.getElementById('date-input').value=state.currentDate;
+  renderHorarioBadge();
 }
 function changeDay(d){
   const dt=parseDate(state.currentDate);dt.setDate(dt.getDate()+d);
   state.currentDate=dt.toYMD();updateDateLabel();loadDaily();
 }
 function onDateInput(v){state.currentDate=v;updateDateLabel();loadDaily()}
+
+// ─── Horário de Funcionamento ────────────────────────────────────────────────
+const DIAS_SEMANA=[
+  {key:'seg',nome:'Segunda-feira'},{key:'ter',nome:'Tera-feira'},
+  {key:'qua',nome:'Quarta-feira'},{key:'qui',nome:'Quinta-feira'},
+  {key:'sex',nome:'Sexta-feira'},{key:'sab',nome:'Sabado'},
+  {key:'dom',nome:'Domingo'}
+];
+const DIA_KEY_ARR=['dom','seg','ter','qua','qui','sex','sab'];
+
+function gerarOptsHora(selected){
+  let opts='';
+  for(let h=0;h<=24;h++){
+    for(let m=0;m<60;m+=30){
+      if(h===24&&m>0)break;
+      const t=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+      opts+='<option value="'+t+'"'+(t===selected?' selected':'')+'>'+t+'</option>';
+    }
+  }
+  return opts;
+}
+
+function buildHorarioTable(horario){
+  const h=horario||{};
+  let rows='';
+  DIAS_SEMANA.forEach(d=>{
+    const info=h[d.key]||{aberto:true,abertura:'10:00',fechamento:'18:00'};
+    const fechado=!info.aberto;
+    rows+='<tr id="hor-row-'+d.key+'" style="'+(fechado?'opacity:.5':'')+'"><td style="padding:5px 10px;font-weight:600">'+d.nome+'</td>'
+      +'<td style="text-align:center;padding:5px"><input type="checkbox" id="hor-fechado-'+d.key+'"'+(fechado?' checked':'')
+      +' onchange="toggleDiaHorario(\''+d.key+'\')"></td>'
+      +'<td style="padding:5px 6px"><select id="hor-ab-'+d.key+'"'+(fechado?' disabled':'')+' style="width:80px">'+gerarOptsHora(info.abertura||'10:00')+'</select></td>'
+      +'<td style="padding:5px 3px;color:var(--text-lt);font-size:.8rem">ate</td>'
+      +'<td style="padding:5px 6px"><select id="hor-fe-'+d.key+'"'+(fechado?' disabled':'')+' style="width:80px">'+gerarOptsHora(info.fechamento||'18:00')+'</select></td>'
+      +'</tr>';
+  });
+  return '<table class="horario-table"><thead><tr>'
+    +'<th style="text-align:left">Dia</th><th>Fechado</th><th>Abre</th><th></th><th>Fecha</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+function toggleDiaHorario(key){
+  const chk=document.getElementById('hor-fechado-'+key);
+  const ab=document.getElementById('hor-ab-'+key);
+  const fe=document.getElementById('hor-fe-'+key);
+  const row=document.getElementById('hor-row-'+key);
+  const fechado=chk.checked;
+  if(ab)ab.disabled=fechado;
+  if(fe)fe.disabled=fechado;
+  if(row)row.style.opacity=fechado?'0.5':'1';
+}
+
+function setHorarioInForm(horario){
+  if(!horario)return;
+  DIAS_SEMANA.forEach(d=>{
+    const info=horario[d.key];if(!info)return;
+    const chk=document.getElementById('hor-fechado-'+d.key);
+    const ab=document.getElementById('hor-ab-'+d.key);
+    const fe=document.getElementById('hor-fe-'+d.key);
+    if(!chk)return;
+    chk.checked=!info.aberto;
+    if(ab)ab.value=info.abertura||'10:00';
+    if(fe)fe.value=info.fechamento||'18:00';
+    toggleDiaHorario(d.key);
+  });
+}
+
+function getHorarioFromForm(){
+  const result={};
+  DIAS_SEMANA.forEach(d=>{
+    const fechado=document.getElementById('hor-fechado-'+d.key)?.checked;
+    result[d.key]={
+      aberto:!fechado,
+      abertura:fechado?'':(document.getElementById('hor-ab-'+d.key)?.value||'10:00'),
+      fechamento:fechado?'':(document.getElementById('hor-fe-'+d.key)?.value||'18:00')
+    };
+  });
+  return result;
+}
+
+function getDiaKey(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  return DIA_KEY_ARR[d.getDay()];
+}
+
+function renderHorarioBadge(){
+  const badge=document.getElementById('horario-badge');
+  if(!badge)return;
+  const h=state.horario;
+  if(!h||!state.currentDate){badge.style.display='none';return;}
+  const key=getDiaKey(state.currentDate);
+  const info=h[key];
+  badge.style.display='';
+  if(!info||!info.aberto){
+    badge.className='horario-badge fechado';
+    badge.textContent='Fechado hoje';
+  }else{
+    badge.className='horario-badge';
+    badge.textContent='Hoje: '+info.abertura+' as '+info.fechamento;
+  }
+}
 
 async function loadDaily(){
   const cont=document.getElementById('timeline-container');
@@ -1630,6 +1758,10 @@ function openClinicaModal(id){
       <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
     <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
       <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
+  </div>
+  <div style="margin-top:20px">
+    <label style="display:block;font-size:.85rem;font-weight:600;color:var(--text-lt);margin-bottom:8px">📅 Horário de Funcionamento</label>
+    ${buildHorarioTable()}
   </div>`;
   openModal(id?'Editar Clínica':'Nova Clínica', body,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -1644,6 +1776,10 @@ function openClinicaModal(id){
       // Converte ";" para quebras de linha
       const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
       document.getElementById('cl-emails-add').value=emails;
+      // Set horario
+      if(c.horario_funcionamento){
+        try{setHorarioInForm(JSON.parse(c.horario_funcionamento))}catch(e){}
+      }
     });
   }
 }
@@ -1657,11 +1793,12 @@ async function saveClinica(id){
   const emailsRaw=document.getElementById('cl-emails-add').value;
   // Normaliza emails adicionais: uma por linha ou separadas por vírgula, armazena com ";"
   const emails_adicionais=emailsRaw.split(/[\n,]+/).map(e=>e.trim()).filter(Boolean).join(';')||null;
+  const horario_funcionamento=JSON.stringify(getHorarioFromForm());
   if(!nome||!email)return toast('Nome e email são obrigatórios','err');
   if(!id&&!senha)return toast('Senha é obrigatória para nova clínica','err');
   if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
   try{
-    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,ativo:1};
+    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,horario_funcionamento,ativo:1};
     if(senha) body.senha=senha;
     if(id) await api('PUT',`/admin/clinicas/${id}`,body);
     else   await api('POST','/admin/clinicas',body);
