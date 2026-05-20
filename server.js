@@ -1,4 +1,5 @@
 const express = require('express');
+const https   = require('https');
 const { Pool } = require('pg');
 const path     = require('path');
 const fs       = require('fs');
@@ -887,6 +888,99 @@ app.put('/api/admin/clinicas/:id/perfil', requireAdmin, (req, res) =>
     if (!['clinica','gerente'].includes(perfil)) throw new Error('Perfil inválido');
     await qRun('UPDATE clinicas SET perfil=$1 WHERE id=$2', [perfil, req.params.id]);
     return qOne('SELECT id,nome,email,ativo,perfil FROM clinicas WHERE id=$1', [req.params.id]);
+  }));
+
+// ─── E-mail via Resend ────────────────────────────────────────────────────────
+function sendEmail({ to, subject, html }) {
+  return new Promise((resolve, reject) => {
+    const RESEND_KEY = process.env.RESEND_API_KEY || '';
+    if (!RESEND_KEY) { console.warn('RESEND_API_KEY nao configurada'); return resolve(); }
+    const FROM = process.env.RESEND_FROM || 'Massagem Reserva <onboarding@resend.dev>';
+    const body = JSON.stringify({ from: FROM, to: [to], subject, html });
+    const req = https.request({
+      hostname: 'api.resend.com', path: '/emails', method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + RESEND_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve(d); } });
+    });
+    req.on('error', reject);
+    req.write(body); req.end();
+  });
+}
+
+// ─── Esqueceu a senha ─────────────────────────────────────────────────────────
+app.post('/api/auth/forgot-password', (req, res) =>
+  send(res, async () => {
+    const { email } = req.body;
+    if (!email) throw new Error('Informe o e-mail');
+    const em = email.trim().toLowerCase();
+
+    let found = null;
+    const adm = await qOne('SELECT id, email, nome FROM admins WHERE LOWER(email)=$1 AND ativo=1', [em]);
+    if (adm) { found = { ...adm, role: 'admin' }; }
+    if (!found) {
+      const cl = await qOne('SELECT id, email, nome FROM clinicas WHERE LOWER(email)=$1 AND ativo=1', [em]);
+      if (cl) { found = { ...cl, role: 'clinica' }; }
+    }
+    if (!found) {
+      const gr = await qOne('SELECT id, email, nome FROM gerentes WHERE LOWER(email)=$1 AND ativo=1', [em]);
+      if (gr) { found = { ...gr, role: 'gerente' }; }
+    }
+
+    if (!found) return { ok: true }; // nao revela se e-mail existe
+
+    const token = jwt.sign(
+      { id: found.id, email: found.email, role: found.role, purpose: 'reset' },
+      JWT_SECRET, { expiresIn: '1h' }
+    );
+
+    const appUrl = process.env.APP_URL || ('https://' + (req.headers.host || 'localhost:3000'));
+    const link = appUrl + '/?reset=' + token;
+
+    await sendEmail({
+      to: found.email,
+      subject: 'Massagem Reserva — Redefinicao de Senha',
+      html:
+        '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">' +
+        '<h2 style="color:#3d5a6b">Redefinicao de Senha</h2>' +
+        '<p style="color:#555">Ola, <strong>' + (found.nome || found.email) + '</strong>!</p>' +
+        '<p style="color:#555;margin:12px 0">Recebemos uma solicitacao para redefinir a senha da sua conta no <strong>Massagem Reserva</strong>.</p>' +
+        '<p style="margin:24px 0"><a href="' + link + '" style="background:#7fb3d3;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block">Redefinir minha senha</a></p>' +
+        '<p style="color:#999;font-size:12px">Este link expira em <strong>1 hora</strong>. Se voce nao solicitou a redefinicao, ignore este e-mail.</p>' +
+        '<hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>' +
+        '<p style="color:#bbb;font-size:11px">Massagem Reserva - CRM para Spas</p></div>'
+    });
+    return { ok: true };
+  }));
+
+// ─── Redefinir senha ──────────────────────────────────────────────────────────
+app.post('/api/auth/reset-password', (req, res) =>
+  send(res, async () => {
+    const { token, nova_senha } = req.body;
+    if (!token || !nova_senha) throw new Error('Dados incompletos');
+    if (nova_senha.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres');
+
+    let payload;
+    try { payload = jwt.verify(token, JWT_SECRET); }
+    catch (e) { throw new Error('Link invalido ou expirado. Solicite um novo.'); }
+
+    if (payload.purpose !== 'reset') throw new Error('Token invalido');
+
+    const hash = await bcrypt.hash(nova_senha, 10);
+    const { id, role } = payload;
+
+    if (role === 'admin')        await qRun('UPDATE admins    SET senha_hash=$1 WHERE id=$2', [hash, id]);
+    else if (role === 'clinica') await qRun('UPDATE clinicas  SET senha_hash=$1 WHERE id=$2', [hash, id]);
+    else if (role === 'gerente') await qRun('UPDATE gerentes  SET senha_hash=$1 WHERE id=$2', [hash, id]);
+    else throw new Error('Perfil desconhecido');
+
+    return { ok: true };
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────

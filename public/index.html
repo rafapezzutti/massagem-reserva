@@ -316,6 +316,9 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
              onkeydown="if(event.key==='Enter')doLogin()"/>
     </div>
     <button class="btn-login" onclick="doLogin()">Entrar</button>
+      <div style="margin-top:12px;text-align:center">
+        <span class="back-link" onclick="showForgot()">Esqueceu a senha?</span>
+      </div>
     <div class="login-error" id="login-error"></div>
     <div class="login-powered">Powered by P. Soluções</div>
   </div>
@@ -1414,6 +1417,74 @@ async function cancelarReserva(id){
 }
 function viewReserva(id){openReservaModal(id)}
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ESQUECEU / REDEFINIR SENHA
+// ═══════════════════════════════════════════════════════════════════════════
+function showForgot(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('forgot-screen').classList.add('active');
+  document.getElementById('forgot-email').value='';
+  document.getElementById('forgot-sub').textContent='Informe seu e-mail e enviaremos um link para redefinir sua senha.';
+  document.getElementById('forgot-form').style.display='block';
+  setTimeout(()=>document.getElementById('forgot-email').focus(),100);
+}
+function showLogin(){
+  document.getElementById('forgot-screen').classList.remove('active');
+  document.getElementById('reset-screen').classList.remove('active');
+  document.getElementById('login-screen').style.display='flex';
+}
+async function doForgot(){
+  const email=(document.getElementById('forgot-email').value||'').trim();
+  if(!email)return toast('Informe o e-mail','err');
+  const btn=document.querySelector('#forgot-screen .btn-login');
+  btn.disabled=true; btn.textContent='Enviando...';
+  try{
+    await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    document.getElementById('forgot-form').style.display='none';
+    document.getElementById('forgot-sub').innerHTML='✅ Se o e-mail estiver cadastrado, você receberá as instruções em breve.<br><br>Verifique sua caixa de entrada e a pasta de spam.';
+  }catch(e){toast('Erro ao enviar e-mail','err');}
+  finally{btn.disabled=false; btn.textContent='Enviar link';}
+}
+function checkResetPwd(){
+  const s1=document.getElementById('reset-senha1')?.value||'';
+  const s2=document.getElementById('reset-senha2')?.value||'';
+  const hint=document.getElementById('reset-pwd-hint');
+  if(!s2){hint.textContent='';hint.className='pwd-hint';return;}
+  if(s1===s2){hint.textContent='✅ Senhas idênticas';hint.className='pwd-hint match';}
+  else{hint.textContent='❌ Senhas não coincidem';hint.className='pwd-hint nomatch';}
+}
+let _resetToken=null;
+function showResetScreen(token){
+  _resetToken=token;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('reset-screen').classList.add('active');
+  // Limpa URL sem recarregar a página
+  window.history.replaceState({},'','/');
+}
+async function doReset(){
+  const s1=document.getElementById('reset-senha1').value;
+  const s2=document.getElementById('reset-senha2').value;
+  if(!s1||s1.length<6)return toast('A senha deve ter pelo menos 6 caracteres','err');
+  if(s1!==s2)return toast('As senhas não coincidem','err');
+  const btn=document.querySelector('#reset-screen .btn-login');
+  btn.disabled=true; btn.textContent='Salvando...';
+  try{
+    const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,nova_senha:s1})});
+    const data=await r.json();
+    if(!data.ok)throw new Error(data.error||'Erro ao redefinir senha');
+    document.getElementById('reset-screen').classList.remove('active');
+    document.getElementById('login-screen').style.display='flex';
+    toast('Senha redefinida com sucesso! Faça login.','info');
+  }catch(e){toast(e.message,'err');}
+  finally{btn.disabled=false; btn.textContent='Salvar nova senha';}
+}
+// Verifica token de reset na URL ao carregar
+(function checkResetToken(){
+  const params=new URLSearchParams(window.location.search);
+  const token=params.get('reset');
+  if(token) window.addEventListener('DOMContentLoaded',()=>showResetScreen(token));
+})();
+
 async function loadDashPagamentos(){
   const mes=document.getElementById('dash-pg-mes')?.value;
   const ano=document.getElementById('dash-pg-ano')?.value;
@@ -2068,13 +2139,4 @@ async function toggleAdmin(id,ativo){
 }
 async function deleteAdmin(id,nome){
   if(!confirm(`Deletar permanentemente o admin "${nome}"?\nEsta ação não pode ser desfeita.`))return;
-  try{await api('DELETE',`/admin/admins/${id}`);toast('Admin deletado','info');loadAdminsList()}
-  catch(e){toast(e.message,'err')}
-}
-
-
-// Start
-start();
-</script>
-</body>
-</html>
+  try{await api('DELETE',`/admin/admins

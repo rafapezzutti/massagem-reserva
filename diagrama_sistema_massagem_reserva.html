@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Massagem Reserva — Diagrama do Sistema</title>
+<style>
+  h2.sr-only { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f8f9fa; color: #1a1a2e; padding: 20px; font-size: 13px;
+  }
+  .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .header-left { display:flex; align-items:center; gap:12px; }
+  .logo-wrap { display:flex; align-items:center; gap:8px; }
+  .logo-text-top { font-size:14px; font-weight:800; color:#7fb3d3; line-height:1.1; letter-spacing:0.5px; }
+  .logo-text-bot { font-size:10px; font-weight:700; color:#e8956a; letter-spacing:0.5px; }
+  .header h1 { font-size:15px; font-weight:700; color:#1a1a2e; border-left:1px solid #ddd; padding-left:12px; }
+  .header-badges { display:flex; gap:6px; flex-wrap:wrap; }
+  .badge { font-size:10px; border-radius:4px; padding:2px 8px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; }
+  .badge-blue  { background:#e8f4fd; color:#0077cc; }
+  .badge-green { background:#eaf6ee; color:#1a7a3a; }
+  .badge-date  { background:#f0f0f0; color:#666; }
+  .meta-bar { background:#fff; border:1px solid #e5e5e5; border-radius:8px; padding:10px 16px; margin-bottom:14px; display:flex; gap:24px; flex-wrap:wrap; font-size:11px; color:#555; }
+  .meta-item strong { color:#1a1a2e; font-weight:700; }
+  .legend { display:flex; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color:#555; }
+  .legend-dot { width:10px; height:10px; border-radius:2px; }
+  .diagram { display:flex; flex-direction:column; gap:10px; }
+  .layer { display:flex; flex-direction:column; gap:4px; }
+  .layer-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#999; padding-left:4px; margin-bottom:2px; }
+  .layer-row { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .card { flex:1; min-width:120px; border-radius:8px; padding:11px 13px; cursor:pointer; border:1.5px solid transparent; transition:box-shadow .15s, border-color .15s, transform .1s; position:relative; }
+  .card:hover { box-shadow:0 4px 16px rgba(0,0,0,.13); border-color:#0077cc66; transform:translateY(-1px); }
+  .card.active { border-color:#0077cc; box-shadow:0 0 0 3px #0077cc22; }
+  .card-icon { font-size:17px; margin-bottom:3px; }
+  .card-title { font-weight:700; font-size:11.5px; margin-bottom:2px; }
+  .card-sub { font-size:10px; color:#777; line-height:1.4; }
+  .c-ui    { background:#e8f4fd; border-color:#c3ddf9; }
+  .c-api   { background:#eaf6ee; border-color:#b8e3c4; }
+  .c-mod   { background:#fff8e1; border-color:#ffe082; }
+  .c-data  { background:#f3e8ff; border-color:#d7b6f9; }
+  .c-ext   { background:#fce8e8; border-color:#f5b8b8; }
+  .c-infra { background:#f0f0f0; border-color:#d0d0d0; }
+  .v-connector { display:flex; justify-content:center; align-items:center; gap:24px; height:28px; }
+  .v-arrow { display:flex; flex-direction:column; align-items:center; font-size:11px; color:#bbb; }
+  .v-arrow span { font-size:14px; line-height:1; }
+  .v-arrow small { font-size:9px; letter-spacing:.3px; }
+  .detail-panel { margin-top:14px; background:#fff; border:1.5px solid #e0e0e0; border-radius:10px; padding:16px; transition:opacity .2s; min-height:80px; }
+  .detail-panel.hidden { display:none; }
+  .detail-title { font-weight:700; font-size:13px; color:#1a1a2e; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; }
+  @media (max-width:600px) { .detail-grid { grid-template-columns:1fr; } }
+  .detail-section h4 { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#888; margin-bottom:4px; }
+  .detail-section ul { list-style:none; display:flex; flex-direction:column; gap:3px; }
+  .detail-section li { font-size:11px; color:#333; display:flex; align-items:flex-start; gap:5px; }
+  .detail-section li::before { content:'·'; color:#0077cc; font-weight:700; flex-shrink:0; }
+  .detail-hint { font-size:10px; color:#aaa; margin-top:10px; }
+  .footer { margin-top:20px; padding-top:14px; border-top:1px solid #e5e5e5; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; font-size:10px; color:#aaa; }
+</style>
+</head>
+<body>
+<h2 class="sr-only">Diagrama de arquitetura do sistema Massagem Reserva — CRM para Spas — cobrindo interface Vanilla JS SPA, API Node.js/Express, modulos de negocio, banco PostgreSQL Neon e infraestrutura Railway.</h2>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-wrap">
+      <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="10" width="80" height="80" rx="14" fill="#d5e8f5"/>
+        <text x="50" y="68" text-anchor="middle" font-size="54" font-family="serif">💆</text>
+      </svg>
+      <div>
+        <div class="logo-text-top">Massagem</div>
+        <div class="logo-text-bot">Reserva CRM</div>
+      </div>
+    </div>
+    <h1>Diagrama do Sistema — CRM para Spas</h1>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-blue">v1.0</span>
+    <span class="badge badge-green">Produção</span>
+    <span class="badge badge-date">Mai 2026</span>
+  </div>
+</div>
+
+<div class="meta-bar">
+  <div class="meta-item"><strong>Repositório:</strong> github.com/rafapezzutti/massagem-reserva</div>
+  <div class="meta-item"><strong>Hospedagem:</strong> Railway.app (frontend + backend unificados)</div>
+  <div class="meta-item"><strong>Banco:</strong> PostgreSQL — Neon.tech</div>
+  <div class="meta-item"><strong>Responsável:</strong> rafael.pezzutti@gmail.com</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#c3ddf9"></div>Interface / Usuário</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#b8e3c4"></div>API / Backend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffe082"></div>Módulos de Negócio</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d7b6f9"></div>Dados / Persistência</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f5b8b8"></div>Integrações / Deploy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d0d0d0"></div>Infraestrutura / DevOps</div>
+</div>
+
+<div class="diagram">
+
+  <!-- LAYER 1: UI -->
+  <div class="layer">
+    <div class="layer-label">Camada 1 — Interface do Usuário (Vanilla JS SPA — index.html único)</div>
+    <div class="layer-row">
+      <div class="card c-ui" onclick="showDetail('spa')" id="card-spa">
+        <div class="card-icon">🌐</div>
+        <div class="card-title">SPA Vanilla JS</div>
+        <div class="card-sub">Single HTML · CSS Grid · Sem framework</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('login')" id="card-login">
+        <div class="card-icon">🔑</div>
+        <div class="card-title">Login & Sessão</div>
+        <div class="card-sub">JWT · localStorage · 3 perfis de acesso</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('layout')" id="card-layout">
+        <div class="card-icon">🗂️</div>
+        <div class="card-title">Layout & Navegação</div>
+        <div class="card-sub">Nav lateral · seletor de clínica · views dinâmicas</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('estado')" id="card-estado">
+        <div class="card-icon">⚙️</div>
+        <div class="card-title">Estado Global & API</div>
+        <div class="card-sub">state object · função api() · Bearer Token</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>HTTPS / REST</small></div>
+    <div class="v-arrow"><span>↕</span><small>Bearer Token + clinica_id</small></div>
+  </div>
+
+  <!-- LAYER 2: API -->
+  <div class="layer">
+    <div class="layer-label">Camada 2 — API Backend (Node.js + Express — servidor unificado)</div>
+    <div class="layer-row">
+      <div class="card c-api" onclick="showDetail('express')" id="card-express">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Express Server</div>
+        <div class="card-sub">server.js único · serve frontend + API</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('auth')" id="card-auth">
+        <div class="card-icon">🔐</div>
+        <div class="card-title">Auth & Middleware</div>
+        <div class="card-sub">JWT · bcryptjs · requireAuth · requireAdmin · requireDashboard</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('rotas')" id="card-rotas">
+        <div class="card-icon">🔀</div>
+        <div class="card-title">Rotas da API</div>
+        <div class="card-sub">/login · /reservas · /profissionais · /dashboard…</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('multitenancy')" id="card-multitenancy">
+        <div class="card-icon">🏢</div>
+        <div class="card-title">Multi-Tenancy</div>
+        <div class="card-sub">clinica_id em todas as queries · getClinicaId()</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>Lógica de Negócio · Filtro por Clínica</small></div>
+  </div>
+
+  <!-- LAYER 3: Business Modules -->
+  <div class="layer">
+    <div class="layer-label">Camada 3 — Módulos de Negócio</div>
+    <div class="layer-row">
+      <div class="card c-mod" onclick="showDetail('dashboard')" id="card-dashboard">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Dashboard Financeiro</div>
+        <div class="card-sub">Massagista · Massagem · Recepcionista · Pagamentos</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('agenda')" id="card-agenda">
+        <div class="card-icon">📅</div>
+        <div class="card-title">Calendário Diário</div>
+        <div class="card-sub">Timeline CSS Grid · horário dinâmico · view mensal</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('reservas')" id="card-reservas">
+        <div class="card-icon">📋</div>
+        <div class="card-title">Reservas</div>
+        <div class="card-sub">Agendamento · bebidas · pagamento · recepcionista</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('cadastros')" id="card-cadastros">
+        <div class="card-icon">🛏️</div>
+        <div class="card-title">Cadastros Operacionais</div>
+        <div class="card-sub">Quartos · Massagens · Profissionais · Recepcionistas</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('repasse')" id="card-repasse">
+        <div class="card-icon">💸</div>
+        <div class="card-title">Repasse</div>
+        <div class="card-sub">% por clínica · visível apenas Admin/Clínica</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('admin')" id="card-admin">
+        <div class="card-icon">⚙️</div>
+        <div class="card-title">Painel Admin</div>
+        <div class="card-sub">Clínicas · Admins · Gerentes · horário funcionamento</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>node-postgres (pg) · Pool · SQL</small></div>
+  </div>
+
+  <!-- LAYER 4: Data -->
+  <div class="layer">
+    <div class="layer-label">Camada 4 — Persistência de Dados</div>
+    <div class="layer-row">
+      <div class="card c-data" onclick="showDetail('postgres')" id="card-postgres">
+        <div class="card-icon">🗄️</div>
+        <div class="card-title">PostgreSQL — Neon.tech</div>
+        <div class="card-sub">Serverless · pool de conexões · SSL obrigatório</div>
+      </div>
+      <div class="card c-data" onclick="showDetail('tabelas')" id="card-tabelas">
+        <div class="card-icon">📑</div>
+        <div class="card-title">Esquema de Tabelas</div>
+        <div class="card-sub">clinicas · reservas · profissionais · gerentes…</div>
+      </div>
+      <div class="card c-data" onclick="showDetail('migracoes')" id="card-migracoes">
+        <div class="card-icon">🔄</div>
+        <div class="card-title">Migrações Automáticas</div>
+        <div class="card-sub">ALTER TABLE IF NOT EXISTS · initDB() no startup</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↔</span><small>Deploy · Git · CI/CD</small></div>
+  </div>
+
+  <!-- LAYER 5: Infra -->
+  <div class="layer">
+    <div class="layer-label">Camada 5 — Infraestrutura & DevOps</div>
+    <div class="layer-row">
+      <div class="card c-ext" onclick="showDetail('railway')" id="card-railway">
+        <div class="card-icon">🚀</div>
+        <div class="card-title">Railway.app</div>
+        <div class="card-sub">Web Service · Node.js · Deploy automático via GitHub</div>
+      </div>
+      <div class="card c-ext" onclick="showDetail('github')" id="card-github">
+        <div class="card-icon">🐙</div>
+        <div class="card-title">GitHub</div>
+        <div class="card-sub">rafapezzutti/massagem-reserva · branch main</div>
+      </div>
+      <div class="card c-infra" onclick="showDetail('envvars')" id="card-envvars">
+        <div class="card-icon">🔧</div>
+        <div class="card-title">Configuração & Segurança</div>
+        <div class="card-sub">DATABASE_URL · JWT_SECRET · PORT · env vars Railway</div>
+      </div>
+      <div class="card c-infra" onclick="showDetail('perfis')" id="card-perfis">
+        <div class="card-icon">👤</div>
+        <div class="card-title">Perfis de Acesso</div>
+        <div class="card-sub">Admin · Clínica · Gerente (sem dashboard/repasse)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel hidden" id="detail-panel">
+  <div class="detail-title" id="detail-title"></div>
+  <div class="detail-grid" id="detail-grid"></div>
+  <div class="detail-hint">Clique em outro componente para explorar · Clique novamente para fechar</div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Massagem Reserva · CRM para Spas · Diagrama de Arquitetura do Sistema</span>
+  <span>Gerado em Maio/2026 · rafael.pezzutti@gmail.com</span>
+</div>
+
+<script>
+const details = {
+  spa: {
+    icon: '🌐', title: 'SPA Vanilla JS — Frontend',
+    sections: [
+      { h: 'Tecnologia', items: ['Vanilla JavaScript (sem framework)', 'HTML + CSS em arquivo único (public/index.html)', 'CSS Grid para layout da timeline', 'Sem dependências de build (sem Vite/Webpack)'] },
+      { h: 'Estrutura Visual', items: ['Views trocadas dinamicamente por showView()', 'Modal único reutilizado para todos os formulários', 'Timeline CSS Grid com colunas por profissional', 'Design responsivo com CSS variables (--cel, --pec, --bg)'] },
+      { h: 'Hospedagem', items: ['Servido como static file pelo próprio Express', 'express.static(public/) no server.js', 'Sem build step — arquivo direto no repositório', 'URL via Railway.app'] },
+      { h: 'Funcionalidades UI', items: ['Horário de funcionamento dinâmico na timeline', 'Badge de horário no calendário diário', 'Toast notifications para feedback', 'Confirmação de senha em modais sensíveis'] }
+    ]
+  },
+  login: {
+    icon: '🔑', title: 'Login & Gerenciamento de Sessão',
+    sections: [
+      { h: 'Fluxo de Autenticação', items: ['Usuário envia e-mail + senha (POST /api/login)', 'Backend busca em admins → clinicas → gerentes', 'JWT gerado com id, email, role, clinica_id, nome', 'Token salvo em localStorage (mr_token)'] },
+      { h: 'Três Perfis de Acesso', items: ['Admin: acesso total ao painel administrativo', 'Clínica: acesso ao CRM da própria clínica', 'Gerente: acesso operacional (sem dashboard e sem repasse)'] },
+      { h: 'Controle de Sessão', items: ['Bearer Token em toda requisição à API', 'JWT com expiração de 10 horas', 'Logout limpa token e recarrega a página', 'Token inválido → tela de login automaticamente'] },
+      { h: 'Segurança', items: ['Senhas hasheadas com bcryptjs', 'Sem armazenamento de senha em texto plano', 'Gerente não acessa /api/dashboard/* (bloqueio no backend)', 'JWT_SECRET via variável de ambiente (nunca em código)'] }
+    ]
+  },
+  layout: {
+    icon: '🗂️', title: 'Layout & Navegação',
+    sections: [
+      { h: 'Estrutura Visual', items: ['Navbar lateral com ícones e labels', 'View ativa destacada com classe .active', 'Seletor de clínica no topo (apenas admin)', 'Logo + nome da clínica para usuários logados'] },
+      { h: 'Views Disponíveis', items: ['daily — Calendário diário (padrão)', 'monthly — Visão mensal', 'quartos / profissionais / massagens / recepcionistas', 'repasse · dashboard · admin'] },
+      { h: 'Controle de Acesso Visual', items: ['nav-dashboard oculto para gerentes', 'nav-repasse oculto para gerentes', 'Painel admin visível apenas para admins', 'Seletor de clínica visível apenas para admins'] },
+      { h: 'Responsividade', items: ['CSS Variables para tema consistente', 'Scrollbar customizada', 'Cards com hover e sombra suave', 'Timeline com scroll horizontal em telas pequenas'] }
+    ]
+  },
+  estado: {
+    icon: '⚙️', title: 'Estado Global & Serviço de API',
+    sections: [
+      { h: 'Objeto state{}', items: ['currentView, currentDate, adminClinicaId', 'quartos[], profissionais[], massagens[]', 'reservasDia[], recepcionistas[], repasse', 'horario — JSON de horário de funcionamento da clínica'] },
+      { h: 'Função api()', items: ['Wrapper para fetch() com Bearer Token', 'Lança erro com message do backend em caso de falha', 'Parâmetros: method, path, body', 'Base: /api — mesmo servidor (monolito)'] },
+      { h: 'Helpers Globais', items: ['cidParam() / cidBody() — injeta clinica_id para admin', 'getClinicaId() — extrai clínica do contexto', 'esc() — escapa HTML em strings', 'fmtMoeda() / minToTime() / timeToMin()'] },
+      { h: 'Cache de Dados', items: ['ensureData() — carrega quartos/profissionais/massagens uma vez', 'onClinicaSelect() — limpa cache ao trocar de clínica', 'state.horario carregado via GET /api/clinica/info', 'Dados de reservas sempre recarregados do servidor'] }
+    ]
+  },
+  express: {
+    icon: '⚡', title: 'Express Server — Backend',
+    sections: [
+      { h: 'Tecnologia', items: ['Node.js + Express (server.js único)', 'Serve frontend (express.static) + API REST', 'Hospedado no Railway.app', 'Porta via variável de ambiente PORT'] },
+      { h: 'Dependências', items: ['express — servidor HTTP', 'pg (node-postgres) — conexão PostgreSQL', 'bcryptjs — hash de senhas', 'jsonwebtoken — geração e validação de JWT'] },
+      { h: 'Inicialização', items: ['initDB() executado no startup', 'Cria tabelas com IF NOT EXISTS', 'Executa migrações ALTER TABLE IF NOT EXISTS', 'Seed de horário para Bali Spa (idempotente)'] },
+      { h: 'Helpers', items: ['q() / qOne() / qRun() — wrappers do pool PostgreSQL', 'send() — wrapper de resposta com tratamento de erro', 'Todos os erros retornam { ok: false, error: "..." }'] }
+    ]
+  },
+  auth: {
+    icon: '🔐', title: 'Autenticação & Middleware',
+    sections: [
+      { h: 'requireAuth', items: ['Verifica Bearer Token no header Authorization', 'Decodifica com jwt.verify(token, JWT_SECRET)', 'Popula req.user com id, email, role, clinica_id', 'Token inválido → 401 Unauthorized'] },
+      { h: 'requireAdmin', items: ['Chama requireAuth internamente', 'Bloqueia se req.user.role !== "admin"', 'Usado em rotas /api/admin/*', 'Retorna 403 para não-admins'] },
+      { h: 'requireDashboard', items: ['Bloqueia acesso de gerentes ao dashboard', 'if (req.user.role === "gerente") → 403', 'Aplicado em todos os endpoints /api/dashboard/*', 'Admin e clínica têm acesso livre'] },
+      { h: 'getClinicaId()', items: ['Admin: lê clinica_id do query/body', 'Lança erro se admin não informar clínica', 'Clínica/Gerente: usa clinica_id do JWT', 'Garante isolamento multi-tenant em toda query'] }
+    ]
+  },
+  rotas: {
+    icon: '🔀', title: 'Rotas da API REST',
+    sections: [
+      { h: 'Autenticação', items: ['POST /api/login — login admin/clínica/gerente', 'GET /api/clinica/info — horário e dados da clínica'] },
+      { h: 'Cadastros Operacionais', items: ['GET/POST/PUT/DELETE /api/quartos', 'GET/POST/PUT/DELETE /api/profissionais', 'GET/POST/PUT/DELETE /api/massagens', 'GET/POST/PUT/DELETE /api/recepcionistas'] },
+      { h: 'Reservas', items: ['GET /api/reservas — com filtros data/mês/ano', 'POST /api/reservas — nova reserva (valida conflito)', 'PUT /api/reservas/:id — atualiza reserva', 'DELETE /api/reservas/:id — cancela (soft delete)'] },
+      { h: 'Dashboard & Admin', items: ['GET /api/dashboard/massagista-mensal e diario', 'GET /api/dashboard/massagem-mensal e diario', 'GET /api/dashboard/recepcionista', 'GET /api/dashboard/pagamentos', 'GET/POST/PUT/DELETE /api/admin/clinicas, admins, gerentes', 'GET/POST /api/repasse'] }
+    ]
+  },
+  multitenancy: {
+    icon: '🏢', title: 'Multi-Tenancy por Clínica',
+    sections: [
+      { h: 'Isolamento de Dados', items: ['clinica_id presente em todas as tabelas de domínio', 'Todas as queries filtradas por clinica_id', 'Clínica nunca vê dados de outra clínica', 'Admin pode consultar qualquer clínica pelo seletor'] },
+      { h: 'Propagação do clinica_id', items: ['Clínica/Gerente: clinica_id extraído do JWT', 'Admin: clinica_id informado via query param ou body', 'cidParam() injeta clinica_id nas chamadas do frontend admin', 'getClinicaId() centraliza a lógica no backend'] },
+      { h: 'Conflito de Horários', items: ['Verificação de quarto duplicado no mesmo horário', 'Verificação de profissional duplicado no mesmo horário', 'Ambas as verificações escopadas por clinica_id', 'Retorna erro 400 com mensagem descritiva'] },
+      { h: 'Horário de Funcionamento', items: ['JSON por dia da semana (seg/ter/.../dom)', 'Campos: aberto (bool), abertura, fechamento', 'Timeline ajusta automaticamente start/endMin', 'Badge exibe horário no calendário diário'] }
+    ]
+  },
+  dashboard: {
+    icon: '📊', title: 'Módulo: Dashboard Financeiro',
+    sections: [
+      { h: 'Relatórios Disponíveis', items: ['Mensal por Massagista — atendimentos, valor, repasse', 'Diário por Massagista — resumo do dia por profissional', 'Mensal por Tipo de Massagem — popularidade e receita', 'Diário por Tipo de Massagem'] },
+      { h: 'Relatório Recepcionistas', items: ['Total de reservas por recepcionista no mês', 'Valor total gerado por recepcionista', 'Filtragem por clínica e período'] },
+      { h: 'Pagamentos (novo)', items: ['Total por método: Pix, Crédito, Débito, Dinheiro', 'Cards visuais coloridos por método', 'Tabela com qtd, massagens, bebidas, total e % do total', 'Reservas sem método: "Não informado"'] },
+      { h: 'Controle de Acesso', items: ['Dashboard bloqueado para gerentes (requireDashboard)', 'Repasse bloqueado para gerentes (nav-repasse oculto)', 'Dados sempre filtrados pela clínica ativa', 'Seleção de mês/ano para relatórios mensais'] }
+    ]
+  },
+  agenda: {
+    icon: '📅', title: 'Módulo: Calendário Diário',
+    sections: [
+      { h: 'Timeline CSS Grid', items: ['Colunas = profissionais ativos + com reserva no dia', 'Linhas = slots de 30 min no horário de funcionamento', 'Células clicáveis para nova reserva no horário', 'Reservas renderizadas com rowspan proporcional à duração'] },
+      { h: 'Horário Dinâmico', items: ['getTimeRange() lê state.horario da clínica', 'startMin/endMin calculados do JSON de horário', 'Suporte a fechamento às 24:00 (timeToMin = 1440)', 'Exibe "🔒 Fechado hoje" se o dia estiver fechado'] },
+      { h: 'Visão Mensal', items: ['Calendário mensal com indicadores de reservas', 'Clique no dia → navega para agenda diária', 'Seletor de mês/ano com loadMonthly()'] },
+      { h: 'Badge de Horário', items: ['Exibe horário da clínica no topo da view diária', 'Verde: aberto | Vermelho: fechado', 'Atualizado ao navegar entre datas', 'Renderizado por renderHorarioBadge()'] }
+    ]
+  },
+  reservas: {
+    icon: '📋', title: 'Módulo: Reservas',
+    sections: [
+      { h: 'Criação de Reserva', items: ['Data, hora início/fim, massagista, quarto, massagem', 'Nome e telefone do cliente', 'Recepcionista responsável (obrigatório)', 'Método de pagamento: Pix, Crédito, Débito, Dinheiro'] },
+      { h: 'Bebidas', items: ['Lista de bebidas com nome e preço individual', 'Tecla Enter para adicionar bebida rapidamente', 'Total de bebidas calculado automaticamente', 'Salvo como JSON na coluna bebida'] },
+      { h: 'Status & Edição', items: ['Status: confirmada / concluída / cancelada', 'Cancelamento via soft delete (status = cancelada)', 'Edição completa da reserva existente', 'Preço da massagem herdado do cadastro'] },
+      { h: 'Validações', items: ['Conflito de quarto no mesmo horário', 'Conflito de profissional no mesmo horário', 'Hora fim maior que hora início', 'Recepcionista obrigatória'] }
+    ]
+  },
+  cadastros: {
+    icon: '🛏️', title: 'Módulo: Cadastros Operacionais',
+    sections: [
+      { h: 'Quartos / Salas', items: ['Nome, número e flag de hidromassagem (💧)', 'Vinculado à clínica (clinica_id)', 'Exibido na timeline e no modal de reserva'] },
+      { h: 'Profissionais (Massagistas)', items: ['Nome, nome fantasia, CPF, data nascimento', 'Telefone (obrigatório), e-mail', 'Ativar/desativar profissional', 'Ativos exibidos na timeline; inativos com reserva hoje também'] },
+      { h: 'Massagens / Serviços', items: ['Nome, descrição, duração (min) e preço', 'Ativar/desativar massagem', 'Duração usada para calcular hora fim automaticamente', 'Preço exibido no modal e no dashboard'] },
+      { h: 'Recepcionistas', items: ['Nome, CPF, data nascimento, telefone, e-mail', 'Selecionada obrigatoriamente em cada reserva', 'Relatório mensal por recepcionista no dashboard', 'Ativar/desativar recepcionista'] }
+    ]
+  },
+  repasse: {
+    icon: '💸', title: 'Módulo: Repasse',
+    sections: [
+      { h: 'Configuração', items: ['Percentual de repasse por clínica (%)', 'Salvo em tabela repasse_config (clinica_id UNIQUE)', 'Configurado pelo admin ou pela própria clínica', 'Bloqueado para gerentes (sem acesso à view)'] },
+      { h: 'Uso no Dashboard', items: ['Relatório mensal de massagista exibe valor de repasse', 'Cálculo: repasse = valor_massagem × (percentual / 100)', 'Exibido por profissional no período selecionado'] },
+      { h: 'Controle de Acesso', items: ['Gerentes não veem a aba de Repasse', 'nav-repasse ocultado no login de gerente', 'Endpoint GET/POST /api/repasse com requireAuth', 'Apenas role clínica ou admin pode configurar'] }
+    ]
+  },
+  admin: {
+    icon: '⚙️', title: 'Painel Administrativo',
+    sections: [
+      { h: 'Gestão de Clínicas', items: ['Cadastrar, editar e listar clínicas', 'Configurar horário de funcionamento por dia da semana', 'JSON: { seg: { aberto, abertura, fechamento }, ... }', 'Seed automático do horário da Bali Spa (10h–24h seg–sab)'] },
+      { h: 'Gestão de Admins', items: ['Cadastrar novos administradores', 'E-mail + senha com confirmação de senha', 'Indicador visual de senhas coincidindo', 'Tabela admins isolada de clinicas e gerentes'] },
+      { h: 'Gestão de Gerentes', items: ['Cadastro de gerente vinculado a uma clínica', 'Login próprio via tabela gerentes', 'JWT com role: gerente → bloqueia dashboard e repasse', 'CRUD completo: listar, criar, editar, deletar'] },
+      { h: 'Acesso', items: ['Painel visível apenas para role: admin', 'Seletor de clínica no topo para alternar contexto', 'Todas as ações escopadas pela clínica selecionada'] }
+    ]
+  },
+  postgres: {
+    icon: '🗄️', title: 'Banco de Dados — PostgreSQL no Neon.tech',
+    sections: [
+      { h: 'Provedor', items: ['Neon.tech — PostgreSQL serverless', 'Conexão via DATABASE_URL (variável de ambiente)', 'Pool de conexões com node-postgres (pg)', 'SSL obrigatório (rejectUnauthorized: false)'] },
+      { h: 'Características', items: ['Serverless com auto-scaling', 'Sem custo de instância ociosa', 'Backups automáticos pela plataforma', 'Compatible com PostgreSQL padrão'] },
+      { h: 'Segurança', items: ['Credenciais apenas em variáveis de ambiente Railway', 'Conexão criptografada (TLS/SSL)', 'DATABASE_URL nunca exposta no código-fonte'] }
+    ]
+  },
+  tabelas: {
+    icon: '📑', title: 'Esquema do Banco de Dados',
+    sections: [
+      { h: 'Autenticação & Usuários', items: ['clinicas — clínicas/spas (login, horario_funcionamento)', 'admins — administradores do sistema', 'gerentes — gestores operacionais por clínica'] },
+      { h: 'Dados Operacionais', items: ['quartos — salas/quartos por clínica', 'profissionais — massagistas (nome_fantasia, ativo)', 'massagens — serviços (duracao, preco, ativa)', 'recepcionistas — atendentes por clínica'] },
+      { h: 'Reservas', items: ['reservas — agendamentos completos:', 'cliente_nome, cliente_telefone, status', 'bebida (JSON), preco_bebida, recepcionista_id', 'pagamento (Pix/Crédito/Débito/Dinheiro)'] },
+      { h: 'Configuração', items: ['repasse_config — percentual de repasse por clínica', 'clinica_id em todas as tabelas de domínio', 'created_at em todas as tabelas', 'Migrações via ALTER TABLE IF NOT EXISTS no startup'] }
+    ]
+  },
+  migracoes: {
+    icon: '🔄', title: 'Migrações Automáticas — initDB()',
+    sections: [
+      { h: 'Estratégia', items: ['Migrações executadas no startup do servidor', 'CREATE TABLE IF NOT EXISTS para tabelas novas', 'ALTER TABLE ... ADD COLUMN IF NOT EXISTS para colunas novas', 'Sem versionamento externo — idempotente por design'] },
+      { h: 'Migrações Existentes', items: ['clinica_id em quartos, profissionais, massagens, reservas', 'emails_adicionais em clinicas', 'bebida, preco_bebida, recepcionista_id em reservas', 'horario_funcionamento em clinicas', 'pagamento em reservas (mais recente)'] },
+      { h: 'Seeds Idempotentes', items: ['Horário Bali Spa: atualiza WHERE horario IS NULL', 'Nunca recria dados já existentes', 'Rafael@unimidia.tv REMOVIDO — não recria mais', 'Seeds seguros para múltiplos deploys'] }
+    ]
+  },
+  railway: {
+    icon: '🚀', title: 'Railway.app — Hospedagem',
+    sections: [
+      { h: 'Configuração', items: ['Web Service Node.js único (frontend + backend)', 'Start Command: node server.js', 'Deploy automático via push no branch main do GitHub', 'PORT gerenciada automaticamente pelo Railway'] },
+      { h: 'Vantagens', items: ['Monolito simplificado: sem CORS entre front e back', 'Frontend servido pelo express.static(public/)', 'Um único serviço para monitorar e escalar', 'Variáveis de ambiente gerenciadas no painel Railway'] },
+      { h: 'Auditoria', items: ['Logs de deploy e runtime no painel Railway', 'Histórico de builds disponível', 'Rollback via re-deploy de commit anterior'] }
+    ]
+  },
+  github: {
+    icon: '🐙', title: 'GitHub — Repositório & CI/CD',
+    sections: [
+      { h: 'Repositório', items: ['github.com/rafapezzutti/massagem-reserva', 'Estrutura: server.js + public/index.html', 'Branch principal: main', 'Push na main → deploy automático no Railway'] },
+      { h: 'Fluxo de Deploy', items: ['Edição local via Cowork (Claude)', 'git add -A && git commit && git push origin main', 'Railway detecta o push e reinicia o serviço', 'Banco aplica migrações no próximo startup'] },
+      { h: 'Auditoria', items: ['Histórico completo de commits rastreável', 'Nenhuma credencial sensível no repositório', 'Lock files (.git/index.lock) removidos manualmente quando necessário'] }
+    ]
+  },
+  envvars: {
+    icon: '🔧', title: 'Configuração & Variáveis de Ambiente',
+    sections: [
+      { h: 'Variáveis Obrigatórias', items: ['DATABASE_URL — conexão PostgreSQL Neon.tech', 'JWT_SECRET — chave de assinatura dos tokens JWT', 'PORT — porta do servidor (gerenciada pelo Railway)'] },
+      { h: 'Segurança', items: ['Nenhuma credencial em código-fonte (GitHub)', 'Senhas hasheadas com bcryptjs (hash + salt)', 'JWT stateless com expiração de 10 horas', 'DATABASE_URL nunca logada nem exibida em respostas'] },
+      { h: 'Auditoria', items: ['Variáveis gerenciadas exclusivamente no Railway', 'Rotação de JWT_SECRET invalida todas as sessões ativas', 'Sem .env file no repositório'] }
+    ]
+  },
+  perfis: {
+    icon: '👤', title: 'Perfis de Acesso',
+    sections: [
+      { h: 'Admin', items: ['Acesso total ao sistema', 'Gerencia clínicas, admins e gerentes', 'Seleciona clínica ativa via dropdown', 'Vê dashboard, repasse e todos os cadastros'] },
+      { h: 'Clínica', items: ['Login como a própria clínica (spa)', 'Acesso ao CRM operacional completo', 'Vê dashboard e configuração de repasse', 'clinica_id fixo no JWT (sem seletor)'] },
+      { h: 'Gerente', items: ['Perfil operacional sem financeiro', 'Acesso a reservas, cadastros e calendário', 'Sem acesso ao Dashboard (bloqueio backend + frontend)', 'Sem acesso ao Repasse (oculto no frontend)', 'Tabela própria: gerentes (separada de clinicas)'] }
+    ]
+  }
+};
+
+let activeCard = null;
+function showDetail(id) {
+  const panel = document.getElementById('detail-panel');
+  const titleEl = document.getElementById('detail-title');
+  const gridEl = document.getElementById('detail-grid');
+  const cardEl = document.getElementById('card-' + id);
+  if (activeCard) {
+    document.getElementById('card-' + activeCard)?.classList.remove('active');
+    if (activeCard === id) { panel.classList.add('hidden'); activeCard = null; return; }
+  }
+  activeCard = id;
+  cardEl.classList.add('active');
+  const d = details[id];
+  if (!d) return;
+  titleEl.innerHTML = d.icon + ' ' + d.title;
+  gridEl.innerHTML = d.sections.map(s => `
+    <div class="detail-section">
+      <h4>${s.h}</h4>
+      <ul>${s.items.map(i => `<li>${i}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>
