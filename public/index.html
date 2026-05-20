@@ -1731,7 +1731,7 @@ function renderDashTable(data,containerId,type){
   if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
   html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th>'+(showAlugueis?'<th class="num" style="color:var(--red)">🏷 Aluguéis</th>':'')+'<th class="num">Total Geral</th>';
   if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th>`;
-  html+='<th class="num">Média/Atend.</th><th class="ctr">✅ Conc.</th><th class="ctr">📋 Conf.</th><th class="ctr">❌ Canc.</th>';
+  html+='<th class="ctr">✅ Conc.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
 
   data.forEach(r=>{
@@ -1754,9 +1754,7 @@ function renderDashTable(data,containerId,type){
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?'-'+fmtMoeda(alugPerRow):'—'}</td>`:''}
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
       ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td>`:''}
-      <td class="num">${media!==null?fmtMoeda(media):'—'}</td>
       <td class="ctr">${r.concluidas||0}</td>
-      <td class="ctr">${r.confirmadas||0}</td>
       <td class="ctr" style="color:var(--red)">${r.canceladas||0}</td>
     </tr>`;
   });
@@ -1770,9 +1768,7 @@ function renderDashTable(data,containerId,type){
     ${showAlugueis?`<td class="num" style="${sumAlugueis>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumAlugueis>0?'-'+fmtMoeda(sumAlugueis):'—'}</td>`:''}
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
-    <td class="num">${sumAtend>0?fmtMoeda(sumTotal/sumAtend):'—'}</td>
     <td class="ctr">${sumConc}</td>
-    <td class="ctr">${sumConf}</td>
     <td class="ctr" style="color:var(--red)">${sumCanc}</td>
   </tr>`;
 
@@ -2359,3 +2355,10 @@ async function doReset(){
       document.addEventListener('DOMContentLoaded',()=>showResetScreen(token));
     else showResetScreen(token);
   }
+})();
+// Start
+start();
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                            
