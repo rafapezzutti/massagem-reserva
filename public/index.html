@@ -431,16 +431,13 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         <button class="btn btn-primary btn-sm" onclick="openReservaModal()">＋ Nova Reserva</button>
       </div>
       <div id="horario-badge" style="display:none"></div>
-      <!-- Sub-abas da view diária -->
       <div class="daily-subtabs">
         <button class="subtab-btn active" id="subtab-calendario" onclick="switchDailyTab('calendario')">📅 Calendário</button>
         <button class="subtab-btn" id="subtab-disponiveis" onclick="switchDailyTab('disponiveis')">✅ Disponíveis</button>
       </div>
-      <!-- Calendário -->
       <div id="daily-tab-calendario">
         <div class="card"><div id="timeline-container"><div class="spinner"></div></div></div>
       </div>
-      <!-- Disponíveis -->
       <div id="daily-tab-disponiveis" style="display:none">
         <div class="card" style="padding:16px 20px">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
@@ -1050,7 +1047,6 @@ async function loadDaily(){
     const comRes=new Set(reservas.map(r=>r.profissional_id));
     state.profissionais=profissionais.filter(p=>p.ativo||comRes.has(p.id));
     renderTimeline();
-    // Atualiza aba de disponíveis se estiver ativa
     if(document.getElementById('subtab-disponiveis')?.classList.contains('active')) renderDisponiveis();
   }catch(e){cont.innerHTML=`<p style="padding:20px;color:var(--red)">${e.message}</p>`}
 }
@@ -1120,8 +1116,7 @@ function switchDailyTab(tab){
 
 function initDisponiveisHora(){
   const sel=document.getElementById('disp-hora-sel');
-  if(sel.options.length>0) return; // já populado
-  // Gerar slots de 30 em 30 min (00:00–23:30)
+  if(sel.options.length>0) return;
   for(let h=0;h<24;h++){
     for(let m=0;m<60;m+=30){
       const val=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
@@ -1130,7 +1125,6 @@ function initDisponiveisHora(){
       sel.appendChild(o);
     }
   }
-  // Pré-selecionar hora atual arredondada para próximo slot de 30min
   const now=new Date();
   const totalMin=now.getHours()*60+now.getMinutes();
   const rounded=Math.ceil(totalMin/30)*30;
@@ -1147,30 +1141,26 @@ function renderDisponiveis(){
   const el=document.getElementById('disponiveis-list');
   const countEl=document.getElementById('disp-count');
   if(!el) return;
-
   const profs=state.profissionais||[];
   if(!profs.length){
     el.innerHTML='<div class="disp-empty">Nenhuma massagista cadastrada.</div>';
     if(countEl) countEl.textContent='';
     return;
   }
-
   const disponiveis=profs.filter(p=>{
     if(!p.ativo) return false;
-    // 1. Verificar horário de trabalho da massagista
     if(p.horario){
       try{
         const h=JSON.parse(p.horario);
         const dInfo=h[diaKey];
         if(dInfo){
-          if(!dInfo.aberto) return false; // folga
+          if(!dInfo.aberto) return false;
           const ab=timeToMin(dInfo.abertura||'00:00');
           const fe=timeToMin(dInfo.fechamento||'23:59');
-          if(horaMin < ab || horaMin >= fe) return false; // fora do turno
+          if(horaMin < ab || horaMin >= fe) return false;
         }
       }catch(e){}
     }
-    // 2. Verificar se tem reserva ativa que cobre esse horário
     const ocupada=(state.reservasDia||[]).some(r=>
       r.profissional_id===p.id &&
       r.status!=='cancelada' &&
@@ -1179,7 +1169,6 @@ function renderDisponiveis(){
     );
     return !ocupada;
   });
-
   const ocupadas=profs.filter(p=>{
     if(!p.ativo) return false;
     return (state.reservasDia||[]).some(r=>
@@ -1189,19 +1178,15 @@ function renderDisponiveis(){
       timeToMin(r.hora_fim) > horaMin
     );
   });
-
   if(countEl) countEl.textContent=`${disponiveis.length} disponível(is) · ${ocupadas.length} ocupada(s)`;
-
   if(!disponiveis.length){
     el.innerHTML='<div class="disp-empty">😔 Nenhuma massagista disponível neste horário.</div>';
     return;
   }
-
   el.innerHTML=disponiveis.map(p=>{
     const nome=p.nome_fantasia||p.nome;
     const nomeReal=p.nome_fantasia?p.nome:null;
     const inicial=nome.charAt(0).toUpperCase();
-    // Próxima reserva dela hoje
     const proxRes=(state.reservasDia||[])
       .filter(r=>r.profissional_id===p.id && r.status!=='cancelada' && timeToMin(r.hora_inicio)>horaMin)
       .sort((a,b)=>timeToMin(a.hora_inicio)-timeToMin(b.hora_inicio))[0];
@@ -2379,4 +2364,127 @@ function openAdminModal(id){
     `<div class="form-grid">
       <div class="field full"><label>Nome <span class="required">*</span></label>
         <input id="ad-nome" type="text" placeholder="Nome completo"/></div>
-      <div class="field"><label>Email 
+      <div class="field"><label>Email <span class="required">*</span></label>
+        <input id="ad-email" type="email" placeholder="admin@email.com"/></div>
+      <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/></div>
+      <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+        <input id="ad-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('ad-senha','ad-senha2','ad-pwd-hint')"/>
+        <div id="ad-pwd-hint" class="pwd-hint"></div></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveAdmin(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+  if(id){
+    api('GET','/admin/admins').then(as=>{
+      const a=as.find(x=>x.id===id);if(!a)return;
+      document.getElementById('ad-nome').value=a.nome||'';
+      document.getElementById('ad-email').value=a.email||'';
+    });
+  }
+}
+async function saveAdmin(id){
+  const nome=document.getElementById('ad-nome').value.trim();
+  const email=document.getElementById('ad-email').value.trim();
+  const senha=document.getElementById('ad-senha').value;
+  const senha2=document.getElementById('ad-senha2').value;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(!id&&!senha)return toast('Senha é obrigatória','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,ativo:1};if(senha)body.senha=senha;
+    if(id) await api('PUT',`/admin/admins/${id}`,body);
+    else   await api('POST','/admin/admins',body);
+    toast(id?'Admin atualizado!':'Admin cadastrado!');closeModal();loadAdminsList();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleAdmin(id,ativo){
+  try{
+    const as=await api('GET','/admin/admins');const a=as.find(x=>x.id===id);
+    if(a) await api('PUT',`/admin/admins/${id}`,{...a,ativo:ativo?0:1});
+    toast(ativo?'Desativado':'Ativado','info');loadAdminsList();
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteAdmin(id,nome){
+  if(!confirm(`Deletar permanentemente o admin "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  try{await api('DELETE',`/admin/admins/${id}`);toast('Admin deletado','info');loadAdminsList()}
+  catch(e){toast(e.message,'err')}
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESQUECEU / REDEFINIR SENHA
+// ═══════════════════════════════════════════════════════════════════════════
+function showForgot(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('forgot-screen').classList.add('active');
+  document.getElementById('forgot-email').value='';
+  document.getElementById('forgot-sub').textContent='Informe seu e-mail e enviaremos um link para redefinir sua senha.';
+  document.getElementById('forgot-form').style.display='block';
+  setTimeout(()=>document.getElementById('forgot-email').focus(),100);
+}
+function showLogin(){
+  document.getElementById('forgot-screen').classList.remove('active');
+  document.getElementById('reset-screen').classList.remove('active');
+  document.getElementById('login-screen').style.display='flex';
+}
+async function doForgot(){
+  const email=(document.getElementById('forgot-email').value||'').trim();
+  if(!email)return toast('Informe o e-mail','err');
+  const btn=document.querySelector('#forgot-screen .btn-login');
+  btn.disabled=true; btn.textContent='Enviando...';
+  try{
+    await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    document.getElementById('forgot-form').style.display='none';
+    document.getElementById('forgot-sub').innerHTML='\u2705 Se o e-mail estiver cadastrado, voc\u00ea receber\u00e1 as instru\u00e7\u00f5es em breve.<br><br>Verifique sua caixa de entrada e a pasta de spam.';
+  }catch(e){toast('Erro ao enviar e-mail','err');}
+  finally{btn.disabled=false; btn.textContent='Enviar link';}
+}
+function checkResetPwd(){
+  const s1=document.getElementById('reset-senha1')?.value||'';
+  const s2=document.getElementById('reset-senha2')?.value||'';
+  const hint=document.getElementById('reset-pwd-hint');
+  if(!hint)return;
+  if(!s2){hint.textContent='';hint.style.color='';return;}
+  if(s1===s2){hint.textContent='\u2705 Senhas id\u00eanticas';hint.style.color='var(--green)';}
+  else{hint.textContent='\u274c Senhas n\u00e3o coincidem';hint.style.color='var(--red)';}
+}
+let _resetToken=null;
+function showResetScreen(token){
+  _resetToken=token;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('reset-screen').classList.add('active');
+  window.history.replaceState({},'','/');
+}
+async function doReset(){
+  const s1=document.getElementById('reset-senha1').value;
+  const s2=document.getElementById('reset-senha2').value;
+  if(!s1||s1.length<6)return toast('A senha deve ter pelo menos 6 caracteres','err');
+  if(s1!==s2)return toast('As senhas n\u00e3o coincidem','err');
+  const btn=document.querySelector('#reset-screen .btn-login');
+  btn.disabled=true; btn.textContent='Salvando...';
+  try{
+    const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,nova_senha:s1})});
+    const data=await r.json();
+    if(!data.ok)throw new Error(data.error||'Erro ao redefinir senha');
+    document.getElementById('reset-screen').classList.remove('active');
+    document.getElementById('login-screen').style.display='flex';
+    toast('Senha redefinida com sucesso! Fa\u00e7a login.','info');
+  }catch(e){toast(e.message,'err');}
+  finally{btn.disabled=false; btn.textContent='Salvar nova senha';}
+}
+(function checkResetToken(){
+  const params=new URLSearchParams(window.location.search);
+  const token=params.get('reset');
+  if(token){
+    if(document.readyState==='loading')
+      document.addEventListener('DOMContentLoaded',()=>showResetScreen(token));
+    else showResetScreen(token);
+  }
+})();
+// Start
+start();
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                            
