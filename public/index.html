@@ -52,6 +52,23 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .btn-login:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(127,179,211,.4)}
 .login-error{color:var(--red);font-size:.84rem;margin-top:10px;min-height:20px}
 .login-powered{font-size:.72rem;color:var(--text-lt);margin-top:18px;opacity:.7;letter-spacing:.02em}
+.forgot-link{font-size:.82rem;color:var(--cel);cursor:pointer;margin-top:10px;display:block;text-align:center;text-decoration:underline}
+.back-link{font-size:.82rem;color:var(--cel);cursor:pointer;margin-top:12px;display:inline-block;text-decoration:underline}
+#forgot-screen,#reset-screen{
+  position:fixed;inset:0;background:linear-gradient(135deg,#d5e8f5 0%,#fce8d8 100%);
+  display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;
+}
+#forgot-screen.active,#reset-screen.active{display:flex;}
+.forgot-card{
+  background:var(--card);border-radius:20px;padding:40px 36px;width:100%;max-width:400px;
+  box-shadow:0 20px 60px rgba(61,90,107,.2);text-align:center;
+}
+.forgot-card .field{text-align:left;margin-bottom:14px}
+.forgot-card .field label{font-size:.82rem;font-weight:600;color:var(--text-lt);display:block;margin-bottom:5px}
+.forgot-card .field input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;outline:none;transition:border-color .18s;font-family:inherit;font-size:.93rem}
+.forgot-card .field input:focus{border-color:var(--cel);box-shadow:0 0 0 3px rgba(127,179,211,.15)}
+.forgot-card .btn-login{width:100%;background:linear-gradient(135deg,var(--cel),#5a9abf);color:#fff;border:none;border-radius:10px;padding:12px;font-size:1rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:6px;}
+.forgot-card .btn-login:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(127,179,211,.4)}
 
 /* ═══ TOPBAR ═══════════════════════════════════════════════════════════════ */
 #app{display:none}
@@ -321,6 +338,45 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       </div>
     <div class="login-error" id="login-error"></div>
     <div class="login-powered">Powered by P. Soluções</div>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD SCREEN -->
+<div id="forgot-screen">
+  <div class="forgot-card">
+    <div class="login-logo">🔐</div>
+    <div class="login-title">Esqueceu a senha?</div>
+    <div class="login-sub" id="forgot-sub">Informe seu e-mail e enviaremos um link para redefinir sua senha.</div>
+    <div id="forgot-form" style="margin-top:20px">
+      <div class="field">
+        <label>E-mail cadastrado</label>
+        <input id="forgot-email" type="email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doForgot()"/>
+      </div>
+      <button class="btn-login" onclick="doForgot()">Enviar link</button>
+    </div>
+    <div style="margin-top:16px"><span class="back-link" onclick="showLogin()">← Voltar ao login</span></div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD SCREEN -->
+<div id="reset-screen">
+  <div class="forgot-card">
+    <div class="login-logo">🔑</div>
+    <div class="login-title">Nova Senha</div>
+    <div class="login-sub">Escolha uma nova senha para sua conta.</div>
+    <div style="margin-top:20px">
+      <div class="field">
+        <label>Nova senha</label>
+        <input id="reset-senha1" type="password" placeholder="••••••••" oninput="checkResetPwd()"/>
+      </div>
+      <div class="field">
+        <label>Confirmar nova senha</label>
+        <input id="reset-senha2" type="password" placeholder="••••••••" oninput="checkResetPwd()"/>
+        <div id="reset-pwd-hint" style="font-size:.8rem;margin-top:4px;min-height:18px"></div>
+      </div>
+      <button class="btn-login" onclick="doReset()">Salvar nova senha</button>
+    </div>
+    <div style="margin-top:16px"><span class="back-link" onclick="showLogin()">← Voltar ao login</span></div>
   </div>
 </div>
 
@@ -1431,7 +1487,9 @@ function showForgot(){
 function showLogin(){
   document.getElementById('forgot-screen').classList.remove('active');
   document.getElementById('reset-screen').classList.remove('active');
-  document.getElementById('login-screen').style.display='flex';
+  const ls=document.getElementById('login-screen');
+  ls.style.display=''; ls.style.removeProperty('display');
+  ls.style.display='flex';
 }
 async function doForgot(){
   const email=(document.getElementById('forgot-email').value||'').trim();
