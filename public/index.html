@@ -1147,25 +1147,27 @@ function renderDisponiveis(){
     if(countEl) countEl.textContent='';
     return;
   }
+  // Horário da clínica como fallback quando massagista não tem horário próprio
+  const horClinica=state.horario||{};
+  function dentroDoTurno(p){
+    let hFonte=null;
+    if(p.horario){try{hFonte=JSON.parse(p.horario);}catch(e){}}
+    if(!hFonte) hFonte=horClinica;
+    const dInfo=hFonte[diaKey];
+    if(!dInfo) return true;
+    if(!dInfo.aberto) return false;
+    const ab=timeToMin(dInfo.abertura||'00:00');
+    const fe=timeToMin(dInfo.fechamento||'23:59');
+    return horaMin>=ab && horaMin<fe;
+  }
   const disponiveis=profs.filter(p=>{
     if(!p.ativo) return false;
-    if(p.horario){
-      try{
-        const h=JSON.parse(p.horario);
-        const dInfo=h[diaKey];
-        if(dInfo){
-          if(!dInfo.aberto) return false;
-          const ab=timeToMin(dInfo.abertura||'00:00');
-          const fe=timeToMin(dInfo.fechamento||'23:59');
-          if(horaMin < ab || horaMin >= fe) return false;
-        }
-      }catch(e){}
-    }
+    if(!dentroDoTurno(p)) return false;
     const ocupada=(state.reservasDia||[]).some(r=>
       r.profissional_id===p.id &&
       r.status!=='cancelada' &&
-      timeToMin(r.hora_inicio) <= horaMin &&
-      timeToMin(r.hora_fim) > horaMin
+      timeToMin(r.hora_inicio)<=horaMin &&
+      timeToMin(r.hora_fim)>horaMin
     );
     return !ocupada;
   });
