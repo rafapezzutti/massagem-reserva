@@ -1208,9 +1208,34 @@ function openProfModal(id){
         <input id="p-tel" type="tel" value="${p?.telefone?esc(p.telefone):''}" placeholder="(11) 99999-9999"/></div>
       <div class="field"><label>E-mail</label>
         <input id="p-email" type="email" value="${p?.email?esc(p.email):''}" placeholder="email@exemplo.com"/></div>
+      <div class="field full" style="margin-top:8px">
+        <label>⏰ Horário de Atendimento</label>
+        <div style="font-size:.8rem;color:var(--text-lt);margin-bottom:6px">Dias e horários em que esta profissional atende</div>
+        ${buildHorarioTable()}
+      </div>
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="saveProf(${id||'null'})">${p?'Salvar':'Cadastrar'}</button>`);
+  setTimeout(()=>{
+    if(p&&p.horario){
+      try{setHorarioInForm(JSON.parse(p.horario));}catch(e){}
+    }
+  },30);
+}
+function fmtHorarioProf(horarioJson){
+  try{
+    const h=JSON.parse(horarioJson);
+    const dias=Object.entries(h).filter(([,v])=>v.aberto);
+    if(!dias.length)return '⏰ Sem horário cadastrado';
+    const nomes={seg:'Seg',ter:'Ter',qua:'Qua',qui:'Qui',sex:'Sex',sab:'Sab',dom:'Dom'};
+    const aberturas=[...new Set(dias.map(([,v])=>v.abertura+'-'+v.fechamento))];
+    if(aberturas.length===1){
+      const [ab,fe]=aberturas[0].split('-');
+      const ds=dias.map(([k])=>nomes[k]||k).join(', ');
+      return '⏰ '+ds+' · '+ab+'–'+fe;
+    }
+    return '⏰ '+dias.map(([k,v])=>(nomes[k]||k)+' '+v.abertura+'–'+v.fechamento).join(' | ');
+  }catch(e){return '';}
 }
 function maskCPF(el){let v=el.value.replace(/\D/g,'').substring(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1-$2');el.value=v}
 async function saveProf(id){
@@ -1222,7 +1247,8 @@ async function saveProf(id){
   const nome_fantasia=document.getElementById('p-fantasia').value.trim();
   if(!nome||!telefone)return toast('Nome e telefone são obrigatórios','err');
   try{
-    const body={nome,nome_fantasia:nome_fantasia||null,cpf,data_nascimento,telefone,email:email||null,ativo:1,...cidBody()};
+    const horario=JSON.stringify(getHorarioFromForm());
+    const body={nome,nome_fantasia:nome_fantasia||null,cpf,data_nascimento,telefone,email:email||null,ativo:1,horario,...cidBody()};
     if(id) await api('PUT',`/profissionais/${id}`,body);
     else   await api('POST','/profissionais',body);
     toast(id?'Atualizado!':'Cadastrado!');closeModal();loadProfissionais();
@@ -1455,6 +1481,26 @@ async function saveReserva(id){
     return toast('Preencha todos os campos obrigatórios','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
+  // Verificar se o horario está dentro do cadastrado para a profissional
+  const profSel=state.profissionais.find(x=>x.id===profissional_id);
+  if(profSel&&profSel.horario){
+    try{
+      const hProf=JSON.parse(profSel.horario);
+      const dKey=getDiaKey(data);
+      const dInfo=hProf[dKey];
+      if(dInfo&&!dInfo.aberto){
+        if(!confirm(`⚠️ Atenção: ${profSel.nome_fantasia||profSel.nome} não atende neste dia da semana conforme o cadastro.\n\nDeseja confirmar a reserva mesmo assim?`))return;
+      } else if(dInfo&&dInfo.aberto){
+        const inicioMin=timeToMin(hora_inicio);
+        const fimMin=timeToMin(hora_fim);
+        const abMin=timeToMin(dInfo.abertura);
+        const feMin=timeToMin(dInfo.fechamento);
+        if(inicioMin<abMin||fimMin>feMin){
+          if(!confirm(`⚠️ Atenção: ${profSel.nome_fantasia||profSel.nome} costuma atender das ${dInfo.abertura} às ${dInfo.fechamento} neste dia.\n\nA reserva está fora do horário cadastrado. Deseja confirmar mesmo assim?`))return;
+        }
+      }
+    }catch(e){}
+  }
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,cliente_nome,
       cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,pagamento,...cidBody()};
