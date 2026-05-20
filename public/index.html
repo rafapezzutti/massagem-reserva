@@ -1718,7 +1718,7 @@ function renderDashTable(data,containerId,type){
   const sumTotal=data.reduce((s,r)=>s+parseFloat(r.total||0),0);
   const sumBebidas=data.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
   const sumAlugueis=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0):0;
-  const showAlugueis=!isMassagem&&sumAlugueis>0;
+  const showAlugueis=!isMassagem;
   const sumMassagensBruto=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_massagens_bruto||0),0):0;
   const sumConf= data.reduce((s,r)=>s+parseInt(r.confirmadas||0),0);
   const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
@@ -1767,7 +1767,7 @@ function renderDashTable(data,containerId,type){
     <td class="ctr">${sumAtend}</td>
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
     <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
-    ${showAlugueis?`<td class="num" style="color:var(--red);font-weight:700">-${fmtMoeda(sumAlugueis)}</td>`:''}
+    ${showAlugueis?`<td class="num" style="${sumAlugueis>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumAlugueis>0?'-'+fmtMoeda(sumAlugueis):'—'}</td>`:''}
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
     <td class="num">${sumAtend>0?fmtMoeda(sumTotal/sumAtend):'—'}</td>
@@ -2359,9 +2359,3 @@ async function doReset(){
       document.addEventListener('DOMContentLoaded',()=>showResetScreen(token));
     else showResetScreen(token);
   }
-})();
-// Start
-start();
-</script>
-</body>
-</html>
