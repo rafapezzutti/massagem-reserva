@@ -390,6 +390,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="nav-btn"         onclick="showView('quartos')">🛏 Quartos</button>
       <button class="nav-btn"         onclick="showView('profissionais')">👤 Profissionais</button>
       <button class="nav-btn"         onclick="showView('massagens')">💆 Massagens</button>
+      <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
       <button class="nav-btn" id="nav-dashboard"       onclick="showView('dashboard')">📊 Dashboard</button>
@@ -464,6 +465,16 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         <button class="btn btn-primary" onclick="openMassagemModal()">＋ Nova Massagem</button>
       </div>
       <div id="massagens-list"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Aluguéis -->
+    <div id="view-alugueis" class="view">
+      <div class="list-header">
+        <h1>🏷 Aluguéis</h1>
+        <button class="btn btn-primary" onclick="openAluguelModal()">＋ Novo Aluguel</button>
+      </div>
+      <p style="margin-bottom:16px;font-size:.88rem;color:var(--text-lt)">Valores cobrados das massagistas pelo uso da sala/serviços da clínica. Aparecem como débito no dashboard de cada profissional.</p>
+      <div id="alugueis-list"><div class="spinner"></div></div>
     </div>
 
     <!-- Recepcionistas -->
@@ -651,7 +662,7 @@ let state = {
   currentView: 'daily',
   currentDate: '',
   adminClinicaId: null,
-  quartos:[], profissionais:[], massagens:[], reservasDia:[],
+  quartos:[], profissionais:[], massagens:[], alugueis:[], reservasDia:[],
   recepcionistas:[], repasse:0, horario: null
 };
 
@@ -747,7 +758,7 @@ function logout(){
   document.getElementById('login-senha').value='';
   document.getElementById('login-error').textContent='';
   // Reseta o estado
-  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],reservasDia:[]};
+  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[]};
 }
 
 async function verifyToken(){
@@ -802,13 +813,13 @@ function initApp(){
 // ─── Nav ─────────────────────────────────────────────────────────────────────
 function showView(v){
   if(auth.user?.role==='admin' && !state.adminClinicaId &&
-     ['daily','monthly','quartos','profissionais','massagens','dashboard'].includes(v)){
+     ['daily','monthly','quartos','profissionais','massagens','alugueis','dashboard'].includes(v)){
     toast('Selecione uma clínica no topo primeiro','info');return;
   }
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
-  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
+  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',alugueis:'alugué',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
   document.querySelectorAll('.nav-btn').forEach(btn=>{
     const t=btn.textContent.toLowerCase();
     if(navMap[v]&&t.includes(navMap[v])) btn.classList.add('active');
@@ -820,6 +831,7 @@ function showView(v){
   else if(v==='quartos') loadQuartos();
   else if(v==='profissionais') loadProfissionais();
   else if(v==='massagens') loadMassagens();
+  else if(v==='alugueis') loadAlugueis();
   else if(v==='recepcionistas') loadRecepcionistas();
   else if(v==='repasse') loadRepasse();
   else if(v==='dashboard') loadDashboard();
@@ -842,7 +854,7 @@ async function loadClinicaSelector(){
 }
 function onClinicaSelect(val){
   state.adminClinicaId=val?parseInt(val):null;
-  state.quartos=[];state.profissionais=[];state.massagens=[];
+  state.quartos=[];state.profissionais=[];state.massagens=[];state.alugueis=[];
   state.horario=null;renderHorarioBadge();
   if(val){
     api('GET','/clinica/info?'+cidParam()).then(info=>{
@@ -1051,7 +1063,7 @@ function renderTimeline(){
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
-            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.massagem_nome)}</div>
+            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}</div>
           </div></div>`;
@@ -1337,6 +1349,84 @@ async function deleteMassagem(id,nome){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ALUGUEIS
+// ═══════════════════════════════════════════════════════════════════════════
+function setTipoReserva(tipo){
+  const isMass=tipo==='massagem';
+  const mRow=document.getElementById('rv-massagem-row');
+  const aRow=document.getElementById('rv-aluguel-row');
+  const mBtn=document.getElementById('tipo-massagem-btn');
+  const aBtn=document.getElementById('tipo-aluguel-btn');
+  if(mRow) mRow.style.display=isMass?'':'none';
+  if(aRow) aRow.style.display=isMass?'none':'';
+  if(mBtn) mBtn.className='btn '+(isMass?'btn-primary':'btn-secondary')+' btn-sm';
+  if(aBtn) aBtn.className='btn '+(isMass?'btn-secondary':'btn-primary')+' btn-sm';
+}
+async function loadAlugueis(){
+  document.getElementById('alugueis-list').innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{state.alugueis=await api('GET','/alugueis?todos=1'+(cid?'&'+cid:''));renderAlugueis()}
+  catch(e){toast(e.message,'err')}
+}
+function renderAlugueis(){
+  const el=document.getElementById('alugueis-list');
+  if(!state.alugueis.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">🏷</div><div>Nenhum aluguel cadastrado.</div></div>';return}
+  el.innerHTML='<div class="item-grid">'+state.alugueis.map(a=>`
+    <div class="item-card" style="${!a.ativo?'opacity:.7':''}">
+      ${!a.ativo?'<div class="inactive-overlay">Inativo</div>':''}
+      <div class="item-title">${esc(a.nome)}</div>
+      ${a.descricao?`<div class="item-sub">${esc(a.descricao)}</div>`:''}
+      <div class="item-detail" style="color:var(--red);font-weight:700">💸 -${fmtMoeda(a.valor)}</div>
+      <div class="item-detail" style="font-size:.77rem;color:var(--text-lt)">Cobrado da massagista</div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openAluguelModal(${a.id})">✏️ Editar</button>
+        <button class="btn ${a.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleAluguel(${a.id},${a.ativo})">
+          ${a.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAluguel(${a.id},'${esc(a.nome)}')">🗑 Deletar</button>
+      </div>
+    </div>`).join('')+'</div>';
+}
+function openAluguelModal(id){
+  const a=id?state.alugueis.find(x=>x.id===id):null;
+  openModal(a?`Editar ${a.nome}`:'Novo Aluguel',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="al-nome" type="text" value="${a?esc(a.nome):''}" placeholder="Ex: Locação de Sala"/></div>
+      <div class="field full"><label>Descrição</label>
+        <textarea id="al-desc" placeholder="Descreva o aluguel...">${a?.descricao?esc(a.descricao):''}</textarea></div>
+      <div class="field full"><label>Valor (R$) <span class="required">*</span></label>
+        <input id="al-valor" type="number" value="${a?.valor||''}" min="0" step="0.01" placeholder="50.00"/>
+        <small style="color:var(--text-lt);margin-top:3px;display:block">Valor cobrado da massagista — aparece como negativo no dashboard</small></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveAluguel(${id||'null'})">${a?'Salvar':'Cadastrar'}</button>`);
+}
+async function saveAluguel(id){
+  const nome=document.getElementById('al-nome').value.trim();
+  const descricao=document.getElementById('al-desc').value.trim();
+  const valor=parseFloat(document.getElementById('al-valor').value);
+  if(!nome||isNaN(valor))return toast('Preencha os campos obrigatórios','err');
+  try{
+    const body={nome,descricao:descricao||null,valor,ativo:1,...cidBody()};
+    if(id) await api('PUT',`/alugueis/${id}`,body);
+    else   await api('POST','/alugueis',body);
+    toast(id?'Atualizado!':'Cadastrado!');closeModal();loadAlugueis();
+  }catch(e){toast(e.message,'err')}
+}
+async function toggleAluguel(id,ativo){
+  const a=state.alugueis.find(x=>x.id===id);
+  try{await api('PUT',`/alugueis/${id}`,{...a,ativo:ativo?0:1,...cidBody()});
+    toast(ativo?'Desativado':'Ativado','info');loadAlugueis()}
+  catch(e){toast(e.message,'err')}
+}
+async function deleteAluguel(id,nome){
+  if(!confirm(`Deletar permanentemente "${nome}"?\nEsta ação não pode ser desfeita.`))return;
+  const cid=cidParam();
+  try{await api('DELETE',`/alugueis/${id}`+(cid?'?'+cid:''));toast('Aluguel deletado','info');loadAlugueis()}
+  catch(e){toast(e.message,'err')}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // RESERVAS
 // ═══════════════════════════════════════════════════════════════════════════
 async function ensureData(){
@@ -1344,6 +1434,7 @@ async function ensureData(){
   if(!state.quartos.length)         state.quartos=        await api('GET','/quartos'+(cid?'?'+cid:''));
   if(!state.profissionais.length)   state.profissionais=  await api('GET','/profissionais'+(cid?'?'+cid:''));
   if(!state.massagens.length)       state.massagens=      await api('GET','/massagens'+(cid?'?'+cid:''));
+  if(!state.alugueis.length)        state.alugueis=       await api('GET','/alugueis'+(cid?'?'+cid:''));
   if(!state.recepcionistas.length)  state.recepcionistas= await api('GET','/recepcionistas'+(cid?'?'+cid:''));
 }
 
@@ -1353,6 +1444,8 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   const optQ=state.quartos.map(q=>`<option value="${q.id}"${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}</option>`).join('');
   const optP=state.profissionais.filter(p=>p.ativo||r?.profissional_id===p.id).map(p=>`<option value="${p.id}"${(r?.profissional_id===p.id||profissionalIdPre===p.id)?'selected':''}>${esc(p.nome_fantasia||p.nome)}</option>`).join('');
   const optM=state.massagens.map(m=>`<option value="${m.id}"${r?.massagem_id===m.id?'selected':''}>${esc(m.nome)} (${m.duracao}min · ${fmtMoeda(m.preco)})</option>`).join('');
+  const optA=(state.alugueis||[]).map(a=>`<option value="${a.id}"${r?.aluguel_id===a.id?'selected':''}>${esc(a.nome)} (-${fmtMoeda(a.valor)})</option>`).join('');
+  const tipoInicial=r?.aluguel_id?'aluguel':'massagem';
   const statusSel=r?`<div class="field"><label>Status</label><select id="rv-status">
     <option value="confirmada"${r.status==='confirmada'?' selected':''}>Confirmada</option>
     <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
@@ -1372,8 +1465,17 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <select id="rv-prof">${optP}</select></div>
       <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
         <select id="rv-quarto">${optQ}</select></div>
-      <div class="field full"><label>Tipo de Massagem <span class="required">*</span></label>
+      <div class="field full" style="margin-bottom:2px">
+        <label>Tipo de Serviço <span class="required">*</span></label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button type="button" id="tipo-massagem-btn" class="btn btn-primary btn-sm" onclick="setTipoReserva('massagem')">💆 Massagem</button>
+          <button type="button" id="tipo-aluguel-btn" class="btn btn-secondary btn-sm" onclick="setTipoReserva('aluguel')">🏷 Aluguel</button>
+        </div>
+      </div>
+      <div id="rv-massagem-row" class="field full"><label>Tipo de Massagem <span class="required">*</span></label>
         <select id="rv-massagem" onchange="autoFillHoraFim()">${optM}</select></div>
+      <div id="rv-aluguel-row" class="field full" style="display:none"><label>Tipo de Aluguel <span class="required">*</span></label>
+        <select id="rv-aluguel">${optA||'<option value="">Nenhum aluguel cadastrado</option>'}</select></div>
       <div class="field full"><label>Nome do Cliente <span class="required">*</span></label>
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
@@ -1412,11 +1514,13 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
      <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
   setTimeout(()=>{
     renderDrinksList();
+    setTipoReserva(tipoInicial);
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
 }
 function autoFillHoraFim(){
+  if(document.getElementById('rv-massagem-row')?.style.display==='none') return;
   const m=state.massagens.find(x=>x.id===parseInt(document.getElementById('rv-massagem')?.value));
   const i=document.getElementById('rv-inicio')?.value;
   if(m&&i) document.getElementById('rv-fim').value=minToTime(timeToMin(i)+m.duracao);
@@ -1468,7 +1572,9 @@ async function saveReserva(id){
   const hora_fim=document.getElementById('rv-fim').value;
   const quarto_id=parseInt(document.getElementById('rv-quarto').value);
   const profissional_id=parseInt(document.getElementById('rv-prof').value);
-  const massagem_id=parseInt(document.getElementById('rv-massagem').value);
+  const tipoMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
+  const massagem_id=tipoMass?parseInt(document.getElementById('rv-massagem')?.value)||null:null;
+  const aluguel_id=!tipoMass?parseInt(document.getElementById('rv-aluguel')?.value)||null:null;
   const cliente_nome=document.getElementById('rv-cliente').value.trim();
   const cliente_telefone=document.getElementById('rv-ctel')?.value.trim();
   const status=document.getElementById('rv-status')?.value||'confirmada';
@@ -1477,7 +1583,7 @@ async function saveReserva(id){
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
   const pagamento=document.getElementById('rv-pagamento')?.value||null;
-  if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||!massagem_id||!cliente_nome)
+  if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
@@ -1502,7 +1608,7 @@ async function saveReserva(id){
     }catch(e){}
   }
   try{
-    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,cliente_nome,
+    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,cliente_nome,
       cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,pagamento,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
@@ -1611,16 +1717,19 @@ function renderDashTable(data,containerId,type){
   const sumAtend=data.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumTotal=data.reduce((s,r)=>s+parseFloat(r.total||0),0);
   const sumBebidas=data.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
+  const sumAlugueis=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0):0;
+  const showAlugueis=!isMassagem&&sumAlugueis>0;
+  const sumMassagensBruto=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_massagens_bruto||0),0):0;
   const sumConf= data.reduce((s,r)=>s+parseInt(r.confirmadas||0),0);
   const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
-  const sumMassagens=sumTotal-sumBebidas;
+  const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas);
   const sumRepasse=showRepasse?sumMassagens*(pct/100):0;
 
   let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
   if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
-  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th><th class="num">Total Geral</th>';
+  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th>'+(showAlugueis?'<th class="num" style="color:var(--red)">🏷 Aluguéis</th>':'')+'<th class="num">Total Geral</th>';
   if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th>`;
   html+='<th class="num">Média/Atend.</th><th class="ctr">✅ Conc.</th><th class="ctr">📋 Conf.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
@@ -1629,7 +1738,8 @@ function renderDashTable(data,containerId,type){
     const atend=parseInt(r.atendimentos||0);
     const valor=parseFloat(r.total||0);
     const bebidas=parseFloat(r.total_bebidas||0);
-    const massagens=valor-bebidas;
+    const alugPerRow=parseFloat(r.total_alugueis||0);
+    const massagens=parseFloat(r.total_massagens_bruto||0)||(valor-bebidas+alugPerRow);
     const valRepasse=showRepasse?massagens*(pct/100):0;
     const media=atend>0?valor/atend:null;
     const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
@@ -1641,6 +1751,7 @@ function renderDashTable(data,containerId,type){
       <td class="ctr">${atend}</td>
       <td class="num">${fmtMoeda(massagens)}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
+      ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?'-'+fmtMoeda(alugPerRow):'—'}</td>`:''}
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
       ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td>`:''}
       <td class="num">${media!==null?fmtMoeda(media):'—'}</td>
@@ -1656,6 +1767,7 @@ function renderDashTable(data,containerId,type){
     <td class="ctr">${sumAtend}</td>
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
     <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
+    ${showAlugueis?`<td class="num" style="color:var(--red);font-weight:700">-${fmtMoeda(sumAlugueis)}</td>`:''}
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
     <td class="num">${sumAtend>0?fmtMoeda(sumTotal/sumAtend):'—'}</td>
