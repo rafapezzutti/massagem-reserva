@@ -1318,6 +1318,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
           <option value="Pix"${r?.pagamento==='Pix'?' selected':''}>Pix</option>
           <option value="Crédito"${r?.pagamento==='Crédito'?' selected':''}>Crédito</option>
           <option value="Débito"${r?.pagamento==='Débito'?' selected':''}>Débito</option>
+          <option value="Dinheiro"${r?.pagamento==='Dinheiro'?' selected':''}>Dinheiro</option>
         </select></div>
       <div class="field full"><label>Observações</label>
         <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
@@ -1425,8 +1426,8 @@ async function loadDashPagamentos(){
     const res=await api('GET','/dashboard/pagamentos?mes='+mes+'&ano='+ano+(cid?'&'+cid:''));
     const {rows,totais}=res;
     if(!rows||!rows.length){body.innerHTML='<div class="dash-empty">Nenhuma reserva encontrada neste período.</div>';return;}
-    const ICONES={'Pix':'📱','Crédito':'💳','Débito':'💳','Não informado':'❓'};
-    const CORES={'Pix':'var(--green)','Crédito':'var(--cel)','Débito':'var(--pec)','Não informado':'var(--text-lt)'};
+    const ICONES={'Pix':'📱','Crédito':'💳','Débito':'💳','Dinheiro':'💵','Não informado':'❓'};
+    const CORES={'Pix':'var(--green)','Crédito':'var(--cel)','Débito':'var(--pec)','Dinheiro':'var(--yellow)','Não informado':'var(--text-lt)'};
     body.innerHTML=`
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px">
         ${rows.map(r=>`
