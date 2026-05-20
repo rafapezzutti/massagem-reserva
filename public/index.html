@@ -199,6 +199,16 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .disp-sub{font-size:.82rem;color:var(--text-lt);margin-top:2px}
 .disp-badge{padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:700;background:#d4f1e3;color:#1d6040}
 .disp-empty{text-align:center;padding:40px 20px;color:var(--text-lt);font-size:.95rem}
+.tl-cell-bloq{background:repeating-linear-gradient(45deg,#fde8e8,#fde8e8 4px,#fff5f5 4px,#fff5f5 10px);cursor:default;position:relative}
+.bloq-block{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(220,38,38,.13);border-left:3px solid var(--red);display:flex;align-items:center;padding:2px 5px;font-size:.72rem;font-weight:700;color:var(--red);white-space:nowrap;overflow:hidden;z-index:2}
+.modal-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin:-4px -4px 16px -4px}
+.modal-tab{padding:9px 20px;font-size:.88rem;font-weight:600;color:var(--text-lt);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
+.modal-tab:hover{color:var(--text)}
+.modal-tab.active{color:var(--cel);border-bottom-color:var(--cel)}
+.aus-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--cel-pale);border:1px solid var(--border);margin-bottom:6px}
+.aus-item-info{flex:1;font-size:.88rem}
+.aus-item-data{font-weight:700;color:var(--text)}
+.aus-item-detalhe{color:var(--text-lt);font-size:.8rem;margin-top:1px}
 .date-nav{display:flex;align-items:center;gap:6px}
 .date-nav .date-label{font-size:1.05rem;font-weight:700;color:var(--text);min-width:200px;text-align:center}
 #date-input{border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;background:var(--card);color:var(--text);font-size:.9rem;outline:none}
@@ -690,7 +700,7 @@ let state = {
   currentView: 'daily',
   currentDate: '',
   adminClinicaId: null,
-  quartos:[], profissionais:[], massagens:[], alugueis:[], reservasDia:[],
+  quartos:[], profissionais:[], massagens:[], alugueis:[], reservasDia:[], ausenciasDia:[],
   recepcionistas:[], repasse:0, horario: null
 };
 
@@ -786,7 +796,7 @@ function logout(){
   document.getElementById('login-senha').value='';
   document.getElementById('login-error').textContent='';
   // Reseta o estado
-  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[]};
+  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[],ausenciasDia:[]};
 }
 
 async function verifyToken(){
@@ -1038,11 +1048,13 @@ async function loadDaily(){
   cont.innerHTML='<div class="spinner"></div>';
   const cid=cidParam();
   try{
-    const[profissionais,reservas]=await Promise.all([
+    const[profissionais,reservas,ausencias]=await Promise.all([
       api('GET','/profissionais?todos=1'+(cid?'&'+cid:'')),
-      api('GET',`/reservas?data=${state.currentDate}`+(cid?'&'+cid:''))
+      api('GET',`/reservas?data=${state.currentDate}`+(cid?'&'+cid:'')),
+      api('GET',`/ausencias?data=${state.currentDate}`+(cid?'&'+cid:''))
     ]);
     state.reservasDia=reservas;
+    state.ausenciasDia=ausencias||[];
     // Mostra ativos + quem tiver reserva hoje
     const comRes=new Set(reservas.map(r=>r.profissional_id));
     state.profissionais=profissionais.filter(p=>p.ativo||comRes.has(p.id));
@@ -1087,7 +1099,15 @@ function renderTimeline(){
     });
     for(let i=0;i<slots;i++){
       const cm=startMin+i*30;const isH=cm%60===0;const rb=startMap[i];
-      if(rb){
+      const ausSlot=(state.ausenciasDia||[]).find(a=>
+        a.profissional_id===prof.id&&(
+          parseInt(a.dia_inteiro)||
+          (a.hora_inicio&&a.hora_fim&&timeToMin(a.hora_inicio)<=cm&&timeToMin(a.hora_fim)>cm)
+        ));
+      if(ausSlot){
+        const motTxt=ausSlot.motivo?esc(ausSlot.motivo):'Ausente';
+        html+=`<div class="tl-cell tl-cell-bloq${isH?' half-border':''}"><div class="bloq-block">🚫 ${motTxt}</div></div>`;
+      }else if(rb){
         const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':'res-conf';
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
@@ -1334,33 +1354,126 @@ function renderProfissionais(){
 }
 function openProfModal(id){
   const p=id?state.profissionais.find(x=>x.id===id):null;
+  const HOPS='<option value="00:00">00:00</option><option value="00:30">00:30</option><option value="01:00">01:00</option><option value="01:30">01:30</option><option value="02:00">02:00</option><option value="02:30">02:30</option><option value="03:00">03:00</option><option value="03:30">03:30</option><option value="04:00">04:00</option><option value="04:30">04:30</option><option value="05:00">05:00</option><option value="05:30">05:30</option><option value="06:00">06:00</option><option value="06:30">06:30</option><option value="07:00">07:00</option><option value="07:30">07:30</option><option value="08:00">08:00</option><option value="08:30">08:30</option><option value="09:00">09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="10:30">10:30</option><option value="11:00">11:00</option><option value="11:30">11:30</option><option value="12:00">12:00</option><option value="12:30">12:30</option><option value="13:00">13:00</option><option value="13:30">13:30</option><option value="14:00">14:00</option><option value="14:30">14:30</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="16:30">16:30</option><option value="17:00">17:00</option><option value="17:30">17:30</option><option value="18:00">18:00</option><option value="18:30">18:30</option><option value="19:00">19:00</option><option value="19:30">19:30</option><option value="20:00">20:00</option><option value="20:30">20:30</option><option value="21:00">21:00</option><option value="21:30">21:30</option><option value="22:00">22:00</option><option value="22:30">22:30</option><option value="23:00">23:00</option><option value="23:30">23:30</option>';
   openModal(p?`Editar ${p.nome_fantasia||p.nome}`:'Novo Profissional',
-    `<div class="form-grid">
-      <div class="field full"><label>Nome <span class="required">*</span></label>
-        <input id="p-nome" type="text" value="${p?esc(p.nome):''}" placeholder="Nome completo"/></div>
-      <div class="field"><label>Nome Fantasia</label>
-        <input id="p-fantasia" type="text" value="${p?.nome_fantasia?esc(p.nome_fantasia):''}" placeholder="Apelido"/></div>
-      <div class="field"><label>CPF</label>
-        <input id="p-cpf" type="text" value="${p?fmtCPF(p.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
-      <div class="field"><label>Nascimento</label>
-        <input id="p-nasc" type="date" value="${p?.data_nascimento||''}"/></div>
-      <div class="field"><label>Telefone <span class="required">*</span></label>
-        <input id="p-tel" type="tel" value="${p?.telefone?esc(p.telefone):''}" placeholder="(11) 99999-9999"/></div>
-      <div class="field"><label>E-mail</label>
-        <input id="p-email" type="email" value="${p?.email?esc(p.email):''}" placeholder="email@exemplo.com"/></div>
-      <div class="field full" style="margin-top:8px">
-        <label>⏰ Horário de Atendimento</label>
-        <div style="font-size:.8rem;color:var(--text-lt);margin-bottom:6px">Dias e horários em que esta profissional atende</div>
-        ${buildHorarioTable()}
-      </div>
-    </div>`,
+    `<div class="modal-tabs">
+       <div class="modal-tab active" id="ptab-dados" onclick="switchProfTab('dados')">&#x1F4CB; Dados</div>
+       ${id?'<div class="modal-tab" id="ptab-ausencias" onclick="switchProfTab(\'ausencias\')">&#x1F6AB; Aus&ecirc;ncias</div>':''}
+     </div>
+     <div id="ptab-content-dados">
+       <div class="form-grid">
+         <div class="field full"><label>Nome <span class="required">*</span></label>
+           <input id="p-nome" type="text" value="${p?esc(p.nome):''}" placeholder="Nome completo"/></div>
+         <div class="field"><label>Nome Fantasia</label>
+           <input id="p-fantasia" type="text" value="${p?.nome_fantasia?esc(p.nome_fantasia):''}" placeholder="Apelido"/></div>
+         <div class="field"><label>CPF</label>
+           <input id="p-cpf" type="text" value="${p?fmtCPF(p.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
+         <div class="field"><label>Nascimento</label>
+           <input id="p-nasc" type="date" value="${p?.data_nascimento||''}"/></div>
+         <div class="field"><label>Telefone <span class="required">*</span></label>
+           <input id="p-tel" type="tel" value="${p?.telefone?esc(p.telefone):''}" placeholder="(11) 99999-9999"/></div>
+         <div class="field"><label>E-mail</label>
+           <input id="p-email" type="email" value="${p?.email?esc(p.email):''}" placeholder="email@exemplo.com"/></div>
+         <div class="field full" style="margin-top:8px">
+           <label>&#x23F0; Hor&aacute;rio de Atendimento</label>
+           <div style="font-size:.8rem;color:var(--text-lt);margin-bottom:6px">Dias e hor&aacute;rios em que esta profissional atende</div>
+           ${buildHorarioTable()}
+         </div>
+       </div>
+     </div>
+     ${id?`<div id="ptab-content-ausencias" style="display:none">
+       <div style="background:var(--cel-pale);border-radius:10px;padding:14px;margin-bottom:16px">
+         <div style="font-weight:700;margin-bottom:10px">&#x2795; Nova Aus&ecirc;ncia</div>
+         <div class="form-grid">
+           <div class="field"><label>Data <span class="required">*</span></label>
+             <input id="aus-data" type="date" value="${new Date().toISOString().slice(0,10)}"/></div>
+           <div class="field"><label>Tipo</label>
+             <select id="aus-tipo" onchange="toggleAusTipo()">
+               <option value="dia">&#x1F4C5; Dia inteiro</option>
+               <option value="hora">&#x1F550; Hor&aacute;rio espec&iacute;fico</option>
+             </select></div>
+           <div id="aus-hora-wrap" class="field full" style="display:none">
+             <div style="display:flex;gap:12px">
+               <div style="flex:1"><label>In&iacute;cio</label>
+                 <select id="aus-hinicio" style="width:100%">${HOPS}</select></div>
+               <div style="flex:1"><label>Fim</label>
+                 <select id="aus-hfim" style="width:100%">${HOPS}</select></div>
+             </div></div>
+           <div class="field full"><label>Motivo</label>
+             <input id="aus-motivo" type="text" placeholder="Ex: Consulta m&eacute;dica, folga..."/></div>
+         </div>
+         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAusencia(${id})">&#x2795; Adicionar</button>
+       </div>
+       <div id="aus-list"><div class="spinner"></div></div>
+     </div>`:''}`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveProf(${id||'null'})">${p?'Salvar':'Cadastrar'}</button>`);
+     <button class="btn btn-primary" id="ptab-save-btn" onclick="saveProf(${id||'null'})">${p?'Salvar':'Cadastrar'}</button>`);
   setTimeout(()=>{
-    if(p&&p.horario){
-      try{setHorarioInForm(JSON.parse(p.horario));}catch(e){}
-    }
+    if(p&&p.horario){try{setHorarioInForm(JSON.parse(p.horario));}catch(e){}}
+    if(id) loadAusencias(id);
   },30);
+}
+function switchProfTab(tab){
+  ['dados','ausencias'].forEach(t=>{
+    const btn=document.getElementById('ptab-'+t);
+    const cont=document.getElementById('ptab-content-'+t);
+    if(btn) btn.classList.toggle('active',t===tab);
+    if(cont) cont.style.display=t===tab?'':'none';
+  });
+  const saveBtn=document.getElementById('ptab-save-btn');
+  if(saveBtn) saveBtn.style.display=tab==='dados'?'':'none';
+}
+function toggleAusTipo(){
+  const tipo=document.getElementById('aus-tipo')?.value;
+  const wrap=document.getElementById('aus-hora-wrap');
+  if(wrap) wrap.style.display=tipo==='hora'?'block':'none';
+}
+async function loadAusencias(profId){
+  const el=document.getElementById('aus-list');
+  if(!el) return;
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const list=await api('GET',`/ausencias?profissional_id=${profId}`+(cid?'&'+cid:''));
+    if(!list.length){el.innerHTML='<div style="color:var(--text-lt);font-size:.85rem;padding:8px">Nenhuma aus&ecirc;ncia cadastrada.</div>';return;}
+    el.innerHTML=list.map(a=>{
+      const dFmt=new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+      const horario=a.dia_inteiro?'Dia inteiro':`${(a.hora_inicio||'').slice(0,5)}–${(a.hora_fim||'').slice(0,5)}`;
+      return `<div class="aus-item">
+        <div style="font-size:1.4rem">${a.dia_inteiro?'&#x1F4C5;':'&#x1F550;'}</div>
+        <div class="aus-item-info">
+          <div class="aus-item-data">${dFmt}</div>
+          <div class="aus-item-detalhe">${horario}${a.motivo?' &middot; '+esc(a.motivo):''}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteAusencia(${a.id},${profId})">&#x1F5D1;</button>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML=`<div style="color:var(--red)">${e.message}</div>`}
+}
+async function saveAusencia(profId){
+  const data=document.getElementById('aus-data')?.value;
+  const tipo=document.getElementById('aus-tipo')?.value;
+  const hora_inicio=tipo==='hora'?document.getElementById('aus-hinicio')?.value:null;
+  const hora_fim=tipo==='hora'?document.getElementById('aus-hfim')?.value:null;
+  const motivo=document.getElementById('aus-motivo')?.value?.trim()||null;
+  if(!data) return toast('Selecione a data','err');
+  if(tipo==='hora'&&hora_inicio&&hora_fim&&timeToMin(hora_fim)<=timeToMin(hora_inicio))
+    return toast('Hora fim deve ser maior que hora in&iacute;cio','err');
+  try{
+    await api('POST','/ausencias',{profissional_id:profId,data,dia_inteiro:tipo==='dia'?1:0,hora_inicio,hora_fim,motivo,...cidBody()});
+    toast('Aus&ecirc;ncia cadastrada','info');
+    document.getElementById('aus-data').value=new Date().toISOString().slice(0,10);
+    if(document.getElementById('aus-motivo')) document.getElementById('aus-motivo').value='';
+    loadAusencias(profId);
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteAusencia(id,profId){
+  if(!confirm('Remover esta aus&ecirc;ncia?')) return;
+  try{
+    await api('DELETE',`/ausencias/${id}`+(cidParam()?'?'+cidParam():''));
+    toast('Removida','info');
+    loadAusencias(profId);
+  }catch(e){toast(e.message,'err')}
 }
 function fmtHorarioProf(horarioJson){
   try{

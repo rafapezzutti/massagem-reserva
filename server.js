@@ -197,6 +197,19 @@ async function initDB() {
   `);
   await pool.query('ALTER TABLE reservas ALTER COLUMN massagem_id DROP NOT NULL').catch(() => {});
 
+  // 3i. Tabela de ausencias de profissionais
+  await pool.query(`CREATE TABLE IF NOT EXISTS ausencias (
+    id SERIAL PRIMARY KEY,
+    profissional_id INTEGER NOT NULL REFERENCES profissionais(id),
+    clinica_id INTEGER REFERENCES clinicas(id),
+    data DATE NOT NULL,
+    hora_inicio TIME,
+    hora_fim TIME,
+    dia_inteiro INTEGER NOT NULL DEFAULT 1,
+    motivo TEXT,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW()
+  )`);
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -1057,6 +1070,38 @@ app.post('/api/auth/reset-password', (req, res) =>
     else throw new Error('Perfil desconhecido');
 
     return { ok: true };
+  }));
+
+// ─── Ausências ───────────────────────────────────────────────────────────────
+app.get('/api/ausencias', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { profissional_id, data } = req.query;
+    let q = 'SELECT * FROM ausencias WHERE clinica_id=$1';
+    const params = [cid];
+    if (profissional_id) { params.push(profissional_id); q += ` AND profissional_id=$${params.length}`; }
+    if (data)            { params.push(data);             q += ` AND data=$${params.length}`; }
+    q += ' ORDER BY data DESC, hora_inicio';
+    return (await pool.query(q, params)).rows;
+  }));
+
+app.post('/api/ausencias', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { profissional_id, data, dia_inteiro, hora_inicio, hora_fim, motivo } = req.body;
+    if (!profissional_id || !data) throw new Error('Profissional e data são obrigatórios');
+    const r = await qOne(
+      'INSERT INTO ausencias (profissional_id,clinica_id,data,dia_inteiro,hora_inicio,hora_fim,motivo) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [profissional_id, cid, data, dia_inteiro??1, dia_inteiro?null:(hora_inicio||null), dia_inteiro?null:(hora_fim||null), motivo||null]
+    );
+    return r;
+  }));
+
+app.delete('/api/ausencias/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM ausencias WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { id: parseInt(req.params.id) };
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────
