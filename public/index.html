@@ -1114,7 +1114,7 @@ function renderTimeline(){
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
             <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
-            <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}</div>
+            <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
           </div></div>`;
       }else{
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})"></div>`;
@@ -1749,6 +1749,18 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         </select></div>
       <div class="field full"><label>Observações</label>
         <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
+      <div class="field full" style="padding:10px 12px;background:${parseFloat(r?.multa_valor||0)>0?'#fff5f5':'var(--bg)'};border-radius:8px;border:1.5px solid ${parseFloat(r?.multa_valor||0)>0?'var(--red)':'var(--border)'}">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+          <input type="checkbox" id="rv-multa-chk" onchange="toggleMulta()" style="width:16px;height:16px;accent-color:var(--red)"${parseFloat(r?.multa_valor||0)>0?' checked':''}>
+          <span style="font-weight:600;color:var(--red)">&#x26A0;&#xFE0F; Multa por tempo</span>
+        </label>
+        <div id="rv-multa-wrap" style="margin-top:10px;display:${parseFloat(r?.multa_valor||0)>0?'flex':'none'};align-items:center;gap:8px">
+          <label style="margin:0;font-weight:400;color:var(--text-lt);font-size:.9rem">Valor da multa:</label>
+          <span style="color:var(--text-lt)">R$</span>
+          <input id="rv-multa-val" type="number" min="0" step="0.01" placeholder="0,00"
+            value="${parseFloat(r?.multa_valor||0)>0?r.multa_valor:''}" style="width:120px"/>
+        </div>
+      </div>
     </div>`,
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
@@ -1759,6 +1771,17 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
+}
+function toggleMulta(){
+  const chk=document.getElementById('rv-multa-chk');
+  const wrap=document.getElementById('rv-multa-wrap');
+  const box=wrap?.parentElement;
+  if(wrap) wrap.style.display=chk?.checked?'flex':'none';
+  if(box){
+    box.style.background=chk?.checked?'#fff5f5':'var(--bg)';
+    box.style.borderColor=chk?.checked?'var(--red)':'var(--border)';
+  }
+  if(chk?.checked) setTimeout(()=>document.getElementById('rv-multa-val')?.focus(),50);
 }
 function autoFillHoraFim(){
   if(document.getElementById('rv-massagem-row')?.style.display==='none') return;
@@ -1820,6 +1843,8 @@ async function saveReserva(id){
   const cliente_telefone=document.getElementById('rv-ctel')?.value.trim();
   const status=document.getElementById('rv-status')?.value||'confirmada';
   const observacoes=document.getElementById('rv-obs')?.value.trim();
+  const multaChk=document.getElementById('rv-multa-chk')?.checked;
+  const multa_valor=multaChk?(parseFloat(document.getElementById('rv-multa-val')?.value)||0):0;
   const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
@@ -1850,7 +1875,7 @@ async function saveReserva(id){
   }
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,recepcionista_id,pagamento,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
@@ -1891,7 +1916,7 @@ async function loadDashPagamentos(){
       </div>
       <div class="dash-table-wrap"><table class="dash-table">
         <thead><tr>
-          <th>Método</th><th>Qtd</th><th>Massagens</th><th>Bebidas</th><th>Total</th><th>% do Total</th>
+          <th>Método</th><th>Qtd</th><th>Massagens</th><th>Bebidas</th><th style="color:var(--red)">&#x26A0; Multas</th><th>Total</th><th>% do Total</th>
         </tr></thead>
         <tbody>
           ${rows.map(r=>`<tr>
@@ -1958,6 +1983,8 @@ function renderDashTable(data,containerId,type){
   const sumAtend=data.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumTotal=data.reduce((s,r)=>s+parseFloat(r.total||0),0);
   const sumBebidas=data.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
+  const sumMultas=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_multas||0),0):0;
+  const showMultas=!isMassagem&&sumMultas>0;
   const sumAlugueis=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0):0;
   const showAlugueis=!isMassagem;
   const sumMassagensBruto=!isMassagem?data.reduce((s,r)=>s+parseFloat(r.total_massagens_bruto||0),0):0;
@@ -1970,7 +1997,7 @@ function renderDashTable(data,containerId,type){
   let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
   if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
-  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th>'+(showAlugueis?'<th class="num" style="color:var(--red)">🏷 Aluguéis</th>':'')+'<th class="num">Total Geral</th>';
+  html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th>'+(showMultas?'<th class="num" style="color:var(--red)">⚠️ Multas</th>':'')+(showAlugueis?'<th class="num" style="color:var(--red)">🏷 Aluguéis</th>':'')+'<th class="num">Total Geral</th>';
   if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th>`;
   html+='<th class="ctr">✅ Conc.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
@@ -1992,6 +2019,7 @@ function renderDashTable(data,containerId,type){
       <td class="ctr">${atend}</td>
       <td class="num">${fmtMoeda(massagens)}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
+      ${showMultas?`<td class="num" style="${parseFloat(r.total_multas||0)>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${parseFloat(r.total_multas||0)>0?fmtMoeda(r.total_multas):'—'}</td>`:''}
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?'-'+fmtMoeda(alugPerRow):'—'}</td>`:''}
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
       ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td>`:''}
@@ -2006,6 +2034,7 @@ function renderDashTable(data,containerId,type){
     <td class="ctr">${sumAtend}</td>
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
     <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
+    ${showMultas?`<td class="num" style="${sumMultas>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumMultas>0?fmtMoeda(sumMultas):'—'}</td>`:''}
     ${showAlugueis?`<td class="num" style="${sumAlugueis>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumAlugueis>0?'-'+fmtMoeda(sumAlugueis):'—'}</td>`:''}
     <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}

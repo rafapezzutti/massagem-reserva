@@ -196,6 +196,8 @@ async function initDB() {
     ALTER TABLE reservas ADD COLUMN IF NOT EXISTS aluguel_id INTEGER REFERENCES alugueis(id);
   `);
   await pool.query('ALTER TABLE reservas ALTER COLUMN massagem_id DROP NOT NULL').catch(() => {});
+  // 3j. Multa por tempo
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS multa_valor NUMERIC(10,2) NOT NULL DEFAULT 0`).catch(()=>{});
 
   // 3i. Tabela de ausencias de profissionais
   await pool.query(`CREATE TABLE IF NOT EXISTS ausencias (
@@ -642,7 +644,7 @@ const RJ = `
     m.nome AS massagem_nome, m.duracao AS massagem_duracao, m.preco AS massagem_preco,
     al.nome AS aluguel_nome, al.valor AS aluguel_valor,
     COALESCE(m.nome, al.nome) AS servico_nome,
-    r.bebida, r.preco_bebida,
+    r.bebida, r.preco_bebida, r.multa_valor,
     rc.nome AS recepcionista_nome
   FROM reservas r
   JOIN quartos q ON r.quarto_id=q.id
@@ -684,7 +686,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, cliente_nome, cliente_telefone, observacoes,
-            bebida, preco_bebida, recepcionista_id, pagamento } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
     const cid = getClinicaId(req);
     if (!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
@@ -697,8 +699,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       [cid, profissional_id, data, hora_fim, hora_inicio]);
     if (cP) throw new Error('Massagista já tem atendimento neste horário');
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id',
-      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id||null, aluguel_id||null, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null]);
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id',
+      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id||null, aluguel_id||null, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -708,7 +710,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, cliente_nome, cliente_telefone, status, observacoes,
-            bebida, preco_bebida, recepcionista_id, pagamento } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
     if (status !== 'cancelada') {
       const cQ = await qOne(
@@ -748,7 +750,8 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
         COUNT(*) AS qtd,
         SUM(m.preco) AS total_massagens,
         SUM(r.preco_bebida) AS total_bebidas,
-        SUM(m.preco + r.preco_bebida) AS total_geral
+        SUM(r.multa_valor) AS total_multas,
+        SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
       FROM reservas r
       LEFT JOIN massagens m ON r.massagem_id = m.id
       WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
@@ -760,7 +763,8 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
         COUNT(*) AS qtd_total,
         SUM(m.preco) AS total_massagens,
         SUM(r.preco_bebida) AS total_bebidas,
-        SUM(m.preco + r.preco_bebida) AS total_geral
+        SUM(r.multa_valor) AS total_multas,
+        SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
       FROM reservas r
       LEFT JOIN massagens m ON r.massagem_id = m.id
       WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
@@ -783,8 +787,9 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)                             AS confirmadas,
@@ -811,8 +816,9 @@ app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)                             AS confirmadas,
