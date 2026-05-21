@@ -666,7 +666,7 @@ app.get('/api/reservas/resumo-mensal', requireAuth, (req, res) =>
         SUM(CASE WHEN status='confirmada' THEN 1 ELSE 0 END) AS confirmadas,
         SUM(CASE WHEN status='concluida'  THEN 1 ELSE 0 END) AS concluidas,
         SUM(CASE WHEN status='cancelada'  THEN 1 ELSE 0 END) AS canceladas
-      FROM reservas WHERE clinica_id=$1 AND data LIKE $2 GROUP BY data ORDER BY data
+      FROM reservas WHERE clinica_id=$1 AND data >= $2 AND data < $3 GROUP BY data ORDER BY data
     `, [cid, `${prefixo}%`]);
   }));
 
@@ -676,8 +676,11 @@ app.get('/api/reservas', requireAuth, (req, res) =>
     if (req.query.data)
       return q(`${RJ} WHERE r.clinica_id=$1 AND r.data=$2 ORDER BY r.hora_inicio,q.numero`, [cid, req.query.data]);
     if (req.query.mes && req.query.ano) {
-      const pref = `${req.query.ano}-${req.query.mes.padStart(2,'0')}`;
-      return q(`${RJ} WHERE r.clinica_id=$1 AND r.data LIKE $2 ORDER BY r.data,r.hora_inicio`, [cid, `${pref}%`]);
+      const _ano=req.query.ano, _mes=req.query.mes.padStart(2,'0');
+      const _inicio=`${_ano}-${_mes}-01`;
+      const _prox=new Date(parseInt(_ano),parseInt(req.query.mes),1);
+      const _fim=`${_prox.getFullYear()}-${String(_prox.getMonth()+1).padStart(2,'0')}-01`;
+      return q(`${RJ} WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 ORDER BY r.data,r.hora_inicio`, [cid, _inicio, _fim]);
     }
     return q(`${RJ} WHERE r.clinica_id=$1 ORDER BY r.data DESC,r.hora_inicio`, [cid]);
   }));
@@ -743,7 +746,9 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
     if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const proximo = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
     const rows = await q(`
       SELECT
         COALESCE(pagamento, 'Não informado') AS metodo,
@@ -754,10 +759,10 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
         SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
       FROM reservas r
       LEFT JOIN massagens m ON r.massagem_id = m.id
-      WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
+      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
       GROUP BY metodo
       ORDER BY total_geral DESC
-    `, [cid, pref]);
+    `, [cid, inicio, fim]);
     const totais = await qOne(`
       SELECT
         COUNT(*) AS qtd_total,
@@ -767,8 +772,8 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
         SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
       FROM reservas r
       LEFT JOIN massagens m ON r.massagem_id = m.id
-      WHERE r.clinica_id=$1 AND r.data LIKE $2 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
-    `, [cid, pref]);
+      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
+    `, [cid, inicio, fim]);
     return { rows, totais };
   }));
 
@@ -780,7 +785,9 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
     if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const proximo = new Date(parseInt(ano), parseInt(mes), 1); // mes is 1-based, Date uses 0-based, so this gives 1st of next month
+    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
     return q(`
       SELECT
         p.id,
@@ -796,13 +803,13 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)                             AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END)                             AS canceladas
       FROM profissionais p
-      LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data LIKE $2
+      LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       LEFT JOIN massagens m ON m.id = r.massagem_id
       LEFT JOIN alugueis al ON al.id = r.aluguel_id
       WHERE p.clinica_id = $1 AND p.ativo = 1
       GROUP BY p.id, p.nome, p.nome_fantasia
       ORDER BY total DESC NULLS LAST, p.nome
-    `, [cid, pref]);
+    `, [cid, inicio, fim]);
   }));
 
 app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
@@ -839,7 +846,9 @@ app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
     if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const proximo = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
     return q(`
       SELECT
         m.id,
@@ -853,11 +862,11 @@ app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)                            AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END)                            AS canceladas
       FROM massagens m
-      LEFT JOIN reservas r ON r.massagem_id = m.id AND r.clinica_id = $1 AND r.data LIKE $2
+      LEFT JOIN reservas r ON r.massagem_id = m.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       WHERE m.clinica_id = $1
       GROUP BY m.id, m.nome, m.duracao, m.preco
       ORDER BY total DESC NULLS LAST, m.nome
-    `, [cid, pref]);
+    `, [cid, inicio, fim]);
   }));
 
 app.get('/api/dashboard/massagem-diario', requireDashboard, (req, res) =>
@@ -954,7 +963,9 @@ app.get('/api/dashboard/recepcionista-mensal', requireDashboard, (req, res) =>
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
     if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const pref = `${ano}-${String(mes).padStart(2,'0')}%`;
+    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const proximo = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
     return q(`
       SELECT
         rc.id,
@@ -968,12 +979,12 @@ app.get('/api/dashboard/recepcionista-mensal', requireDashboard, (req, res) =>
           ORDER BY m.nome
         ) FILTER (WHERE r.id IS NOT NULL) AS detalhes_massagens
       FROM recepcionistas rc
-      LEFT JOIN reservas r   ON r.recepcionista_id = rc.id AND r.clinica_id = $1 AND r.data LIKE $2
+      LEFT JOIN reservas r   ON r.recepcionista_id = rc.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       LEFT JOIN massagens m  ON m.id = r.massagem_id
       WHERE rc.clinica_id = $1 AND rc.ativo = 1
       GROUP BY rc.id, rc.nome
       ORDER BY total_agendamentos DESC NULLS LAST, rc.nome
-    `, [cid, pref]);
+    `, [cid, inicio, fim]);
   }));
 
 // Endpoint para gerenciar perfil das clínicas (admin)
