@@ -659,7 +659,10 @@ app.get('/api/reservas/resumo-mensal', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     const { mes, ano } = req.query;
     if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const prefixo = `${ano}-${mes.padStart(2,'0')}`;
+    const _mesPad = mes.padStart(2,'0');
+    const inicio = `${ano}-${_mesPad}-01`;
+    const proxMes = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${proxMes.getFullYear()}-${String(proxMes.getMonth()+1).padStart(2,'0')}-01`;
     return q(`
       SELECT data,
         COUNT(*) AS total,
@@ -667,7 +670,7 @@ app.get('/api/reservas/resumo-mensal', requireAuth, (req, res) =>
         SUM(CASE WHEN status='concluida'  THEN 1 ELSE 0 END) AS concluidas,
         SUM(CASE WHEN status='cancelada'  THEN 1 ELSE 0 END) AS canceladas
       FROM reservas WHERE clinica_id=$1 AND data >= $2 AND data < $3 GROUP BY data ORDER BY data
-    `, [cid, `${prefixo}%`]);
+    `, [cid, inicio, fim]);
   }));
 
 app.get('/api/reservas', requireAuth, (req, res) =>
