@@ -1672,15 +1672,15 @@ async function deleteAluguel(id,nome){
 // ═══════════════════════════════════════════════════════════════════════════
 async function ensureData(){
   const cid=cidParam();
-  if(!state.quartos.length)         state.quartos=        await api('GET','/quartos'+(cid?'?'+cid:''));
-  if(!state.profissionais.length)   state.profissionais=  await api('GET','/profissionais'+(cid?'?'+cid:''));
-  if(!state.massagens.length)       state.massagens=      await api('GET','/massagens'+(cid?'?'+cid:''));
-  if(!state.alugueis.length)        state.alugueis=       await api('GET','/alugueis'+(cid?'?'+cid:''));
-  if(!state.recepcionistas.length)  state.recepcionistas= await api('GET','/recepcionistas'+(cid?'?'+cid:''));
+  if(!(state.quartos?.length))         state.quartos=        (await api('GET','/quartos'+(cid?'?'+cid:''))) ?? [];
+  if(!(state.profissionais?.length))   state.profissionais=  (await api('GET','/profissionais'+(cid?'?'+cid:''))) ?? [];
+  if(!(state.massagens?.length))       state.massagens=      (await api('GET','/massagens'+(cid?'?'+cid:''))) ?? [];
+  if(!(state.alugueis?.length))        state.alugueis=       (await api('GET','/alugueis'+(cid?'?'+cid:''))) ?? [];
+  if(!(state.recepcionistas?.length))  state.recepcionistas= (await api('GET','/recepcionistas'+(cid?'?'+cid:''))) ?? [];
 }
 
 async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalIdPre){
-  await ensureData();
+  try{ await ensureData(); }catch(e){ toast(e.message,'erro'); return; }
   const r=id?state.reservasDia.find(x=>x.id===id):null;
   const optQ=state.quartos.map(q=>`<option value="${q.id}"${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}</option>`).join('');
   const optP=state.profissionais.filter(p=>p.ativo||r?.profissional_id===p.id).map(p=>`<option value="${p.id}"${(r?.profissional_id===p.id||profissionalIdPre===p.id)?'selected':''}>${esc(p.nome_fantasia||p.nome)}</option>`).join('');
@@ -2631,4 +2631,4 @@ start();
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                            
+                                                                                                                                  
