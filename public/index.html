@@ -3232,4 +3232,28 @@ async function loadAutDash(){
           <tbody>${rows.map(r=>`
             <tr>
               <td>${r.data}</td>
-              <td>${r.hora_inicio.slice(0,
+              <td>${r.hora_inicio.slice(0,5)}–${r.hora_fim.slice(0,5)}</td>
+              <td>${esc(r.cliente_nome)}</td>
+              <td>${esc(r.servico_nome||'—')}</td>
+              <td>${esc(r.local_nome||'—')}</td>
+              <td>${fmtMoeda(r.valor_servico)}</td>
+              <td>${parseFloat(r.multa_valor||0)>0?fmtMoeda(r.multa_valor):'—'}</td>
+              <td><strong>${fmtMoeda(parseFloat(r.valor_servico||0)+parseFloat(r.multa_valor||0))}</strong></td>
+              <td>${esc(r.pagamento||'—')}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td colspan="5"><strong>TOTAL</strong></td>
+            <td>${fmtMoeda(totais.total_servicos)}</td>
+            <td>${fmtMoeda(totais.total_multas)}</td>
+            <td><strong>${fmtMoeda(totais.total)}</strong></td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
+}
+
+</script>
+</body>
+</html>
