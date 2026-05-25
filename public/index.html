@@ -407,11 +407,11 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     <button id="hamburger" onclick="toggleMenu()">☰</button>
     <div class="logo">💆 <span>Massagem</span> Reserva</div>
     <nav id="nav">
-      <button class="nav-btn active"  onclick="showView('daily')">📅 Hoje</button>
-      <button class="nav-btn"         onclick="showView('monthly')">📆 Mês</button>
-      <button class="nav-btn"         onclick="showView('quartos')">🛏 Quartos</button>
-      <button class="nav-btn"         onclick="showView('profissionais')">👤 Profissionais</button>
-      <button class="nav-btn"         onclick="showView('massagens')">💆 Massagens</button>
+      <button class="nav-btn active" id="nav-daily"  onclick="showView('daily')">📅 Hoje</button>
+      <button class="nav-btn" id="nav-monthly"         onclick="showView('monthly')">📆 Mês</button>
+      <button class="nav-btn" id="nav-quartos"         onclick="showView('quartos')">🛏 Quartos</button>
+      <button class="nav-btn" id="nav-profissionais"         onclick="showView('profissionais')">👤 Profissionais</button>
+      <button class="nav-btn" id="nav-massagens"         onclick="showView('massagens')">💆 Massagens</button>
       <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
@@ -1022,7 +1022,7 @@ async function loadClinicaSelector(){
   }catch(e){}
 }
 
-const CLINIC_TABS=['quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard'];
+const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard'];
 const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
 
 function onClinicaSelect(val){
