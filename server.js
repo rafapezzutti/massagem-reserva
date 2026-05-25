@@ -212,6 +212,66 @@ async function initDB() {
     criado_em TIMESTAMP NOT NULL DEFAULT NOW()
   )`);
 
+
+  // 3k. Autônomas — massagistas independentes sem clínica
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS autonomas (
+      id         SERIAL PRIMARY KEY,
+      nome       TEXT NOT NULL,
+      cpf        TEXT,
+      email      TEXT NOT NULL UNIQUE,
+      telefone   TEXT,
+      senha_hash TEXT NOT NULL,
+      ativo      INTEGER NOT NULL DEFAULT 1,
+      criado_em  TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS autonoma_locais (
+      id          SERIAL PRIMARY KEY,
+      autonoma_id INTEGER NOT NULL REFERENCES autonomas(id),
+      nome        TEXT NOT NULL,
+      endereco    TEXT,
+      ativo       INTEGER NOT NULL DEFAULT 1,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS autonoma_servicos (
+      id          SERIAL PRIMARY KEY,
+      autonoma_id INTEGER NOT NULL REFERENCES autonomas(id),
+      nome        TEXT NOT NULL,
+      descricao   TEXT,
+      duracao     INTEGER NOT NULL,
+      preco       NUMERIC(10,2) NOT NULL,
+      ativa       INTEGER NOT NULL DEFAULT 1,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS autonoma_clientes (
+      id          SERIAL PRIMARY KEY,
+      autonoma_id INTEGER NOT NULL REFERENCES autonomas(id),
+      nome        TEXT NOT NULL,
+      telefone    TEXT,
+      email       TEXT,
+      observacoes TEXT,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS autonoma_reservas (
+      id               SERIAL PRIMARY KEY,
+      autonoma_id      INTEGER NOT NULL REFERENCES autonomas(id),
+      local_id         INTEGER REFERENCES autonoma_locais(id),
+      servico_id       INTEGER REFERENCES autonoma_servicos(id),
+      cliente_id       INTEGER REFERENCES autonoma_clientes(id),
+      cliente_nome     TEXT NOT NULL,
+      cliente_telefone TEXT,
+      data             DATE NOT NULL,
+      hora_inicio      TIME NOT NULL,
+      hora_fim         TIME NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'confirmada',
+      observacoes      TEXT,
+      pagamento        TEXT,
+      valor_servico    NUMERIC(10,2) NOT NULL DEFAULT 0,
+      multa_valor      NUMERIC(10,2) NOT NULL DEFAULT 0,
+      criado_em        TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -256,6 +316,17 @@ function requireDashboard(req, res, next) {
       return res.status(403).json({ ok: false, error: 'Gerentes não têm acesso ao dashboard' });
     next();
   });
+}
+
+function requireAutonoma(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role !== 'autonoma')
+      return res.status(403).json({ ok: false, error: 'Acesso restrito a autônomas' });
+    next();
+  });
+}
+function getAutonomaId(req) {
+  return req.user.autonoma_id;
 }
 
 function getClinicaId(req) {
@@ -315,6 +386,17 @@ app.post('/api/auth/login', async (req, res) => {
       );
       return res.json({ ok: true, data: { token,
         user: { role: 'gerente', nome: gerente.nome, email: gerente.email, clinica_id: gerente.clinica_id } } });
+    }
+
+    const autonoma = await qOne('SELECT * FROM autonomas WHERE email=$1 AND ativo=1', [em]);
+    if (autonoma && await bcrypt.compare(senha, autonoma.senha_hash)) {
+      const token = jwt.sign(
+        { id: autonoma.id, email: autonoma.email, role: 'autonoma',
+          autonoma_id: autonoma.id, nome: autonoma.nome },
+        JWT_SECRET, { expiresIn: '10h' }
+      );
+      return res.json({ ok: true, data: { token,
+        user: { role: 'autonoma', nome: autonoma.nome, email: autonoma.email, autonoma_id: autonoma.id } } });
     }
 
     res.json({ ok: false, error: 'Email ou senha incorretos' });
@@ -797,7 +879,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
@@ -826,7 +908,7 @@ app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) - COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
@@ -978,12 +1060,17 @@ app.get('/api/dashboard/recepcionista-mensal', requireDashboard, (req, res) =>
         COUNT(CASE WHEN r.status = 'concluida'   THEN 1 END) AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'   THEN 1 END) AS canceladas,
         json_agg(
-          json_build_object('massagem', m.nome, 'status', r.status)
-          ORDER BY m.nome
+          json_build_object(
+            'massagem', COALESCE(m.nome, '🏷 Aluguel' || CASE WHEN al.nome IS NOT NULL THEN ': ' || al.nome ELSE '' END),
+            'status', r.status,
+            'tipo', CASE WHEN r.aluguel_id IS NOT NULL THEN 'aluguel' ELSE 'massagem' END
+          )
+          ORDER BY COALESCE(m.nome, al.nome)
         ) FILTER (WHERE r.id IS NOT NULL) AS detalhes_massagens
       FROM recepcionistas rc
       LEFT JOIN reservas r   ON r.recepcionista_id = rc.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       LEFT JOIN massagens m  ON m.id = r.massagem_id
+      LEFT JOIN alugueis  al ON al.id = r.aluguel_id
       WHERE rc.clinica_id = $1 AND rc.ativo = 1
       GROUP BY rc.id, rc.nome
       ORDER BY total_agendamentos DESC NULLS LAST, rc.nome
@@ -1122,6 +1209,270 @@ app.delete('/api/ausencias/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     await qRun('DELETE FROM ausencias WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
     return { id: parseInt(req.params.id) };
+  }));
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN — Autônomas
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/admin/autonomas', requireAdmin, (req, res) =>
+  send(res, () => q('SELECT id,nome,cpf,email,telefone,ativo,criado_em FROM autonomas ORDER BY nome')));
+
+app.post('/api/admin/autonomas', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const { nome, cpf, email, senha, telefone } = req.body;
+    if (!nome || !email || !senha) throw new Error('Nome, email e senha são obrigatórios');
+    const hash = await bcrypt.hash(senha, 10);
+    return qOne(
+      'INSERT INTO autonomas (nome,cpf,email,senha_hash,telefone) VALUES ($1,$2,$3,$4,$5) RETURNING id,nome,cpf,email,telefone,ativo,criado_em',
+      [nome.trim(), cpf||null, email.toLowerCase().trim(), hash, telefone||null]
+    );
+  }));
+
+app.put('/api/admin/autonomas/:id', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const { nome, cpf, email, senha, telefone, ativo } = req.body;
+    if (!nome || !email) throw new Error('Nome e email são obrigatórios');
+    if (senha) {
+      const hash = await bcrypt.hash(senha, 10);
+      await qRun('UPDATE autonomas SET nome=$1,cpf=$2,email=$3,senha_hash=$4,telefone=$5,ativo=$6 WHERE id=$7',
+        [nome.trim(), cpf||null, email.toLowerCase().trim(), hash, telefone||null, ativo??1, req.params.id]);
+    } else {
+      await qRun('UPDATE autonomas SET nome=$1,cpf=$2,email=$3,telefone=$4,ativo=$5 WHERE id=$6',
+        [nome.trim(), cpf||null, email.toLowerCase().trim(), telefone||null, ativo??1, req.params.id]);
+    }
+    return qOne('SELECT id,nome,cpf,email,telefone,ativo,criado_em FROM autonomas WHERE id=$1', [req.params.id]);
+  }));
+
+app.delete('/api/admin/autonomas/:id', requireAdmin, (req, res) =>
+  send(res, async () => {
+    const id = req.params.id;
+    await qRun('DELETE FROM autonoma_reservas WHERE autonoma_id=$1', [id]);
+    await qRun('DELETE FROM autonoma_clientes  WHERE autonoma_id=$1', [id]);
+    await qRun('DELETE FROM autonoma_servicos  WHERE autonoma_id=$1', [id]);
+    await qRun('DELETE FROM autonoma_locais    WHERE autonoma_id=$1', [id]);
+    await qRun('DELETE FROM autonomas WHERE id=$1', [id]);
+    return { id: parseInt(id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTÔNOMA — Locais
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/autonoma/locais', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const filtro = req.query.todos ? '' : ' AND ativo=1';
+    return q(`SELECT * FROM autonoma_locais WHERE autonoma_id=$1${filtro} ORDER BY nome`, [aid]);
+  }));
+
+app.post('/api/autonoma/locais', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, endereco } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    return qOne('INSERT INTO autonoma_locais (autonoma_id,nome,endereco) VALUES ($1,$2,$3) RETURNING *',
+      [aid, nome.trim(), endereco||null]);
+  }));
+
+app.put('/api/autonoma/locais/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, endereco, ativo } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    return qOne('UPDATE autonoma_locais SET nome=$1,endereco=$2,ativo=$3 WHERE id=$4 AND autonoma_id=$5 RETURNING *',
+      [nome.trim(), endereco||null, ativo??1, req.params.id, aid]);
+  }));
+
+app.delete('/api/autonoma/locais/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    await qRun('DELETE FROM autonoma_locais WHERE id=$1 AND autonoma_id=$2', [req.params.id, aid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTÔNOMA — Serviços
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/autonoma/servicos', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const filtro = req.query.todos ? '' : ' AND ativa=1';
+    return q(`SELECT * FROM autonoma_servicos WHERE autonoma_id=$1${filtro} ORDER BY nome`, [aid]);
+  }));
+
+app.post('/api/autonoma/servicos', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, descricao, duracao, preco } = req.body;
+    if (!nome || !duracao || preco==null) throw new Error('Nome, duração e preço são obrigatórios');
+    return qOne('INSERT INTO autonoma_servicos (autonoma_id,nome,descricao,duracao,preco) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [aid, nome.trim(), descricao||null, parseInt(duracao), parseFloat(preco)]);
+  }));
+
+app.put('/api/autonoma/servicos/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, descricao, duracao, preco, ativa } = req.body;
+    if (!nome || !duracao || preco==null) throw new Error('Nome, duração e preço são obrigatórios');
+    return qOne('UPDATE autonoma_servicos SET nome=$1,descricao=$2,duracao=$3,preco=$4,ativa=$5 WHERE id=$6 AND autonoma_id=$7 RETURNING *',
+      [nome.trim(), descricao||null, parseInt(duracao), parseFloat(preco), ativa??1, req.params.id, aid]);
+  }));
+
+app.delete('/api/autonoma/servicos/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    await qRun('DELETE FROM autonoma_servicos WHERE id=$1 AND autonoma_id=$2', [req.params.id, aid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTÔNOMA — Clientes
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/autonoma/clientes', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const busca = req.query.q;
+    if (busca)
+      return q('SELECT * FROM autonoma_clientes WHERE autonoma_id=$1 AND (nome ILIKE $2 OR telefone ILIKE $2) ORDER BY nome',
+        [aid, '%'+busca+'%']);
+    return q('SELECT * FROM autonoma_clientes WHERE autonoma_id=$1 ORDER BY nome', [aid]);
+  }));
+
+app.post('/api/autonoma/clientes', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, telefone, email, observacoes } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    return qOne('INSERT INTO autonoma_clientes (autonoma_id,nome,telefone,email,observacoes) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [aid, nome.trim(), telefone||null, email||null, observacoes||null]);
+  }));
+
+app.put('/api/autonoma/clientes/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { nome, telefone, email, observacoes } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    return qOne('UPDATE autonoma_clientes SET nome=$1,telefone=$2,email=$3,observacoes=$4 WHERE id=$5 AND autonoma_id=$6 RETURNING *',
+      [nome.trim(), telefone||null, email||null, observacoes||null, req.params.id, aid]);
+  }));
+
+app.delete('/api/autonoma/clientes/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    await qRun('DELETE FROM autonoma_clientes WHERE id=$1 AND autonoma_id=$2', [req.params.id, aid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTÔNOMA — Reservas
+// ═══════════════════════════════════════════════════════════════════════════════
+const RJA = `SELECT ar.*,
+  als.nome AS local_nome, als.endereco AS local_endereco,
+  ass.nome AS servico_nome, ass.duracao AS servico_duracao, ass.preco AS servico_preco,
+  ac.nome AS cliente_nome_cad, ac.telefone AS cliente_tel_cad
+  FROM autonoma_reservas ar
+  LEFT JOIN autonoma_locais als ON als.id=ar.local_id
+  LEFT JOIN autonoma_servicos ass ON ass.id=ar.servico_id
+  LEFT JOIN autonoma_clientes ac ON ac.id=ar.cliente_id`;
+
+app.get('/api/autonoma/reservas', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    if (req.query.data)
+      return q(`${RJA} WHERE ar.autonoma_id=$1 AND ar.data=$2 ORDER BY ar.hora_inicio`, [aid, req.query.data]);
+    if (req.query.mes && req.query.ano) {
+      const _ano=req.query.ano, _mes=req.query.mes.padStart(2,'0');
+      const inicio=`${_ano}-${_mes}-01`;
+      const prox=new Date(parseInt(_ano),parseInt(req.query.mes),1);
+      const fim=`${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}-01`;
+      return q(`${RJA} WHERE ar.autonoma_id=$1 AND ar.data>=$2 AND ar.data<$3 ORDER BY ar.data,ar.hora_inicio`, [aid, inicio, fim]);
+    }
+    return q(`${RJA} WHERE ar.autonoma_id=$1 ORDER BY ar.data DESC,ar.hora_inicio`, [aid]);
+  }));
+
+app.post('/api/autonoma/reservas', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { local_id, servico_id, cliente_id, cliente_nome, cliente_telefone,
+            data, hora_inicio, hora_fim, observacoes, pagamento, valor_servico, multa_valor } = req.body;
+    if (!data||!hora_inicio||!hora_fim||!cliente_nome)
+      throw new Error('Data, horário e cliente são obrigatórios');
+    const conf = await qOne(
+      `SELECT id FROM autonoma_reservas WHERE autonoma_id=$1 AND data=$2 AND status!='cancelada' AND hora_inicio<$3 AND hora_fim>$4`,
+      [aid, data, hora_fim, hora_inicio]);
+    if (conf) throw new Error('Você já tem um agendamento neste horário');
+    return qOne(
+      `INSERT INTO autonoma_reservas (autonoma_id,local_id,servico_id,cliente_id,cliente_nome,cliente_telefone,data,hora_inicio,hora_fim,observacoes,pagamento,valor_servico,multa_valor)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      [aid, local_id||null, servico_id||null, cliente_id||null, cliente_nome, cliente_telefone||null,
+       data, hora_inicio, hora_fim, observacoes||null, pagamento||null,
+       parseFloat(valor_servico||0), parseFloat(multa_valor||0)]
+    );
+  }));
+
+app.put('/api/autonoma/reservas/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { local_id, servico_id, cliente_id, cliente_nome, cliente_telefone,
+            data, hora_inicio, hora_fim, status, observacoes, pagamento, valor_servico, multa_valor } = req.body;
+    if (!data||!hora_inicio||!hora_fim||!cliente_nome)
+      throw new Error('Data, horário e cliente são obrigatórios');
+    await qRun(
+      `UPDATE autonoma_reservas SET local_id=$1,servico_id=$2,cliente_id=$3,cliente_nome=$4,
+       cliente_telefone=$5,data=$6,hora_inicio=$7,hora_fim=$8,status=$9,observacoes=$10,
+       pagamento=$11,valor_servico=$12,multa_valor=$13 WHERE id=$14 AND autonoma_id=$15`,
+      [local_id||null, servico_id||null, cliente_id||null, cliente_nome, cliente_telefone||null,
+       data, hora_inicio, hora_fim, status||'confirmada', observacoes||null, pagamento||null,
+       parseFloat(valor_servico||0), parseFloat(multa_valor||0), req.params.id, aid]
+    );
+    return qOne(`${RJA} WHERE ar.id=$1`, [req.params.id]);
+  }));
+
+app.delete('/api/autonoma/reservas/:id', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    await qRun('DELETE FROM autonoma_reservas WHERE id=$1 AND autonoma_id=$2', [req.params.id, aid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+app.get('/api/autonoma/resumo-mensal', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { mes, ano } = req.query;
+    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+    const mesPad = mes.padStart(2,'0');
+    const inicio = `${ano}-${mesPad}-01`;
+    const prox = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}-01`;
+    return q(`
+      SELECT data, COUNT(*) AS total,
+        SUM(CASE WHEN status='confirmada' THEN 1 ELSE 0 END) AS confirmadas,
+        SUM(CASE WHEN status='concluida'  THEN 1 ELSE 0 END) AS concluidas,
+        SUM(CASE WHEN status='cancelada'  THEN 1 ELSE 0 END) AS canceladas
+      FROM autonoma_reservas WHERE autonoma_id=$1 AND data>=$2 AND data<$3 GROUP BY data ORDER BY data
+    `, [aid, inicio, fim]);
+  }));
+
+app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
+  send(res, async () => {
+    const aid = getAutonomaId(req);
+    const { mes, ano } = req.query;
+    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+    const mesPad = mes.padStart(2,'0');
+    const inicio = `${ano}-${mesPad}-01`;
+    const prox = new Date(parseInt(ano), parseInt(mes), 1);
+    const fim = `${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}-01`;
+    const rows = await q(`
+      SELECT ar.*, als.nome AS local_nome, ass.nome AS servico_nome
+      FROM autonoma_reservas ar
+      LEFT JOIN autonoma_locais als ON als.id=ar.local_id
+      LEFT JOIN autonoma_servicos ass ON ass.id=ar.servico_id
+      WHERE ar.autonoma_id=$1 AND ar.data>=$2 AND ar.data<$3 AND ar.status!='cancelada'
+      ORDER BY ar.data,ar.hora_inicio
+    `, [aid, inicio, fim]);
+    const total_servicos = rows.reduce((s,r) => s + parseFloat(r.valor_servico||0), 0);
+    const total_multas   = rows.reduce((s,r) => s + parseFloat(r.multa_valor||0), 0);
+    return { rows, totais: { total_servicos, total_multas, total: total_servicos+total_multas, qtd: rows.length } };
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────
