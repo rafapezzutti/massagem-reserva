@@ -2783,19 +2783,41 @@ async function autOpenAdminModal(id){
       <div class="field"><label>CPF</label><input id="aut-adm-cpf" class="field-input" value="${esc(a?.cpf||'')}"></div>
       <div class="field"><label>Email *</label><input id="aut-adm-email" class="field-input" type="email" value="${esc(a?.email||'')}"></div>
       <div class="field"><label>Telefone</label><input id="aut-adm-tel" class="field-input" value="${esc(a?.telefone||'')}"></div>
-      <div class="field"><label>${a?'Nova Senha (deixe em branco para manter)':'Senha *'}</label><input id="aut-adm-senha" class="field-input" type="password"></div>
+      <div class="field"><label>${a?'Nova Senha (deixe em branco para manter)':'Senha *'}</label><input id="aut-adm-senha" class="field-input" type="password" oninput="checkAutPwd()"></div>
+      <div class="field"><label>${a?'Confirmar Nova Senha':'Confirmar Senha *'}</label><input id="aut-adm-senha2" class="field-input" type="password" oninput="checkAutPwd()"></div>
+      <div id="aut-pwd-msg" style="grid-column:1/-1;font-size:.82rem;display:none"></div>
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveAutAdm(${id||'null'})">Salvar</button>`);
+     <button class="btn btn-primary" id="aut-adm-save-btn" onclick="saveAutAdm(${id||'null'})">Salvar</button>`);
+}
+
+function checkAutPwd(){
+  const s1=document.getElementById('aut-adm-senha').value;
+  const s2=document.getElementById('aut-adm-senha2').value;
+  const msg=document.getElementById('aut-pwd-msg');
+  const btn=document.getElementById('aut-adm-save-btn');
+  if(!s1&&!s2){msg.style.display='none';if(btn)btn.disabled=false;return;}
+  if(s2.length===0){msg.style.display='none';return;}
+  if(s1===s2){
+    msg.style.display='block';msg.style.color='var(--green)';msg.textContent='✓ Senhas conferem';
+    if(btn)btn.disabled=false;
+  } else {
+    msg.style.display='block';msg.style.color='var(--red)';msg.textContent='✗ Senhas não conferem';
+    if(btn)btn.disabled=true;
+  }
 }
 
 async function saveAutAdm(id){
+  const s1=document.getElementById('aut-adm-senha').value;
+  const s2=document.getElementById('aut-adm-senha2').value;
+  if(s1&&s1!==s2){toast('As senhas não conferem','erro');return;}
+  if(!id&&!s1){toast('Senha obrigatória para novo cadastro','erro');return;}
   const body={
     nome:document.getElementById('aut-adm-nome').value.trim(),
     cpf:document.getElementById('aut-adm-cpf').value.trim(),
     email:document.getElementById('aut-adm-email').value.trim(),
     telefone:document.getElementById('aut-adm-tel').value.trim(),
-    senha:document.getElementById('aut-adm-senha').value
+    senha:s1
   };
   try{
     if(id) await api('PUT','/admin/autonomas/'+id,body);
@@ -3210,29 +3232,4 @@ async function loadAutDash(){
           <tbody>${rows.map(r=>`
             <tr>
               <td>${r.data}</td>
-              <td>${r.hora_inicio.slice(0,5)}–${r.hora_fim.slice(0,5)}</td>
-              <td>${esc(r.cliente_nome)}</td>
-              <td>${esc(r.servico_nome||'—')}</td>
-              <td>${esc(r.local_nome||'—')}</td>
-              <td>${fmtMoeda(r.valor_servico)}</td>
-              <td>${parseFloat(r.multa_valor||0)>0?fmtMoeda(r.multa_valor):'—'}</td>
-              <td><strong>${fmtMoeda(parseFloat(r.valor_servico||0)+parseFloat(r.multa_valor||0))}</strong></td>
-              <td>${esc(r.pagamento||'—')}</td>
-            </tr>`).join('')}
-          </tbody>
-          <tfoot><tr>
-            <td colspan="5"><strong>TOTAL</strong></td>
-            <td>${fmtMoeda(totais.total_servicos)}</td>
-            <td>${fmtMoeda(totais.total_multas)}</td>
-            <td><strong>${fmtMoeda(totais.total)}</strong></td>
-            <td></td>
-          </tr></tfoot>
-        </table>
-      </div>`;
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-</script>
-</body>
-</html>
-                                                                                                                                                                                                                                                  
+              <td>${r.hora_inicio.slice(0,
