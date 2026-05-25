@@ -777,6 +777,7 @@ let state = {
   currentView: 'daily',
   currentDate: '',
   adminClinicaId: null,
+  adminAutonomaId: null,
   quartos:[], profissionais:[], massagens:[], alugueis:[], reservasDia:[], ausenciasDia:[],
   recepcionistas:[], repasse:0, horario: null,
   autDate:'', autYear:0, autMonth:0,
@@ -827,6 +828,13 @@ function cidBody(){
   if(auth.user?.role==='admin' && state.adminClinicaId) return {clinica_id:state.adminClinicaId};
   return {};
 }
+function autParam(){
+  if(auth.user?.role==='admin'){
+    if(!state.adminAutonomaId) return '';
+    return `autonoma_id=${state.adminAutonomaId}`;
+  }
+  return '';
+}
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 function toast(msg,type='ok'){
@@ -875,7 +883,7 @@ function logout(){
   document.getElementById('login-senha').value='';
   document.getElementById('login-error').textContent='';
   // Reseta o estado
-  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[],ausenciasDia:[],recepcionistas:[],repasse:0,horario:null,autDate:'',autYear:0,autMonth:0,autLocais:[],autServicos:[],autClientes:[],autReservasDia:[]};
+  state={currentView:'daily',currentDate:'',adminClinicaId:null,adminAutonomaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[],ausenciasDia:[],recepcionistas:[],repasse:0,horario:null,autDate:'',autYear:0,autMonth:0,autLocais:[],autServicos:[],autClientes:[],autReservasDia:[]};
 }
 
 async function verifyToken(){
@@ -949,6 +957,10 @@ function showView(v){
      ['daily','monthly','quartos','profissionais','massagens','alugueis','dashboard'].includes(v)){
     toast('Selecione uma clínica no topo primeiro','info');return;
   }
+  if(auth.user?.role==='admin' && !state.adminAutonomaId &&
+     ['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'].includes(v)){
+    toast('Selecione uma autônoma no topo primeiro','info');return;
+  }
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
@@ -981,30 +993,80 @@ function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
 // ─── Seletor de clínica (admin) ───────────────────────────────────────────────
 async function loadClinicaSelector(){
   try{
-    const clinicas=await api('GET','/admin/clinicas');
+    const [clinicas, autonomas] = await Promise.all([
+      api('GET','/admin/clinicas').catch(()=>[]),
+      api('GET','/admin/autonomas').catch(()=>[])
+    ]);
     const sel=document.getElementById('clinica-selector');
-    sel.innerHTML='<option value="">— Selecione uma Clínica —</option>';
-    clinicas.filter(c=>c.ativo).forEach(c=>{
-      const opt=document.createElement('option');
-      opt.value=c.id;opt.textContent=c.nome;
-      sel.appendChild(opt);
-    });
+    sel.innerHTML='<option value="">— Selecione —</option>';
+    if(clinicas.filter(c=>c.ativo).length){
+      const grp=document.createElement('optgroup');
+      grp.label='🏥 Clínicas';
+      clinicas.filter(c=>c.ativo).forEach(c=>{
+        const opt=document.createElement('option');
+        opt.value='c_'+c.id; opt.textContent=c.nome;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    }
+    if(autonomas.filter(a=>a.ativo).length){
+      const grp=document.createElement('optgroup');
+      grp.label='🌸 Autônomas';
+      autonomas.filter(a=>a.ativo).forEach(a=>{
+        const opt=document.createElement('option');
+        opt.value='a_'+a.id; opt.textContent=a.nome;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    }
   }catch(e){}
 }
+
+const CLINIC_TABS=['quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard'];
+const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
+
 function onClinicaSelect(val){
-  state.adminClinicaId=val?parseInt(val):null;
-  state.quartos=[];state.profissionais=[];state.massagens=[];state.alugueis=[];
-  state.horario=null;renderHorarioBadge();
-  if(val){
+  const isAut = val && val.startsWith('a_');
+  const isClin = val && val.startsWith('c_');
+  const id = val ? parseInt(val.split('_')[1]) : null;
+
+  if(isAut){
+    state.adminAutonomaId = id;
+    state.adminClinicaId = null;
+    // show aut tabs, hide clinic tabs
+    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
+    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='';});
+    // reset aut cache
+    state.autLocais=[];state.autServicos=[];state.autClientes=[];state.autReservasDia=[];
+    const today=new Date();
+    state.autYear=today.getFullYear();state.autMonth=today.getMonth()+1;
+    if(!state.autDate) state.autDate=today.toYMD();
+    initAutDashSelectors();
+    if(state.currentView==='admin') loadAdminPanel();
+    else showView('aut-daily');
+  } else if(isClin){
+    state.adminClinicaId = id;
+    state.adminAutonomaId = null;
+    // show clinic tabs, hide aut tabs
+    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
+    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='';});
+    state.quartos=[];state.profissionais=[];state.massagens=[];state.alugueis=[];
+    state.horario=null;renderHorarioBadge();
     api('GET','/clinica/info?'+cidParam()).then(info=>{
       if(info&&info.horario_funcionamento){
         try{state.horario=JSON.parse(info.horario_funcionamento)}catch(e){}
       }
       renderHorarioBadge();
     }).catch(()=>{});
+    if(state.currentView==='admin') loadAdminPanel();
+    else showView(state.currentView);
+  } else {
+    // cleared
+    state.adminClinicaId=null;state.adminAutonomaId=null;
+    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
+    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
+    renderHorarioBadge();
   }
-  if(val && state.currentView!=='admin') showView(state.currentView);
-  else if(val) loadAdminPanel();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2848,7 +2910,8 @@ async function loadAutDaily(){
   document.getElementById('aut-date-label').textContent=fmtDate(state.autDate);
   el.innerHTML='<div class="spinner"></div>';
   try{
-    state.autReservasDia=await api('GET','/autonoma/reservas?data='+state.autDate)||[];
+    const _ap=autParam();
+    state.autReservasDia=await api('GET','/autonoma/reservas?data='+state.autDate+(_ap?'&'+_ap:''))||[];
     renderAutDaily();
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
@@ -2894,7 +2957,8 @@ async function loadAutMonthly(){
   document.getElementById('aut-month-label').textContent=MESES[state.autMonth-1]+' '+state.autYear;
   el.innerHTML='<div class="spinner"></div>';
   try{
-    const resumo=await api('GET',`/autonoma/resumo-mensal?mes=${state.autMonth}&ano=${state.autYear}`)||[];
+    const _ap2=autParam();
+    const resumo=await api('GET',`/autonoma/resumo-mensal?mes=${state.autMonth}&ano=${state.autYear}`+(_ap2?'&'+_ap2:''))||[];
     renderAutMonthly(resumo);
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
@@ -2936,9 +3000,10 @@ function autGoDay(ds){
 // AUTÔNOMA — RESERVA MODAL
 // ═══════════════════════════════════════════════════════════════════════════
 async function autEnsureData(){
-  if(!(state.autLocais?.length))   state.autLocais=   (await api('GET','/autonoma/locais?todos=1'))??[];
-  if(!(state.autServicos?.length)) state.autServicos= (await api('GET','/autonoma/servicos?todos=1'))??[];
-  if(!(state.autClientes?.length)) state.autClientes= (await api('GET','/autonoma/clientes'))??[];
+  const _aap=autParam();
+  if(!(state.autLocais?.length))   state.autLocais=   (await api('GET','/autonoma/locais?todos=1'+(_aap?'&'+_aap:'')))??[];
+  if(!(state.autServicos?.length)) state.autServicos= (await api('GET','/autonoma/servicos?todos=1'+(_aap?'&'+_aap:'')))??[];
+  if(!(state.autClientes?.length)) state.autClientes= (await api('GET','/autonoma/clientes'+(_aap?'?'+_aap:'')))??[];
 }
 
 async function autOpenReservaModal(id){
@@ -3011,6 +3076,8 @@ async function autSaveReserva(id){
     status:document.getElementById('arv-status')?.value||'confirmada'
   };
   try{
+    const _aapb=autParam();
+    if(_aapb) body.autonoma_id=parseInt(_aapb.split('=')[1]);
     if(id) await api('PUT','/autonoma/reservas/'+id,body);
     else    await api('POST','/autonoma/reservas',body);
     closeModal(); toast('Reserva salva!'); loadAutDaily();
@@ -3019,7 +3086,7 @@ async function autSaveReserva(id){
 
 async function autDeleteReserva(id){
   if(!confirm('Excluir esta reserva?')) return;
-  try{ await api('DELETE','/autonoma/reservas/'+id); closeModal(); toast('Excluída.'); loadAutDaily(); }
+  try{ const _aapd=autParam(); await api('DELETE','/autonoma/reservas/'+id+(_aapd?'?'+_aapd:'')); closeModal(); toast('Excluída.'); loadAutDaily(); }
   catch(e){ toast(e.message,'erro'); }
 }
 
@@ -3030,7 +3097,7 @@ async function loadAutClientes(){
   const el=document.getElementById('aut-clientes-list');
   el.innerHTML='<div class="spinner"></div>';
   try{
-    state.autClientes=await api('GET','/autonoma/clientes')||[];
+    const _apc=autParam(); state.autClientes=await api('GET','/autonoma/clientes'+(_apc?'?'+_apc:''))||[];
     renderAutClientes(state.autClientes);
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
@@ -3072,6 +3139,7 @@ function autOpenClienteModal(id){
 async function autSaveCliente(id){
   const body={nome:document.getElementById('ac-nome').value.trim(),telefone:document.getElementById('ac-tel').value.trim(),email:document.getElementById('ac-email').value.trim(),observacoes:document.getElementById('ac-obs').value.trim()};
   try{
+    const _apcs=autParam(); if(_apcs) body.autonoma_id=parseInt(_apcs.split('=')[1]);
     if(id) await api('PUT','/autonoma/clientes/'+id,body);
     else    await api('POST','/autonoma/clientes',body);
     closeModal(); toast('Cliente salvo!'); loadAutClientes();
@@ -3080,7 +3148,7 @@ async function autSaveCliente(id){
 
 async function autDeleteCliente(id){
   if(!confirm('Excluir este cliente?')) return;
-  try{ await api('DELETE','/autonoma/clientes/'+id); toast('Removido.'); loadAutClientes(); }
+  try{ const _apcd=autParam(); await api('DELETE','/autonoma/clientes/'+id+(_apcd?'?'+_apcd:'')); toast('Removido.'); loadAutClientes(); }
   catch(e){ toast(e.message,'erro'); }
 }
 
@@ -3091,7 +3159,7 @@ async function loadAutServicos(){
   const el=document.getElementById('aut-servicos-list');
   el.innerHTML='<div class="spinner"></div>';
   try{
-    state.autServicos=await api('GET','/autonoma/servicos?todos=1')||[];
+    const _aps=autParam(); state.autServicos=await api('GET','/autonoma/servicos?todos=1'+(_aps?'&'+_aps:''))||[];
     renderAutServicos();
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
@@ -3128,6 +3196,7 @@ function autOpenServicoModal(id){
 async function autSaveServico(id){
   const body={nome:document.getElementById('as-nome').value.trim(),descricao:document.getElementById('as-desc').value.trim(),duracao:parseInt(document.getElementById('as-dur').value),preco:parseFloat(document.getElementById('as-preco').value),ativa:1};
   try{
+    const _apss=autParam(); if(_apss) body.autonoma_id=parseInt(_apss.split('=')[1]);
     if(id) await api('PUT','/autonoma/servicos/'+id,body);
     else    await api('POST','/autonoma/servicos',body);
     closeModal(); toast('Serviço salvo!'); loadAutServicos();
@@ -3136,7 +3205,7 @@ async function autSaveServico(id){
 
 async function autDeleteServico(id){
   if(!confirm('Excluir este serviço?')) return;
-  try{ await api('DELETE','/autonoma/servicos/'+id); toast('Removido.'); loadAutServicos(); }
+  try{ const _apsd=autParam(); await api('DELETE','/autonoma/servicos/'+id+(_apsd?'?'+_apsd:'')); toast('Removido.'); loadAutServicos(); }
   catch(e){ toast(e.message,'erro'); }
 }
 
@@ -3147,7 +3216,7 @@ async function loadAutLocais(){
   const el=document.getElementById('aut-locais-list');
   el.innerHTML='<div class="spinner"></div>';
   try{
-    state.autLocais=await api('GET','/autonoma/locais?todos=1')||[];
+    const _apl=autParam(); state.autLocais=await api('GET','/autonoma/locais?todos=1'+(_apl?'&'+_apl:''))||[];
     renderAutLocais();
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
@@ -3181,6 +3250,7 @@ function autOpenLocalModal(id){
 async function autSaveLocal(id){
   const body={nome:document.getElementById('al-nome').value.trim(),endereco:document.getElementById('al-end').value.trim(),ativo:1};
   try{
+    const _apls=autParam(); if(_apls) body.autonoma_id=parseInt(_apls.split('=')[1]);
     if(id) await api('PUT','/autonoma/locais/'+id,body);
     else    await api('POST','/autonoma/locais',body);
     closeModal(); toast('Local salvo!'); loadAutLocais();
@@ -3189,7 +3259,7 @@ async function autSaveLocal(id){
 
 async function autDeleteLocal(id){
   if(!confirm('Excluir este local?')) return;
-  try{ await api('DELETE','/autonoma/locais/'+id); toast('Removido.'); loadAutLocais(); }
+  try{ const _apld=autParam(); await api('DELETE','/autonoma/locais/'+id+(_apld?'?'+_apld:'')); toast('Removido.'); loadAutLocais(); }
   catch(e){ toast(e.message,'erro'); }
 }
 
@@ -3216,7 +3286,7 @@ async function loadAutDash(){
   if(!mes||!ano) return;
   el.innerHTML='<div class="spinner"></div>';
   try{
-    const d=await api('GET',`/autonoma/dashboard?mes=${mes}&ano=${ano}`);
+    const _apd=autParam(); const d=await api('GET',`/autonoma/dashboard?mes=${mes}&ano=${ano}`+(_apd?'&'+_apd:''));
     if(!d){el.innerHTML='';return;}
     const {rows,totais}=d;
     if(!rows.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Sem atendimentos neste período.</div></div>';return;}

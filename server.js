@@ -320,13 +320,17 @@ function requireDashboard(req, res, next) {
 
 function requireAutonoma(req, res, next) {
   requireAuth(req, res, () => {
-    if (req.user.role !== 'autonoma')
+    if (req.user.role !== 'autonoma' && req.user.role !== 'admin')
       return res.status(403).json({ ok: false, error: 'Acesso restrito a autônomas' });
     next();
   });
 }
 function getAutonomaId(req) {
-  return req.user.autonoma_id;
+  if (req.user.role === 'autonoma') return req.user.autonoma_id;
+  // admin can pass autonoma_id in query params or body
+  const aid = req.query.autonoma_id || req.body?.autonoma_id;
+  if (!aid) throw new Error('Selecione uma autônoma no seletor do topo para continuar');
+  return parseInt(aid);
 }
 
 function getClinicaId(req) {
