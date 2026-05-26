@@ -272,6 +272,10 @@ async function initDB() {
     );
   `);
 
+  // 3l. Profissional externo em locações (aluguel) — campo livre
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS profissional_externo TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ALTER COLUMN profissional_id DROP NOT NULL`).catch(()=>{});
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -727,6 +731,7 @@ const RJ = `
   SELECT r.*,
     q.nome AS quarto_nome, q.numero AS quarto_numero, q.tem_hidromassagem,
     p.nome AS profissional_nome, p.nome_fantasia,
+    COALESCE(p.nome_fantasia, p.nome, r.profissional_externo) AS prof_display,
     m.nome AS massagem_nome, m.duracao AS massagem_duracao, m.preco AS massagem_preco,
     al.nome AS aluguel_nome, al.valor AS aluguel_valor,
     COALESCE(m.nome, al.nome) AS servico_nome,
@@ -734,7 +739,7 @@ const RJ = `
     rc.nome AS recepcionista_nome
   FROM reservas r
   JOIN quartos q ON r.quarto_id=q.id
-  JOIN profissionais p ON r.profissional_id=p.id
+  LEFT JOIN profissionais p ON r.profissional_id=p.id
   LEFT JOIN massagens m ON r.massagem_id=m.id
   LEFT JOIN alugueis al ON r.aluguel_id=al.id
   LEFT JOIN recepcionistas rc ON r.recepcionista_id=rc.id
@@ -777,22 +782,31 @@ app.get('/api/reservas', requireAuth, (req, res) =>
 app.post('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
-            massagem_id, aluguel_id, cliente_nome, cliente_telefone, observacoes,
+            massagem_id, aluguel_id, profissional_externo,
+            cliente_nome, cliente_telefone, observacoes,
             bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
     const cid = getClinicaId(req);
-    if (!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
+    const pid = profissional_id ? parseInt(profissional_id) : null;
+    const isExterno = aluguel_id && !pid && profissional_externo?.trim();
+    if (!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
+    if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
     const cQ = await qOne(
       `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
       [cid, quarto_id, data, hora_fim, hora_inicio]);
     if (cQ) throw new Error('Sala já reservada neste horário');
-    const cP = await qOne(
-      `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
-      [cid, profissional_id, data, hora_fim, hora_inicio]);
-    if (cP) throw new Error('Massagista já tem atendimento neste horário');
+    if (pid) {
+      const cP = await qOne(
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        [cid, pid, data, hora_fim, hora_inicio]);
+      if (cP) throw new Error('Massagista já tem atendimento neste horário');
+    }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id',
-      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id||null, aluguel_id||null, cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null, bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null]);
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id',
+      [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
+       isExterno ? profissional_externo.trim() : null,
+       cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
+       bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -801,22 +815,29 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const id  = parseInt(req.params.id);
     const cid = getClinicaId(req);
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
-            massagem_id, aluguel_id, cliente_nome, cliente_telefone, status, observacoes,
+            massagem_id, aluguel_id, profissional_externo,
+            cliente_nome, cliente_telefone, status, observacoes,
             bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
+    const pid = profissional_id ? parseInt(profissional_id) : null;
+    const isExterno = aluguel_id && !pid && profissional_externo?.trim();
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
+    if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
     if (status !== 'cancelada') {
       const cQ = await qOne(
         `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
         [cid, quarto_id, data, id, hora_fim, hora_inicio]);
       if (cQ) throw new Error('Sala já reservada neste horário');
-      const cP = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
-        [cid, profissional_id, data, id, hora_fim, hora_inicio]);
-      if (cP) throw new Error('Massagista já tem atendimento neste horário');
+      if (pid) {
+        const cP = await qOne(
+          `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+          [cid, pid, data, id, hora_fim, hora_inicio]);
+        if (cP) throw new Error('Massagista já tem atendimento neste horário');
+      }
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,cliente_nome=$8,cliente_telefone=$9,status=$10,observacoes=$11,bebida=$12,preco_bebida=$13,recepcionista_id=$14,pagamento=$15 WHERE id=$16 AND clinica_id=$17',
-      [data, hora_inicio, hora_fim, quarto_id, profissional_id, massagem_id||null, aluguel_id||null,
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16 WHERE id=$17 AND clinica_id=$18',
+      [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
+       isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
@@ -1467,23 +1488,4 @@ app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
     const prox = new Date(parseInt(ano), parseInt(mes), 1);
     const fim = `${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}-01`;
     const rows = await q(`
-      SELECT ar.*, als.nome AS local_nome, ass.nome AS servico_nome
-      FROM autonoma_reservas ar
-      LEFT JOIN autonoma_locais als ON als.id=ar.local_id
-      LEFT JOIN autonoma_servicos ass ON ass.id=ar.servico_id
-      WHERE ar.autonoma_id=$1 AND ar.data>=$2 AND ar.data<$3 AND ar.status!='cancelada'
-      ORDER BY ar.data,ar.hora_inicio
-    `, [aid, inicio, fim]);
-    const total_servicos = rows.reduce((s,r) => s + parseFloat(r.valor_servico||0), 0);
-    const total_multas   = rows.reduce((s,r) => s + parseFloat(r.multa_valor||0), 0);
-    return { rows, totais: { total_servicos, total_multas, total: total_servicos+total_multas, qtd: rows.length } };
-  }));
-
-// ─── Start ────────────────────────────────────────────────────────────────────
-initDB().then(() => {
-  app.listen(PORT, () =>
-    console.log(`\n💆 Massagem Reserva rodando em http://localhost:${PORT}\n`));
-}).catch(err => {
-  console.error('Erro ao conectar ao banco:', err.message);
-  process.exit(1);
-});
+      SELEC

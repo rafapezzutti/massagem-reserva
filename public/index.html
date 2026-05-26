@@ -1275,7 +1275,7 @@ function renderTimeline(){
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
-            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
+            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}${rb.profissional_externo?` <span style="font-size:.75rem;color:var(--text-lt)">(${esc(rb.profissional_externo)})</span>`:''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
           </div></div>`;
@@ -1761,10 +1761,25 @@ function setTipoReserva(tipo){
   const aRow=document.getElementById('rv-aluguel-row');
   const mBtn=document.getElementById('tipo-massagem-btn');
   const aBtn=document.getElementById('tipo-aluguel-btn');
+  const profTipoRow=document.getElementById('rv-prof-tipo-row');
   if(mRow) mRow.style.display=isMass?'':'none';
   if(aRow) aRow.style.display=isMass?'none':'';
   if(mBtn) mBtn.className='btn '+(isMass?'btn-primary':'btn-secondary')+' btn-sm';
   if(aBtn) aBtn.className='btn '+(isMass?'btn-secondary':'btn-primary')+' btn-sm';
+  if(profTipoRow) profTipoRow.style.display=isMass?'none':'';
+  // When switching to massagem, reset to cadastrada mode
+  if(isMass) setProfTipo('cadastrada');
+}
+function setProfTipo(tipo){
+  const isCad=tipo==='cadastrada';
+  const wrap=document.getElementById('rv-prof-wrap');
+  const extWrap=document.getElementById('rv-prof-externo-wrap');
+  const cadBtn=document.getElementById('prof-cadastrada-btn');
+  const extBtn=document.getElementById('prof-externa-btn');
+  if(wrap) wrap.style.display=isCad?'':'none';
+  if(extWrap) extWrap.style.display=isCad?'none':'';
+  if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
+  if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
 async function loadAlugueis(){
   document.getElementById('alugueis-list').innerHTML='<div class="spinner"></div>';
@@ -1931,6 +1946,8 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   setTimeout(()=>{
     renderDrinksList();
     setTipoReserva(tipoInicial);
+    // If editing a reservation with external professional, switch toggle
+    if(r?.profissional_externo) setProfTipo('externa');
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
@@ -1998,8 +2015,10 @@ async function saveReserva(id){
   const hora_inicio=document.getElementById('rv-inicio').value;
   const hora_fim=document.getElementById('rv-fim').value;
   const quarto_id=parseInt(document.getElementById('rv-quarto').value);
-  const profissional_id=parseInt(document.getElementById('rv-prof').value);
   const tipoMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
+  const isExterna=document.getElementById('rv-prof-externo-wrap')?.style.display!=='none';
+  const profissional_id=isExterna?null:parseInt(document.getElementById('rv-prof').value)||null;
+  const profissional_externo=isExterna?(document.getElementById('rv-prof-externo')?.value.trim()||null):null;
   const massagem_id=tipoMass?parseInt(document.getElementById('rv-massagem')?.value)||null:null;
   const aluguel_id=!tipoMass?parseInt(document.getElementById('rv-aluguel')?.value)||null:null;
   const cliente_nome=document.getElementById('rv-cliente').value.trim();
@@ -2012,8 +2031,10 @@ async function saveReserva(id){
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
   const pagamento=document.getElementById('rv-pagamento')?.value||null;
-  if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
+  if(!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
+  if(!profissional_id&&!profissional_externo) return toast('Selecione ou informe o nome da profissional','err');
+  if(isExterna&&!profissional_externo) return toast('Informe o nome do profissional externo','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
   // Verificar se o horario está dentro do cadastrado para a profissional
@@ -2037,7 +2058,7 @@ async function saveReserva(id){
     }catch(e){}
   }
   try{
-    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,cliente_nome,
+    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
       cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
