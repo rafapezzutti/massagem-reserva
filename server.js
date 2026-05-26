@@ -898,7 +898,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
     const proximo = new Date(parseInt(ano), parseInt(mes), 1); // mes is 1-based, Date uses 0-based, so this gives 1st of next month
     const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
-    return q(`
+    const rows = await q(`
       SELECT
         p.id,
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
@@ -920,6 +920,23 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
       GROUP BY p.id, p.nome, p.nome_fantasia
       ORDER BY total DESC NULLS LAST, p.nome
     `, [cid, inicio, fim]);
+    const externas = await q(`
+      SELECT
+        r.profissional_externo            AS nome_display,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS atendimentos,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END) AS confirmadas,
+        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END) AS concluidas,
+        COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END) AS canceladas
+      FROM reservas r
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.profissional_id IS NULL AND r.profissional_externo IS NOT NULL
+        AND r.data >= $2 AND r.data < $3
+      GROUP BY r.profissional_externo
+      ORDER BY total_alugueis DESC
+    `, [cid, inicio, fim]);
+    return { rows, externas };
   }));
 
 app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
@@ -927,7 +944,7 @@ app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
     const cid = getClinicaId(req);
     const { data } = req.query;
     if (!data) throw new Error('Data é obrigatória');
-    return q(`
+    const rows = await q(`
       SELECT
         p.id,
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
@@ -949,6 +966,23 @@ app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
       GROUP BY p.id, p.nome, p.nome_fantasia
       ORDER BY total DESC NULLS LAST, p.nome
     `, [cid, data]);
+    const externas = await q(`
+      SELECT
+        r.profissional_externo            AS nome_display,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS atendimentos,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END) AS confirmadas,
+        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END) AS concluidas,
+        COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END) AS canceladas
+      FROM reservas r
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.profissional_id IS NULL AND r.profissional_externo IS NOT NULL
+        AND r.data = $2
+      GROUP BY r.profissional_externo
+      ORDER BY total_alugueis DESC
+    `, [cid, data]);
+    return { rows, externas };
   }));
 
 app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>

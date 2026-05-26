@@ -2178,9 +2178,12 @@ function showDashPanel(id){
   document.getElementById('dmbtn-'+id)?.classList.add('active');
 }
 
-function renderDashTable(data,containerId,type){
+function renderDashTable(resp,containerId,type){
   const el=document.getElementById(containerId);
-  if(!data||!data.length){
+  // Accept both plain array (massagem type) and {rows, externas} object (massagista type)
+  const data=Array.isArray(resp)?resp:(resp?.rows||[]);
+  const externas=Array.isArray(resp)?[]:(resp?.externas||[]);
+  if(!data.length&&!externas.length){
     el.innerHTML='<div class="dash-empty">Nenhum dado encontrado para este período.</div>';return;
   }
   const isMassagem=(type==='massagem');
@@ -2199,6 +2202,11 @@ function renderDashTable(data,containerId,type){
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
   const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas-sumMultas-sumAlugueis);
   const sumRepasse=showRepasse?((sumMassagens+sumMultas)*(pct/100)-sumAlugueis):0;
+  // External rentals totals
+  const sumExtAtend=externas.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
+  const sumExtAlug=externas.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0);
+  const sumExtConc=externas.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
+  const sumExtCanc=externas.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
 
   let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
@@ -2248,17 +2256,59 @@ function renderDashTable(data,containerId,type){
     <td class="ctr"><strong>${sumConc}</strong></td>
     <td class="ctr" style="color:var(--red)"><strong>${sumCanc}</strong></td>
   </tr>`;
+  // External rentals rows after SUBTOTAL
+  if(!isMassagem&&externas.length>0){
+    const colSpanName=1;
+    const totalCols=2+(showMultas?1:0)+(showAlugueis?1:0)+(showRepasse?2:0);
+    html+=`<tr style="background:var(--bg-lt,#f7f3ff);border-top:2px solid #8b5cf6">
+      <td colspan="${1+(showRepasse?2:0)+(showMultas?1:0)+(showAlugueis?1:0)+3}" style="padding:6px 12px;font-weight:700;color:#8b5cf6;font-size:.82rem;letter-spacing:.04em">
+        🔤 ALUGUÉIS EXTERNOS
+      </td>
+      <td class="ctr" style="color:var(--text-lt);font-size:.8rem">${sumExtConc}</td>
+      <td class="ctr" style="color:var(--red);font-size:.8rem">${sumExtCanc}</td>
+    </tr>`;
+    externas.forEach(e=>{
+      const alug=parseFloat(e.total_alugueis||0);
+      html+=`<tr style="background:var(--bg-lt,#f7f3ff)">
+        <td><strong>${esc(e.nome_display||'—')}</strong><br><small style="color:#8b5cf6;font-size:.75rem">Externo</small></td>
+        <td class="ctr">${parseInt(e.atendimentos||0)}</td>
+        <td class="num" style="color:var(--text-lt)">—</td>
+        <td class="num" style="color:var(--text-lt)">—</td>
+        ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
+        ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:600">${fmtMoeda(alug)}</td>`:''}
+        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(alug)}</td>
+        ${showRepasse?'<td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td>':''}
+        <td class="ctr">${e.concluidas||0}</td>
+        <td class="ctr" style="color:var(--red)">${e.canceladas||0}</td>
+      </tr>`;
+    });
+    if(externas.length>1){
+      html+=`<tr style="background:#ede9fe;font-weight:700">
+        <td><strong>Total Externos</strong></td>
+        <td class="ctr"><strong>${sumExtAtend}</strong></td>
+        <td class="num" style="color:var(--text-lt)">—</td>
+        <td class="num" style="color:var(--text-lt)">—</td>
+        ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
+        ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>`:''}
+        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>
+        ${showRepasse?'<td class="num">—</td><td class="num">—</td>':''}
+        <td class="ctr"><strong>${sumExtConc}</strong></td>
+        <td class="ctr" style="color:var(--red)"><strong>${sumExtCanc}</strong></td>
+      </tr>`;
+    }
+  }
   html+='</tbody></table></div>';
 
   // KPI cards below the table (only for massagista type)
   if(!isMassagem){
+    const totalComExt=sumTotal+sumExtAlug;
     const kpis=[
-      {label:'👤 Atendimentos',val:sumAtend,fmt:v=>v,color:'var(--cel)'},
+      {label:'👤 Atendimentos',val:sumAtend+sumExtAtend,fmt:v=>v,color:'var(--cel)'},
       {label:'💆 Massagens',val:sumMassagens,fmt:fmtMoeda,color:'#2d7a56'},
       {label:'🍹 Bebidas',val:sumBebidas,fmt:fmtMoeda,color:'#a05c10'},
       ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
-      {label:'🏷 Aluguéis',val:sumAlugueis,fmt:fmtMoeda,color:'#8b5cf6'},
-      {label:'💰 Total Geral',val:sumTotal,fmt:fmtMoeda,color:'#2d7a56',big:true},
+      {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
+      {label:'💰 Total Geral',val:totalComExt,fmt:fmtMoeda,color:'#2d7a56',big:true},
       ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'}]:[]),
     ];
     html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
