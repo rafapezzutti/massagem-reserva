@@ -1488,4 +1488,23 @@ app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
     const prox = new Date(parseInt(ano), parseInt(mes), 1);
     const fim = `${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}-01`;
     const rows = await q(`
-      SELEC
+      SELECT ar.*, als.nome AS local_nome, ass.nome AS servico_nome
+      FROM autonoma_reservas ar
+      LEFT JOIN autonoma_locais als ON als.id=ar.local_id
+      LEFT JOIN autonoma_servicos ass ON ass.id=ar.servico_id
+      WHERE ar.autonoma_id=$1 AND ar.data>=$2 AND ar.data<$3 AND ar.status!='cancelada'
+      ORDER BY ar.data,ar.hora_inicio
+    `, [aid, inicio, fim]);
+    const total_servicos = rows.reduce((s,r) => s + parseFloat(r.valor_servico||0), 0);
+    const total_multas   = rows.reduce((s,r) => s + parseFloat(r.multa_valor||0), 0);
+    return { rows, totais: { total_servicos, total_multas, total: total_servicos+total_multas, qtd: rows.length } };
+  }));
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+initDB().then(() => {
+  app.listen(PORT, () =>
+    console.log(`\n💆 Massagem Reserva rodando em http://localhost:${PORT}\n`));
+}).catch(err => {
+  console.error('Erro ao conectar ao banco:', err.message);
+  process.exit(1);
+});
