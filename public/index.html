@@ -2195,20 +2195,39 @@ function renderDashTable(data,containerId,type){
   });
 
   html+=`<tr class="total-row">
-    <td>TOTAL GERAL</td>
+    <td><strong>SUBTOTAL</strong></td>
     ${isMassagem?'<td></td><td></td>':''}
-    <td class="ctr">${sumAtend}</td>
-    <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
-    <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
-    ${showMultas?`<td class="num" style="${sumMultas>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumMultas>0?fmtMoeda(sumMultas):'—'}</td>`:''}
-    ${showAlugueis?`<td class="num" style="${sumAlugueis>0?'color:#a05c10;font-weight:700':'color:var(--text-lt)'}">${sumAlugueis>0?fmtMoeda(sumAlugueis):'—'}</td>`:''}
-    <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
+    <td class="ctr"><strong>${sumAtend}</strong></td>
+    <td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumMassagens)}</td>
+    <td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumBebidas)}</td>
+    ${showMultas?`<td class="num" style="color:var(--red);font-weight:700">${fmtMoeda(sumMultas)}</td>`:''}
+    ${showAlugueis?`<td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumAlugueis)}</td>`:''}
+    <td class="num" style="color:#2d7a56;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
-    <td class="ctr">${sumConc}</td>
-    <td class="ctr" style="color:var(--red)">${sumCanc}</td>
+    <td class="ctr"><strong>${sumConc}</strong></td>
+    <td class="ctr" style="color:var(--red)"><strong>${sumCanc}</strong></td>
   </tr>`;
-
   html+='</tbody></table></div>';
+
+  // KPI cards below the table (only for massagista type)
+  if(!isMassagem){
+    const kpis=[
+      {label:'👤 Atendimentos',val:sumAtend,fmt:v=>v,color:'var(--cel)'},
+      {label:'💆 Massagens',val:sumMassagens,fmt:fmtMoeda,color:'#2d7a56'},
+      {label:'🍹 Bebidas',val:sumBebidas,fmt:fmtMoeda,color:'#a05c10'},
+      ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
+      {label:'🏷 Aluguéis',val:sumAlugueis,fmt:fmtMoeda,color:'#8b5cf6'},
+      {label:'💰 Total Geral',val:sumTotal,fmt:fmtMoeda,color:'#2d7a56',big:true},
+      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'}]:[]),
+    ];
+    html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
+      kpis.map(k=>`<div style="background:${k.big?'var(--green-lt)':'var(--bg-card,#fff)'};border:1.5px solid ${k.color};border-radius:10px;padding:10px 16px;min-width:120px;text-align:center">
+        <div style="font-size:.78rem;color:var(--text-lt);margin-bottom:3px">${k.label}</div>
+        <div style="font-size:${k.big?'1.2rem':'1rem'};font-weight:700;color:${k.color}">${k.fmt(k.val)}</div>
+      </div>`).join('')
+    }</div>`;
+  }
+
   el.innerHTML=html;
 }
 
