@@ -1761,22 +1761,24 @@ function setTipoReserva(tipo){
   const aRow=document.getElementById('rv-aluguel-row');
   const mBtn=document.getElementById('tipo-massagem-btn');
   const aBtn=document.getElementById('tipo-aluguel-btn');
-  const profTipoRow=document.getElementById('rv-prof-tipo-row');
+  const profMassRow=document.getElementById('rv-prof-mass-row');
+  const profAlugSection=document.getElementById('rv-prof-aluguel-section');
   if(mRow) mRow.style.display=isMass?'':'none';
   if(aRow) aRow.style.display=isMass?'none':'';
   if(mBtn) mBtn.className='btn '+(isMass?'btn-primary':'btn-secondary')+' btn-sm';
   if(aBtn) aBtn.className='btn '+(isMass?'btn-secondary':'btn-primary')+' btn-sm';
-  if(profTipoRow) profTipoRow.style.display=isMass?'none':'';
-  // When switching to massagem, reset to cadastrada mode
-  if(isMass) setProfTipo('cadastrada');
+  if(profMassRow) profMassRow.style.display=isMass?'':'none';
+  if(profAlugSection) profAlugSection.style.display=isMass?'none':'';
+  // Always reset profissional toggle when switching type
+  setProfTipo('cadastrada');
 }
 function setProfTipo(tipo){
   const isCad=tipo==='cadastrada';
-  const wrap=document.getElementById('rv-prof-wrap');
+  const cadRow=document.getElementById('rv-prof-aluguel-cad-row');
   const extWrap=document.getElementById('rv-prof-externo-wrap');
   const cadBtn=document.getElementById('prof-cadastrada-btn');
   const extBtn=document.getElementById('prof-externa-btn');
-  if(wrap) wrap.style.display=isCad?'':'none';
+  if(cadRow) cadRow.style.display=isCad?'':'none';
   if(extWrap) extWrap.style.display=isCad?'none':'';
   if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
   if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
@@ -1880,7 +1882,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <input id="rv-inicio" type="time" value="${r?.hora_inicio||horaPre||'09:00'}" step="1800" onchange="autoFillHoraFim()"/></div>
       <div class="field"><label>Hora Fim <span class="required">*</span></label>
         <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"/></div>
-      <div class="field full"><label>Massagista <span class="required">*</span></label>
+      <div class="field full" id="rv-prof-mass-row"><label>Massagista <span class="required">*</span></label>
         <select id="rv-prof">${optP}</select></div>
       <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
         <select id="rv-quarto">${optQ}</select></div>
@@ -1895,6 +1897,21 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <select id="rv-massagem" onchange="autoFillHoraFim()">${optM}</select></div>
       <div id="rv-aluguel-row" class="field full" style="display:none"><label>Tipo de Aluguel <span class="required">*</span></label>
         <select id="rv-aluguel">${optA||'<option value="">Nenhum aluguel cadastrado</option>'}</select></div>
+      <div id="rv-prof-aluguel-section" style="display:none">
+        <div class="field full" style="margin-bottom:6px">
+          <label style="margin-bottom:4px">Profissional <span class="required">*</span></label>
+          <div style="display:flex;gap:8px">
+            <button type="button" id="prof-cadastrada-btn" class="btn btn-primary btn-sm" onclick="setProfTipo('cadastrada')">👤 Cadastrada</button>
+            <button type="button" id="prof-externa-btn" class="btn btn-secondary btn-sm" onclick="setProfTipo('externa')">🔤 Externa</button>
+          </div>
+        </div>
+        <div class="field full" id="rv-prof-aluguel-cad-row">
+          <select id="rv-prof-aluguel">${optP}</select>
+        </div>
+        <div class="field full" id="rv-prof-externo-wrap" style="display:none">
+          <input id="rv-prof-externo" type="text" placeholder="Nome do profissional externo…" value="${r?.profissional_externo?esc(r.profissional_externo):''}"/>
+        </div>
+      </div>
       <div class="field full"><label>Nome do Cliente <span class="required">*</span></label>
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
@@ -2017,8 +2034,11 @@ async function saveReserva(id){
   const quarto_id=parseInt(document.getElementById('rv-quarto').value);
   const tipoMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
   const isExterna=document.getElementById('rv-prof-externo-wrap')?.style.display!=='none';
-  const profissional_id=isExterna?null:parseInt(document.getElementById('rv-prof').value)||null;
-  const profissional_externo=isExterna?(document.getElementById('rv-prof-externo')?.value.trim()||null):null;
+  // For massagem: use rv-prof; for aluguel+cadastrada: use rv-prof-aluguel; for aluguel+externa: use text input
+  const profissional_id=tipoMass
+    ? (parseInt(document.getElementById('rv-prof')?.value)||null)
+    : (!isExterna ? (parseInt(document.getElementById('rv-prof-aluguel')?.value)||null) : null);
+  const profissional_externo=(!tipoMass&&isExterna)?(document.getElementById('rv-prof-externo')?.value.trim()||null):null;
   const massagem_id=tipoMass?parseInt(document.getElementById('rv-massagem')?.value)||null:null;
   const aluguel_id=!tipoMass?parseInt(document.getElementById('rv-aluguel')?.value)||null:null;
   const cliente_nome=document.getElementById('rv-cliente').value.trim();
