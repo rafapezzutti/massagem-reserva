@@ -5,7 +5,6 @@ const path     = require('path');
 const fs       = require('fs');
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
-const cron     = require('node-cron');
 
 const app        = express();
 const PORT       = process.env.PORT || 3000;
@@ -280,14 +279,6 @@ async function initDB() {
   // 3m. Permissões granulares por gerente (JSON)
   await pool.query(`ALTER TABLE gerentes ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT NULL`).catch(()=>{});
 
-  // 3n. Usuário teste / trial por clínica
-  await pool.query(`
-    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS is_trial        BOOLEAN   DEFAULT FALSE;
-    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS trial_starts_at  TIMESTAMP;
-    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMP;
-    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS trial_blocked_at TIMESTAMP;
-  `).catch(()=>{});
-
   console.log('✅ Banco de dados pronto');
 }
 
@@ -313,18 +304,6 @@ function requireAuth(req, res, next) {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     if (!token) return res.status(401).json({ ok: false, error: 'Não autenticado' });
     req.user = jwt.verify(token, JWT_SECRET);
-
-    // Bloqueia clínica teste com período expirado (admin nunca é bloqueado)
-    if (req.user.is_trial && req.user.trial_expires_at && req.user.role !== 'admin') {
-      if (new Date() > new Date(req.user.trial_expires_at)) {
-        return res.status(403).json({
-          ok: false,
-          error: 'Período de teste encerrado. Entre em contato para contratar o plano.',
-          code: 'TRIAL_EXPIRED',
-        });
-      }
-    }
-
     next();
   } catch {
     res.status(401).json({ ok: false, error: 'Sessão expirada. Faça login novamente.' });
@@ -421,16 +400,12 @@ app.post('/api/auth/login', async (req, res) => {
     if (clinica && await bcrypt.compare(senha, clinica.senha_hash)) {
       const token = jwt.sign(
         { id: clinica.id, email: clinica.email, role: 'clinica',
-          clinica_id: clinica.id, nome_clinica: clinica.nome,
-          is_trial: clinica.is_trial || false,
-          trial_expires_at: clinica.trial_expires_at || null },
+          clinica_id: clinica.id, nome_clinica: clinica.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
       return res.json({ ok: true, data: { token,
         user: { role: 'clinica', nome_clinica: clinica.nome, email: clinica.email,
-          clinica_id: clinica.id,
-          is_trial: clinica.is_trial || false,
-          trial_expires_at: clinica.trial_expires_at || null } } });
+          clinica_id: clinica.id } } });
     }
 
     const gerente = await qOne('SELECT * FROM gerentes WHERE email=$1 AND ativo=1', [em]);
@@ -470,41 +445,22 @@ app.get('/api/auth/me', requireAuth, (req, res) =>
 // ADMIN — Clínicas
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/admin/clinicas', requireAdmin, (req, res) =>
-  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,horario_funcionamento,is_trial,trial_starts_at,trial_expires_at,trial_blocked_at,criado_em FROM clinicas ORDER BY nome')));
+  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,horario_funcionamento,criado_em FROM clinicas ORDER BY nome')));
 
 app.post('/api/admin/clinicas', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento, is_trial } = req.body;
+    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento } = req.body;
     if (!nome)  throw new Error('Nome é obrigatório');
     if (!email) throw new Error('Email é obrigatório');
     if (!senha) throw new Error('Senha é obrigatória');
     const hash = await bcrypt.hash(senha, 10);
-    const trialFlag      = !!is_trial;
-    const trialStartsAt  = trialFlag ? new Date() : null;
-    const trialExpiresAt = trialFlag ? new Date(Date.now() + 10 * 24 * 60 * 60 * 1000) : null;
     return qOne(
-      `INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais,horario_funcionamento,
-                             is_trial,trial_starts_at,trial_expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       RETURNING id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,
-                 ativo,is_trial,trial_starts_at,trial_expires_at,criado_em`,
+      `INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais,horario_funcionamento)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em`,
       [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null,
-       emails_adicionais||null, horario_funcionamento||null,
-       trialFlag, trialStartsAt, trialExpiresAt]
+       emails_adicionais||null, horario_funcionamento||null]
     );
-  }));
-
-// POST /api/admin/clinicas/:id/convert-trial — converte trial em cliente definitivo
-app.post('/api/admin/clinicas/:id/convert-trial', requireAdmin, (req, res) =>
-  send(res, async () => {
-    const r = await qOne(
-      `UPDATE clinicas SET is_trial=FALSE, trial_starts_at=NULL, trial_expires_at=NULL, trial_blocked_at=NULL
-       WHERE id=$1
-       RETURNING id,nome,email,ativo,is_trial`,
-      [req.params.id]
-    );
-    if (!r) throw new Error('Clínica não encontrada');
-    return r;
   }));
 
 app.put('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
@@ -1661,69 +1617,6 @@ app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
     const total_multas   = rows.reduce((s,r) => s + parseFloat(r.multa_valor||0), 0);
     return { rows, totais: { total_servicos, total_multas, total: total_servicos+total_multas, qtd: rows.length } };
   }));
-
-// ── Cron Job — Trial Cleanup (diário às 03:00) ──────────────────────────────
-// Dia 1–10:  acesso liberado
-// Dia 10+:   acesso BLOQUEADO (trial_expires_at ultrapassado → requireAuth barra)
-// Dia 20+:   clínica DELETADA automaticamente (todos os dados em cascata)
-cron.schedule('0 3 * * *', async () => {
-  console.log('[CRON-TRIAL] Iniciando limpeza de clínicas teste...');
-  const results = { blocked: 0, deleted: 0, errors: [] };
-
-  try {
-    // 1. Marcar trial_blocked_at para clínicas expiradas ainda não marcadas
-    const toBlock = await q(`
-      SELECT id, nome, email
-      FROM clinicas
-      WHERE is_trial = true
-        AND trial_expires_at IS NOT NULL
-        AND trial_expires_at < NOW()
-        AND trial_blocked_at IS NULL
-    `);
-    for (const c of toBlock) {
-      try {
-        await qRun(`UPDATE clinicas SET trial_blocked_at = NOW() WHERE id = $1`, [c.id]);
-        results.blocked++;
-        console.log(`[CRON-TRIAL] Bloqueada: ${c.nome} (${c.email})`);
-      } catch (e) {
-        results.errors.push(`Bloquear clínica#${c.id}: ${e.message}`);
-      }
-    }
-
-    // 2. Deletar clínicas trial bloqueadas há mais de 10 dias (20 dias no total)
-    const toDelete = await q(`
-      SELECT id, nome, email
-      FROM clinicas
-      WHERE is_trial = true
-        AND trial_blocked_at IS NOT NULL
-        AND trial_blocked_at < NOW() - INTERVAL '10 days'
-    `);
-    for (const c of toDelete) {
-      try {
-        // Remove dados vinculados à clínica em cascata
-        await qRun(`DELETE FROM reservas      WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM ausencias     WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM massagens     WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM profissionais WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM recepcionistas WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM alugueis     WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM quartos      WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM repasse_config WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM gerentes     WHERE clinica_id = $1`, [c.id]);
-        await qRun(`DELETE FROM clinicas     WHERE id = $1`, [c.id]);
-        results.deleted++;
-        console.log(`[CRON-TRIAL] Deletada: ${c.nome} (${c.email})`);
-      } catch (e) {
-        results.errors.push(`Deletar clínica#${c.id}: ${e.message}`);
-      }
-    }
-
-    console.log(`[CRON-TRIAL] Concluído — bloqueadas: ${results.blocked}, deletadas: ${results.deleted}`);
-    if (results.errors.length) console.error('[CRON-TRIAL] Erros:', results.errors);
-  } catch (err) {
-    console.error('[CRON-TRIAL] Erro geral:', err.message);
-  }
-});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 initDB().then(() => {
