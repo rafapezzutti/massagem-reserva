@@ -313,11 +313,20 @@ function requireAdmin(req, res, next) {
     next();
   });
 }
-// Bloqueia gerentes do dashboard
+// Bloqueia gerentes do dashboard completo (mensal/pagamentos/recepcionistas)
 function requireDashboard(req, res, next) {
   requireAuth(req, res, () => {
     if (req.user.role === 'gerente')
-      return res.status(403).json({ ok: false, error: 'Gerentes não têm acesso ao dashboard' });
+      return res.status(403).json({ ok: false, error: 'Gerentes não têm acesso a este relatório' });
+    next();
+  });
+}
+// Permite gerentes apenas nos painéis diários (massagista e massagem)
+function requireDashDiario(req, res, next) {
+  requireAuth(req, res, () => {
+    const allowed = ['admin','clinica','gerente'];
+    if (!allowed.includes(req.user.role))
+      return res.status(403).json({ ok: false, error: 'Acesso negado' });
     next();
   });
 }
@@ -965,7 +974,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     return { rows, externas, pagByMethod, pagByProf };
   }));
 
-app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
+app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { data } = req.query;
@@ -1065,7 +1074,7 @@ app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
     `, [cid, inicio, fim]);
   }));
 
-app.get('/api/dashboard/massagem-diario', requireDashboard, (req, res) =>
+app.get('/api/dashboard/massagem-diario', requireDashDiario, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const { data } = req.query;

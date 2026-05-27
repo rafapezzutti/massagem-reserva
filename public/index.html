@@ -676,7 +676,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         <div class="admin-section-title">👔 Gerentes
           <button class="btn btn-sm" style="margin-left:auto;background:var(--green);color:#fff" onclick="openGerenteModal()">＋ Novo Gerente</button>
         </div>
-        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Acesso operacional completo ao CRM — sem Dashboard e sem % de Repasse.</p>
+        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Acesso operacional completo ao CRM + Dashboard Diário (Massagista e Massagem) — sem % de Repasse.</p>
         <div id="gerentes-list"><div class="spinner"></div></div>
       </div>
       <div class="admin-section" id="aut-admin-section" style="display:none">
@@ -929,10 +929,14 @@ function initApp(){
   } else {
     document.getElementById('clinica-badge').style.display='flex';
     document.getElementById('clinica-badge').textContent='🏥 '+(auth.user.nome_clinica||auth.user.nome||auth.user.email);
-    // Gerente: esconde Dashboard e Repasse
+    // Gerente: acesso ao Dashboard (só Diário), sem Repasse
     if(auth.user.role==='gerente'){
-      document.getElementById('nav-dashboard').style.display='none';
       document.getElementById('nav-repasse').style.display='none';
+      // Restringe dashboard: oculta painéis que gerente não pode ver
+      ['dash-mm','dash-mt','dash-rc','dash-pg'].forEach(id=>{
+        const btn=document.getElementById('dmbtn-'+id);
+        if(btn) btn.style.display='none';
+      });
     }
   }
 
@@ -2154,6 +2158,10 @@ function initDashboard(){
   const ym=t.getFullYear();
   const mm=t.getMonth()+1;
   const today=new Date().toYMD();
+  // Gerente só acessa painéis diários — mostrar dash-dm como padrão
+  if(auth.user?.role==='gerente'){
+    showDashPanel('dash-dm');
+  }
 
   ['mm','mt','rc','pg'].forEach(pre=>{
     const selM=document.getElementById(`dash-${pre}-mes`);
