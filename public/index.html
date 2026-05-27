@@ -407,22 +407,16 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     <button id="hamburger" onclick="toggleMenu()">☰</button>
     <div class="logo">💆 <span>Massagem</span> Reserva</div>
     <nav id="nav">
-      <button class="nav-btn active" id="nav-daily"  onclick="showView('daily')">📅 Hoje</button>
-      <button class="nav-btn" id="nav-monthly"         onclick="showView('monthly')">📆 Mês</button>
-      <button class="nav-btn" id="nav-quartos"         onclick="showView('quartos')">🛏 Quartos</button>
-      <button class="nav-btn" id="nav-profissionais"         onclick="showView('profissionais')">👤 Profissionais</button>
-      <button class="nav-btn" id="nav-massagens"         onclick="showView('massagens')">💆 Massagens</button>
+      <button class="nav-btn active"  onclick="showView('daily')">📅 Hoje</button>
+      <button class="nav-btn"         onclick="showView('monthly')">📆 Mês</button>
+      <button class="nav-btn"         onclick="showView('quartos')">🛏 Quartos</button>
+      <button class="nav-btn"         onclick="showView('profissionais')">👤 Profissionais</button>
+      <button class="nav-btn"         onclick="showView('massagens')">💆 Massagens</button>
       <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
       <button class="nav-btn" id="nav-dashboard"       onclick="showView('dashboard')">📊 Dashboard</button>
       <button class="nav-btn" id="nav-admin" style="display:none" onclick="showView('admin')">⚙️ Admin</button>
-      <button class="nav-btn" id="nav-aut-daily"    style="display:none" onclick="showView('aut-daily')">📅 Hoje</button>
-      <button class="nav-btn" id="nav-aut-monthly"  style="display:none" onclick="showView('aut-monthly')">📆 Mês</button>
-      <button class="nav-btn" id="nav-aut-clientes" style="display:none" onclick="showView('aut-clientes')">👥 Clientes</button>
-      <button class="nav-btn" id="nav-aut-servicos" style="display:none" onclick="showView('aut-servicos')">💆 Serviços</button>
-      <button class="nav-btn" id="nav-aut-locais"   style="display:none" onclick="showView('aut-locais')">📍 Locais</button>
-      <button class="nav-btn" id="nav-aut-dash"     style="display:none" onclick="showView('aut-dash')">💰 Ganhos</button>
     </nav>
     <div id="clinica-selector-wrap" style="display:none">
       <select id="clinica-selector" onchange="onClinicaSelect(this.value)">
@@ -676,81 +670,10 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         <div class="admin-section-title">👔 Gerentes
           <button class="btn btn-sm" style="margin-left:auto;background:var(--green);color:#fff" onclick="openGerenteModal()">＋ Novo Gerente</button>
         </div>
-        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Acesso operacional completo ao CRM + Dashboard Diário (Massagista e Massagem) — sem % de Repasse.</p>
+        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Acesso operacional completo ao CRM — sem Dashboard e sem % de Repasse.</p>
         <div id="gerentes-list"><div class="spinner"></div></div>
       </div>
-      <div class="admin-section" id="aut-admin-section" style="display:none">
-        <div class="admin-section-title">🌸 Autônomas
-          <button class="btn btn-sm" style="margin-left:auto;background:#8b5cf6;color:#fff" onclick="openAutAdminModal()">＋ Nova Autônoma</button>
-        </div>
-        <p style="font-size:.85rem;color:var(--text-lt);margin-bottom:12px">Massagistas autônomas com agenda e gestão próprias — sem vínculo com nenhuma clínica.</p>
-        <div id="autonomas-list"><div class="spinner"></div></div>
-      </div>
     </div>
-
-  <!-- AUTÔNOMA — Views -->
-  <div id="view-aut-daily" class="view">
-    <div class="daily-toolbar">
-      <div class="date-nav">
-        <button class="btn btn-secondary btn-sm" onclick="autChangeDay(-1)">‹</button>
-        <span class="date-label" id="aut-date-label"></span>
-        <button class="btn btn-secondary btn-sm" onclick="autChangeDay(1)">›</button>
-        <button class="btn btn-secondary btn-sm" onclick="autGoToday()">Hoje</button>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="autOpenReservaModal()">＋ Nova Reserva</button>
-    </div>
-    <div id="aut-daily-list" style="padding:16px"></div>
-  </div>
-
-  <div id="view-aut-monthly" class="view">
-    <div class="month-toolbar">
-      <button class="btn btn-secondary btn-sm" onclick="autChangeMonth(-1)">‹</button>
-      <span id="aut-month-label" class="month-label"></span>
-      <button class="btn btn-secondary btn-sm" onclick="autChangeMonth(1)">›</button>
-    </div>
-    <div id="aut-monthly-grid" class="monthly-grid"></div>
-  </div>
-
-  <div id="view-aut-clientes" class="view">
-    <div class="list-header">
-      <h1>👥 Meus Clientes</h1>
-      <button class="btn btn-primary btn-sm" onclick="autOpenClienteModal()">＋ Novo Cliente</button>
-    </div>
-    <div style="padding:12px 16px 0">
-      <input type="text" class="field-input" placeholder="Buscar cliente..." id="aut-cli-search" oninput="autFilterClientes(this.value)" style="max-width:340px">
-    </div>
-    <div id="aut-clientes-list" style="padding:16px"></div>
-  </div>
-
-  <div id="view-aut-servicos" class="view">
-    <div class="list-header">
-      <h1>💆 Meus Serviços</h1>
-      <button class="btn btn-primary btn-sm" onclick="autOpenServicoModal()">＋ Novo Serviço</button>
-    </div>
-    <div id="aut-servicos-list" style="padding:16px"></div>
-  </div>
-
-  <div id="view-aut-locais" class="view">
-    <div class="list-header">
-      <h1>📍 Meus Locais</h1>
-      <button class="btn btn-primary btn-sm" onclick="autOpenLocalModal()">＋ Novo Local</button>
-    </div>
-    <div id="aut-locais-list" style="padding:16px"></div>
-  </div>
-
-  <div id="view-aut-dash" class="view">
-    <div class="dash-toolbar" style="padding:12px 16px;display:flex;gap:8px;align-items:center">
-      <select id="aut-dash-mes" onchange="loadAutDash()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card)">
-        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-      </select>
-      <select id="aut-dash-ano" onchange="loadAutDash()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card)">
-      </select>
-    </div>
-    <div id="aut-dash-content" style="padding:16px"></div>
-  </div>
 
   </div><!-- /main -->
 </div><!-- /app -->
@@ -777,11 +700,8 @@ let state = {
   currentView: 'daily',
   currentDate: '',
   adminClinicaId: null,
-  adminAutonomaId: null,
   quartos:[], profissionais:[], massagens:[], alugueis:[], reservasDia:[], ausenciasDia:[],
-  recepcionistas:[], repasse:0, horario: null,
-  autDate:'', autYear:0, autMonth:0,
-  autLocais:[], autServicos:[], autClientes:[], autReservasDia:[]
+  recepcionistas:[], repasse:0, horario: null
 };
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -827,13 +747,6 @@ function cidParam(){
 function cidBody(){
   if(auth.user?.role==='admin' && state.adminClinicaId) return {clinica_id:state.adminClinicaId};
   return {};
-}
-function autParam(){
-  if(auth.user?.role==='admin'){
-    if(!state.adminAutonomaId) return '';
-    return `autonoma_id=${state.adminAutonomaId}`;
-  }
-  return '';
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -883,7 +796,7 @@ function logout(){
   document.getElementById('login-senha').value='';
   document.getElementById('login-error').textContent='';
   // Reseta o estado
-  state={currentView:'daily',currentDate:'',adminClinicaId:null,adminAutonomaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[],ausenciasDia:[],recepcionistas:[],repasse:0,horario:null,autDate:'',autYear:0,autMonth:0,autLocais:[],autServicos:[],autClientes:[],autReservasDia:[]};
+  state={currentView:'daily',currentDate:'',adminClinicaId:null,quartos:[],profissionais:[],massagens:[],alugueis:[],reservasDia:[],ausenciasDia:[]};
 }
 
 async function verifyToken(){
@@ -902,65 +815,6 @@ async function start(){
   if(valid) initApp();
 }
 
-const GERENTE_PERMS=[
-  {key:'daily',label:'📅 Hoje',group:'op'},{key:'monthly',label:'📆 Mês',group:'op'},
-  {key:'quartos',label:'🛏 Quartos',group:'op'},{key:'profissionais',label:'👤 Profissionais',group:'op'},
-  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},
-  {key:'recepcionistas',label:'🗂 Recepcionistas',group:'op'},{key:'repasse',label:'💸 Repasse',group:'op'},
-  {key:'dash_dm',label:'👤 Diário Massagista',group:'dash'},{key:'dash_mm',label:'👤 Mensal Massagista',group:'dash'},
-  {key:'dash_dt',label:'💆 Diário Massagem',group:'dash'},{key:'dash_mt',label:'💆 Mensal Massagem',group:'dash'},
-  {key:'dash_rc',label:'🗂 Recepcionistas (dash)',group:'dash'},{key:'dash_pg',label:'💳 Pagamentos',group:'dash'},
-];
-const GERENTE_PERM_DEFAULT={
-  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,
-  recepcionistas:false,repasse:false,
-  dash_dm:true,dash_mm:false,dash_dt:true,dash_mt:false,dash_rc:false,dash_pg:false
-};
-function applyGerentePermissoes(permissoes){
-  const p=permissoes||GERENTE_PERM_DEFAULT;
-  const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
-    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',
-    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse'};
-  Object.entries(navMap).forEach(([key,nid])=>{
-    const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
-  });
-  const hasDash=Object.keys(p).some(k=>k.startsWith('dash_')&&p[k]);
-  const navDash=document.getElementById('nav-dashboard');
-  if(navDash)navDash.style.display=hasDash?'':'none';
-  const dashMap={dash_dm:'dmbtn-dash-dm',dash_mm:'dmbtn-dash-mm',
-    dash_dt:'dmbtn-dash-dt',dash_mt:'dmbtn-dash-mt',
-    dash_rc:'dmbtn-dash-rc',dash_pg:'dmbtn-dash-pg'};
-  Object.entries(dashMap).forEach(([key,nid])=>{
-    const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
-  });
-  const dashOrder=['dash_dm','dash_mm','dash_dt','dash_mt','dash_rc','dash_pg'];
-  const firstDash=dashOrder.find(k=>p[k]);
-  if(firstDash)showDashPanel(firstDash.replace('_','-'));
-}
-function buildPermCheckboxes(perm){
-  const p=perm||GERENTE_PERM_DEFAULT;
-  const opP=GERENTE_PERMS.filter(x=>x.group==='op');
-  const dshP=GERENTE_PERMS.filter(x=>x.group==='dash');
-  function chk(item){
-    return '<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:.84rem">'
-      +'<input type="checkbox" id="perm-'+item.key+'" '+(p[item.key]?'checked':'')+' style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer"/>'+item.label+'</label>';
-  }
-  return '<div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">'
-    +'<div style="background:var(--cel-lt);padding:8px 14px;font-weight:700;font-size:.85rem;border-bottom:1px solid var(--border)">🔐 Permissões de Acesso</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr">'
-    +'<div style="padding:10px 12px;border-right:1px solid var(--border)">'
-    +'<div style="font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Operacional</div>'
-    +opP.map(chk).join('')+'</div>'
-    +'<div style="padding:10px 12px">'
-    +'<div style="font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Dashboard</div>'
-    +dshP.map(chk).join('')+'</div></div>'
-    +'<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px">'
-    +'<button type="button" class="btn btn-secondary btn-sm" onclick="setAllPerms(true)">✅ Marcar Tudo</button>'
-    +'<button type="button" class="btn btn-secondary btn-sm" onclick="setAllPerms(false)">⬜ Desmarcar Tudo</button>'
-    +'</div></div>';
-}
-function setAllPerms(v){GERENTE_PERMS.forEach(p=>{const el=document.getElementById('perm-'+p.key);if(el)el.checked=v;});}
-function collectPerms(){const p={};GERENTE_PERMS.forEach(x=>{const el=document.getElementById('perm-'+x.key);if(el)p[x.key]=el.checked;});return p;}
 function initApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -969,28 +823,13 @@ function initApp(){
     document.getElementById('nav-admin').style.display='';
     document.getElementById('clinica-selector-wrap').style.display='flex';
     loadClinicaSelector();
-  } else if(auth.user.role==='autonoma'){
-    // ── Autônoma: hide all clinic tabs, show autonoma tabs
-    document.querySelectorAll('#nav .nav-btn').forEach(b=>b.style.display='none');
-    ['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'].forEach(id=>{
-      const el=document.getElementById('nav-'+id);
-      if(el) el.style.display='';
-    });
-    document.getElementById('clinica-badge').style.display='flex';
-    document.getElementById('clinica-badge').textContent='🌸 '+(auth.user.nome||auth.user.email);
-    const today=new Date();
-    state.autYear=today.getFullYear();
-    state.autMonth=today.getMonth()+1;
-    state.autDate=today.toYMD();
-    initAutDashSelectors();
-    showView('aut-daily');
-    return;
   } else {
     document.getElementById('clinica-badge').style.display='flex';
     document.getElementById('clinica-badge').textContent='🏥 '+(auth.user.nome_clinica||auth.user.nome||auth.user.email);
-    // Gerente: aplica permissoes dinâmicas
+    // Gerente: esconde Dashboard e Repasse
     if(auth.user.role==='gerente'){
-      applyGerentePermissoes(auth.user.permissoes);
+      document.getElementById('nav-dashboard').style.display='none';
+      document.getElementById('nav-repasse').style.display='none';
     }
   }
 
@@ -1015,10 +854,6 @@ function showView(v){
      ['daily','monthly','quartos','profissionais','massagens','alugueis','dashboard'].includes(v)){
     toast('Selecione uma clínica no topo primeiro','info');return;
   }
-  if(auth.user?.role==='admin' && !state.adminAutonomaId &&
-     ['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'].includes(v)){
-    toast('Selecione uma autônoma no topo primeiro','info');return;
-  }
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
@@ -1039,92 +874,36 @@ function showView(v){
   else if(v==='repasse') loadRepasse();
   else if(v==='dashboard') loadDashboard();
   else if(v==='admin') loadAdminPanel();
-  else if(v==='aut-daily') loadAutDaily();
-  else if(v==='aut-monthly') loadAutMonthly();
-  else if(v==='aut-clientes') loadAutClientes();
-  else if(v==='aut-servicos') loadAutServicos();
-  else if(v==='aut-locais') loadAutLocais();
-  else if(v==='aut-dash') loadAutDash();
 }
 function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
 
 // ─── Seletor de clínica (admin) ───────────────────────────────────────────────
 async function loadClinicaSelector(){
   try{
-    const [clinicas, autonomas] = await Promise.all([
-      api('GET','/admin/clinicas').catch(()=>[]),
-      api('GET','/admin/autonomas').catch(()=>[])
-    ]);
+    const clinicas=await api('GET','/admin/clinicas');
     const sel=document.getElementById('clinica-selector');
-    sel.innerHTML='<option value="">— Selecione —</option>';
-    if(clinicas.filter(c=>c.ativo).length){
-      const grp=document.createElement('optgroup');
-      grp.label='🏥 Clínicas';
-      clinicas.filter(c=>c.ativo).forEach(c=>{
-        const opt=document.createElement('option');
-        opt.value='c_'+c.id; opt.textContent=c.nome;
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    }
-    if(autonomas.filter(a=>a.ativo).length){
-      const grp=document.createElement('optgroup');
-      grp.label='🌸 Autônomas';
-      autonomas.filter(a=>a.ativo).forEach(a=>{
-        const opt=document.createElement('option');
-        opt.value='a_'+a.id; opt.textContent=a.nome;
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    }
+    sel.innerHTML='<option value="">— Selecione uma Clínica —</option>';
+    clinicas.filter(c=>c.ativo).forEach(c=>{
+      const opt=document.createElement('option');
+      opt.value=c.id;opt.textContent=c.nome;
+      sel.appendChild(opt);
+    });
   }catch(e){}
 }
-
-const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard'];
-const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
-
 function onClinicaSelect(val){
-  const isAut = val && val.startsWith('a_');
-  const isClin = val && val.startsWith('c_');
-  const id = val ? parseInt(val.split('_')[1]) : null;
-
-  if(isAut){
-    state.adminAutonomaId = id;
-    state.adminClinicaId = null;
-    // show aut tabs, hide clinic tabs
-    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
-    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='';});
-    // reset aut cache
-    state.autLocais=[];state.autServicos=[];state.autClientes=[];state.autReservasDia=[];
-    const today=new Date();
-    state.autYear=today.getFullYear();state.autMonth=today.getMonth()+1;
-    if(!state.autDate) state.autDate=today.toYMD();
-    initAutDashSelectors();
-    if(state.currentView==='admin') loadAdminPanel();
-    else showView('aut-daily');
-  } else if(isClin){
-    state.adminClinicaId = id;
-    state.adminAutonomaId = null;
-    // show clinic tabs, hide aut tabs
-    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
-    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='';});
-    state.quartos=[];state.profissionais=[];state.massagens=[];state.alugueis=[];
-    state.horario=null;renderHorarioBadge();
+  state.adminClinicaId=val?parseInt(val):null;
+  state.quartos=[];state.profissionais=[];state.massagens=[];state.alugueis=[];
+  state.horario=null;renderHorarioBadge();
+  if(val){
     api('GET','/clinica/info?'+cidParam()).then(info=>{
       if(info&&info.horario_funcionamento){
         try{state.horario=JSON.parse(info.horario_funcionamento)}catch(e){}
       }
       renderHorarioBadge();
     }).catch(()=>{});
-    if(state.currentView==='admin') loadAdminPanel();
-    else showView(state.currentView);
-  } else {
-    // cleared
-    state.adminClinicaId=null;state.adminAutonomaId=null;
-    AUT_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
-    CLINIC_TABS.forEach(t=>{const el=document.getElementById('nav-'+t);if(el)el.style.display='none';});
-    renderHorarioBadge();
   }
+  if(val && state.currentView!=='admin') showView(state.currentView);
+  else if(val) loadAdminPanel();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1333,7 +1112,7 @@ function renderTimeline(){
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
-            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}${rb.profissional_externo?` <span style="font-size:.75rem;color:var(--text-lt)">(${esc(rb.profissional_externo)})</span>`:''}</div>
+            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
           </div></div>`;
@@ -1819,27 +1598,10 @@ function setTipoReserva(tipo){
   const aRow=document.getElementById('rv-aluguel-row');
   const mBtn=document.getElementById('tipo-massagem-btn');
   const aBtn=document.getElementById('tipo-aluguel-btn');
-  const profMassRow=document.getElementById('rv-prof-mass-row');
-  const profAlugSection=document.getElementById('rv-prof-aluguel-section');
   if(mRow) mRow.style.display=isMass?'':'none';
   if(aRow) aRow.style.display=isMass?'none':'';
   if(mBtn) mBtn.className='btn '+(isMass?'btn-primary':'btn-secondary')+' btn-sm';
   if(aBtn) aBtn.className='btn '+(isMass?'btn-secondary':'btn-primary')+' btn-sm';
-  if(profMassRow) profMassRow.style.display=isMass?'':'none';
-  if(profAlugSection) profAlugSection.style.display=isMass?'none':'';
-  // Always reset profissional toggle when switching type
-  setProfTipo('cadastrada');
-}
-function setProfTipo(tipo){
-  const isCad=tipo==='cadastrada';
-  const cadRow=document.getElementById('rv-prof-aluguel-cad-row');
-  const extWrap=document.getElementById('rv-prof-externo-wrap');
-  const cadBtn=document.getElementById('prof-cadastrada-btn');
-  const extBtn=document.getElementById('prof-externa-btn');
-  if(cadRow) cadRow.style.display=isCad?'':'none';
-  if(extWrap) extWrap.style.display=isCad?'none':'';
-  if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
-  if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
 async function loadAlugueis(){
   document.getElementById('alugueis-list').innerHTML='<div class="spinner"></div>';
@@ -1940,7 +1702,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <input id="rv-inicio" type="time" value="${r?.hora_inicio||horaPre||'09:00'}" step="1800" onchange="autoFillHoraFim()"/></div>
       <div class="field"><label>Hora Fim <span class="required">*</span></label>
         <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"/></div>
-      <div class="field full" id="rv-prof-mass-row"><label>Massagista <span class="required">*</span></label>
+      <div class="field full"><label>Massagista <span class="required">*</span></label>
         <select id="rv-prof">${optP}</select></div>
       <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
         <select id="rv-quarto">${optQ}</select></div>
@@ -1955,21 +1717,6 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <select id="rv-massagem" onchange="autoFillHoraFim()">${optM}</select></div>
       <div id="rv-aluguel-row" class="field full" style="display:none"><label>Tipo de Aluguel <span class="required">*</span></label>
         <select id="rv-aluguel">${optA||'<option value="">Nenhum aluguel cadastrado</option>'}</select></div>
-      <div id="rv-prof-aluguel-section" style="display:none">
-        <div class="field full" style="margin-bottom:6px">
-          <label style="margin-bottom:4px">Profissional <span class="required">*</span></label>
-          <div style="display:flex;gap:8px">
-            <button type="button" id="prof-cadastrada-btn" class="btn btn-primary btn-sm" onclick="setProfTipo('cadastrada')">👤 Cadastrada</button>
-            <button type="button" id="prof-externa-btn" class="btn btn-secondary btn-sm" onclick="setProfTipo('externa')">🔤 Externa</button>
-          </div>
-        </div>
-        <div class="field full" id="rv-prof-aluguel-cad-row">
-          <select id="rv-prof-aluguel">${optP}</select>
-        </div>
-        <div class="field full" id="rv-prof-externo-wrap" style="display:none">
-          <input id="rv-prof-externo" type="text" placeholder="Nome do profissional externo…" value="${r?.profissional_externo?esc(r.profissional_externo):''}"/>
-        </div>
-      </div>
       <div class="field full"><label>Nome do Cliente <span class="required">*</span></label>
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
@@ -2021,8 +1768,6 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   setTimeout(()=>{
     renderDrinksList();
     setTipoReserva(tipoInicial);
-    // If editing a reservation with external professional, switch toggle
-    if(r?.profissional_externo) setProfTipo('externa');
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
@@ -2090,13 +1835,8 @@ async function saveReserva(id){
   const hora_inicio=document.getElementById('rv-inicio').value;
   const hora_fim=document.getElementById('rv-fim').value;
   const quarto_id=parseInt(document.getElementById('rv-quarto').value);
+  const profissional_id=parseInt(document.getElementById('rv-prof').value);
   const tipoMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
-  const isExterna=document.getElementById('rv-prof-externo-wrap')?.style.display!=='none';
-  // For massagem: use rv-prof; for aluguel+cadastrada: use rv-prof-aluguel; for aluguel+externa: use text input
-  const profissional_id=tipoMass
-    ? (parseInt(document.getElementById('rv-prof')?.value)||null)
-    : (!isExterna ? (parseInt(document.getElementById('rv-prof-aluguel')?.value)||null) : null);
-  const profissional_externo=(!tipoMass&&isExterna)?(document.getElementById('rv-prof-externo')?.value.trim()||null):null;
   const massagem_id=tipoMass?parseInt(document.getElementById('rv-massagem')?.value)||null:null;
   const aluguel_id=!tipoMass?parseInt(document.getElementById('rv-aluguel')?.value)||null:null;
   const cliente_nome=document.getElementById('rv-cliente').value.trim();
@@ -2109,10 +1849,8 @@ async function saveReserva(id){
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
   const pagamento=document.getElementById('rv-pagamento')?.value||null;
-  if(!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
+  if(!data||!hora_inicio||!hora_fim||!quarto_id||!profissional_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
-  if(!profissional_id&&!profissional_externo) return toast('Selecione ou informe o nome da profissional','err');
-  if(isExterna&&!profissional_externo) return toast('Informe o nome do profissional externo','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
   if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
   // Verificar se o horario está dentro do cadastrado para a profissional
@@ -2136,7 +1874,7 @@ async function saveReserva(id){
     }catch(e){}
   }
   try{
-    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
+    const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,cliente_nome,
       cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
@@ -2212,6 +1950,7 @@ function initDashboard(){
   const ym=t.getFullYear();
   const mm=t.getMonth()+1;
   const today=new Date().toYMD();
+
   ['mm','mt','rc','pg'].forEach(pre=>{
     const selM=document.getElementById(`dash-${pre}-mes`);
     const selA=document.getElementById(`dash-${pre}-ano`);
@@ -2235,12 +1974,9 @@ function showDashPanel(id){
   document.getElementById('dmbtn-'+id)?.classList.add('active');
 }
 
-function renderDashTable(resp,containerId,type){
+function renderDashTable(data,containerId,type){
   const el=document.getElementById(containerId);
-  // Accept both plain array (massagem type) and {rows, externas} object (massagista type)
-  const data=Array.isArray(resp)?resp:(resp?.rows||[]);
-  const externas=Array.isArray(resp)?[]:(resp?.externas||[]);
-  if(!data.length&&!externas.length){
+  if(!data||!data.length){
     el.innerHTML='<div class="dash-empty">Nenhum dado encontrado para este período.</div>';return;
   }
   const isMassagem=(type==='massagem');
@@ -2259,11 +1995,6 @@ function renderDashTable(resp,containerId,type){
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
   const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas-sumMultas-sumAlugueis);
   const sumRepasse=showRepasse?((sumMassagens+sumMultas)*(pct/100)-sumAlugueis):0;
-  // External rentals totals
-  const sumExtAtend=externas.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
-  const sumExtAlug=externas.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0);
-  const sumExtConc=externas.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
-  const sumExtCanc=externas.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
 
   let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>';
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
@@ -2301,156 +2032,20 @@ function renderDashTable(resp,containerId,type){
   });
 
   html+=`<tr class="total-row">
-    <td><strong>SUBTOTAL</strong></td>
+    <td>TOTAL GERAL</td>
     ${isMassagem?'<td></td><td></td>':''}
-    <td class="ctr"><strong>${sumAtend}</strong></td>
-    <td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumMassagens)}</td>
-    <td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumBebidas)}</td>
-    ${showMultas?`<td class="num" style="color:var(--red);font-weight:700">${fmtMoeda(sumMultas)}</td>`:''}
-    ${showAlugueis?`<td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumAlugueis)}</td>`:''}
-    <td class="num" style="color:#2d7a56;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal)}</td>
+    <td class="ctr">${sumAtend}</td>
+    <td class="num" style="color:#2d7a56">${fmtMoeda(sumMassagens)}</td>
+    <td class="num" style="${sumBebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${sumBebidas>0?fmtMoeda(sumBebidas):'—'}</td>
+    ${showMultas?`<td class="num" style="${sumMultas>0?'color:var(--red);font-weight:700':'color:var(--text-lt)'}">${sumMultas>0?fmtMoeda(sumMultas):'—'}</td>`:''}
+    ${showAlugueis?`<td class="num" style="${sumAlugueis>0?'color:#a05c10;font-weight:700':'color:var(--text-lt)'}">${sumAlugueis>0?fmtMoeda(sumAlugueis):'—'}</td>`:''}
+    <td class="num" style="color:#2d7a56">${fmtMoeda(sumTotal)}</td>
     ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
-    <td class="ctr"><strong>${sumConc}</strong></td>
-    <td class="ctr" style="color:var(--red)"><strong>${sumCanc}</strong></td>
+    <td class="ctr">${sumConc}</td>
+    <td class="ctr" style="color:var(--red)">${sumCanc}</td>
   </tr>`;
-  // External rentals rows after SUBTOTAL
-  if(!isMassagem&&externas.length>0){
-    const colSpanName=1;
-    const totalCols=2+(showMultas?1:0)+(showAlugueis?1:0)+(showRepasse?2:0);
-    html+=`<tr style="background:var(--bg-lt,#f7f3ff);border-top:2px solid #8b5cf6">
-      <td colspan="${1+(showRepasse?2:0)+(showMultas?1:0)+(showAlugueis?1:0)+3}" style="padding:6px 12px;font-weight:700;color:#8b5cf6;font-size:.82rem;letter-spacing:.04em">
-        🔤 ALUGUÉIS EXTERNOS
-      </td>
-      <td class="ctr" style="color:var(--text-lt);font-size:.8rem">${sumExtConc}</td>
-      <td class="ctr" style="color:var(--red);font-size:.8rem">${sumExtCanc}</td>
-    </tr>`;
-    externas.forEach(e=>{
-      const alug=parseFloat(e.total_alugueis||0);
-      html+=`<tr style="background:var(--bg-lt,#f7f3ff)">
-        <td><strong>${esc(e.nome_display||'—')}</strong><br><small style="color:#8b5cf6;font-size:.75rem">Externo</small></td>
-        <td class="ctr">${parseInt(e.atendimentos||0)}</td>
-        <td class="num" style="color:var(--text-lt)">—</td>
-        <td class="num" style="color:var(--text-lt)">—</td>
-        ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
-        ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:600">${fmtMoeda(alug)}</td>`:''}
-        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(alug)}</td>
-        ${showRepasse?'<td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td>':''}
-        <td class="ctr">${e.concluidas||0}</td>
-        <td class="ctr" style="color:var(--red)">${e.canceladas||0}</td>
-      </tr>`;
-    });
-    if(externas.length>1){
-      html+=`<tr style="background:#ede9fe;font-weight:700">
-        <td><strong>Total Externos</strong></td>
-        <td class="ctr"><strong>${sumExtAtend}</strong></td>
-        <td class="num" style="color:var(--text-lt)">—</td>
-        <td class="num" style="color:var(--text-lt)">—</td>
-        ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
-        ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>`:''}
-        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>
-        ${showRepasse?'<td class="num">—</td><td class="num">—</td>':''}
-        <td class="ctr"><strong>${sumExtConc}</strong></td>
-        <td class="ctr" style="color:var(--red)"><strong>${sumExtCanc}</strong></td>
-      </tr>`;
-    }
-  }
+
   html+='</tbody></table></div>';
-
-  // KPI cards below the table (only for massagista type)
-  if(!isMassagem){
-    const totalComExt=sumTotal+sumExtAlug;
-    const kpis=[
-      {label:'👤 Atendimentos',val:sumAtend+sumExtAtend,fmt:v=>v,color:'var(--cel)'},
-      {label:'💆 Massagens',val:sumMassagens,fmt:fmtMoeda,color:'#2d7a56'},
-      {label:'🍹 Bebidas',val:sumBebidas,fmt:fmtMoeda,color:'#a05c10'},
-      ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
-      {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
-      {label:'💰 Total Geral',val:totalComExt,fmt:fmtMoeda,color:'#2d7a56',big:true},
-      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'}]:[]),
-    ];
-    html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
-      kpis.map(k=>`<div style="background:${k.big?'var(--green-lt)':'var(--bg-card,#fff)'};border:1.5px solid ${k.color};border-radius:10px;padding:10px 16px;min-width:120px;text-align:center">
-        <div style="font-size:.78rem;color:var(--text-lt);margin-bottom:3px">${k.label}</div>
-        <div style="font-size:${k.big?'1.2rem':'1rem'};font-weight:700;color:${k.color}">${k.fmt(k.val)}</div>
-      </div>`).join('')
-    }</div>`;
-  }
-
-  // ── Payment method tables ─────────────────────────────────────────────────
-  const pagByMethod=Array.isArray(resp)?[]:(resp?.pagByMethod||[]);
-  const pagByProf=Array.isArray(resp)?[]:(resp?.pagByProf||[]);
-  if(!isMassagem&&pagByMethod.length>0){
-    const PAY_COLORS={'Pix':'#0ea5e9','Crédito':'#8b5cf6','Débito':'#06b6d4','Dinheiro':'#22c55e','Não informado':'#9ca3af'};
-    const payColor=m=>PAY_COLORS[m]||'#6b7280';
-
-    // Table 1 — overall by method
-    html+=`<div style="margin-top:24px">
-      <div style="font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-        💳 Resumo por Método de Pagamento
-      </div>
-      <div style="overflow-x:auto"><table class="dash-table">
-        <thead><tr>
-          <th>Método</th>
-          <th class="ctr">Atend.</th>
-          <th class="num">Total (R$)</th>
-          <th class="num">% do Total</th>
-        </tr></thead>
-        <tbody>
-          ${pagByMethod.map(p=>{
-            const pct=sumTotal+sumExtAlug>0?((parseFloat(p.total)/( sumTotal+sumExtAlug))*100).toFixed(1):'0';
-            return `<tr>
-              <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${payColor(p.metodo)};margin-right:6px"></span><strong>${esc(p.metodo)}</strong></td>
-              <td class="ctr">${p.qtd}</td>
-              <td class="num" style="color:${payColor(p.metodo)};font-weight:600">${fmtMoeda(p.total)}</td>
-              <td class="num" style="color:var(--text-lt)">${pct}%</td>
-            </tr>`;
-          }).join('')}
-          <tr class="total-row">
-            <td><strong>TOTAL</strong></td>
-            <td class="ctr"><strong>${pagByMethod.reduce((s,p)=>s+parseInt(p.qtd),0)}</strong></td>
-            <td class="num" style="font-weight:700;color:#2d7a56">${fmtMoeda(pagByMethod.reduce((s,p)=>s+parseFloat(p.total),0))}</td>
-            <td class="num">100%</td>
-          </tr>
-        </tbody>
-      </table></div>
-    </div>`;
-
-    // Table 2 — by massagista + method
-    if(pagByProf.length>0){
-      // group rows by prof name for merged display
-      const profGroups={};
-      pagByProf.forEach(r=>{
-        const k=r.nome_display||'—';
-        if(!profGroups[k]) profGroups[k]=[];
-        profGroups[k].push(r);
-      });
-
-      html+=`<div style="margin-top:20px">
-        <div style="font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          👤 Pagamentos por Massagista
-        </div>
-        <div style="overflow-x:auto"><table class="dash-table">
-          <thead><tr>
-            <th>Massagista</th>
-            <th>Método</th>
-            <th class="ctr">Atend.</th>
-            <th class="num">Total (R$)</th>
-          </tr></thead>
-          <tbody>
-            ${Object.entries(profGroups).map(([nome,rows],gi)=>
-              rows.map((r,ri)=>`<tr style="${gi%2===0?'background:var(--bg-card,#fff)':'background:var(--bg)'}">
-                ${ri===0?`<td rowspan="${rows.length}" style="vertical-align:middle;font-weight:700;border-right:2px solid var(--border)">${esc(nome)}</td>`:''}
-                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${payColor(r.metodo)};margin-right:5px"></span>${esc(r.metodo)}</td>
-                <td class="ctr">${r.qtd}</td>
-                <td class="num" style="color:${payColor(r.metodo)};font-weight:600">${fmtMoeda(r.total)}</td>
-              </tr>`).join('')
-            ).join('')}
-          </tbody>
-        </table></div>
-      </div>`;
-    }
-  }
-
   el.innerHTML=html;
 }
 
@@ -2716,8 +2311,7 @@ async function saveRepasse(){
 // PAINEL ADMIN
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadAdminPanel(){
-  document.getElementById('aut-admin-section').style.display='';
-  await Promise.all([loadClinicasList(), loadAdminsList(), loadGerentes(), loadAutonomasList()]);
+  await Promise.all([loadClinicasList(), loadAdminsList(), loadGerentes()]);
 }
 
 async function loadClinicasList(){
@@ -2865,8 +2459,7 @@ async function openGerenteModal(id){
     +'<div class="field"><label>'+(id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>')+'</label>'
     +'<input id="gr-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch(\'gr-senha\',\'gr-senha2\',\'gr-pwd-hint\')"/>'
     +'<div id="gr-pwd-hint" class="pwd-hint"></div></div>'
-    +'</div>'
-    +'<div id="gr-perm-wrap">'+buildPermCheckboxes(null)+'</div>',
+    +'</div>',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="saveGerente('+(id||'null')+')">'+(id?'Salvar':'Cadastrar')+'</button>');
   if(id){
@@ -2875,8 +2468,6 @@ async function openGerenteModal(id){
       document.getElementById('gr-nome').value=g.nome||'';
       document.getElementById('gr-email').value=g.email||'';
       document.getElementById('gr-clinica').value=g.clinica_id||'';
-      let perm=null;try{perm=g.permissoes?JSON.parse(g.permissoes):null}catch(e){}
-      document.getElementById('gr-perm-wrap').innerHTML=buildPermCheckboxes(perm);
     });
   }
 }
@@ -2890,8 +2481,7 @@ async function saveGerente(id){
   if(!clinica_id)return toast('Selecione a clinica do gerente','err');
   if(!id&&!senha)return toast('Senha e obrigatoria','err');
   if(senha&&senha!==senha2)return toast('As senhas nao coincidem','err');
-  const permissoes=collectPerms();
-  const body={nome,email,clinica_id:parseInt(clinica_id),ativo:1,permissoes};
+  const body={nome,email,clinica_id:parseInt(clinica_id),ativo:1};
   if(senha)body.senha=senha;
   try{
     if(id) await api('PUT','/admin/gerentes/'+id,body);
@@ -3056,520 +2646,7 @@ async function doReset(){
 })();
 // Start
 start();
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — ADMIN
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutonomasList(){
-  const el=document.getElementById('autonomas-list');
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const list=await api('GET','/admin/autonomas');
-    if(!list.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">🌸</div><div>Nenhuma autônoma cadastrada.</div></div>';return;}
-    el.innerHTML='<div class="item-grid">'+list.map(a=>`
-      <div class="item-card ${a.ativo?'':'item-inactive'}">
-        <div class="item-name">${esc(a.nome)}</div>
-        ${a.cpf?`<div class="item-detail">CPF: ${esc(a.cpf)}</div>`:''}
-        <div class="item-detail">✉ ${esc(a.email)}</div>
-        ${a.telefone?`<div class="item-detail">📱 ${esc(a.telefone)}</div>`:''}
-        <div class="item-actions">
-          <button class="btn btn-secondary btn-sm" onclick="autOpenAdminModal(${a.id})">✏ Editar</button>
-          ${a.ativo?`<button class="btn btn-sm" style="background:var(--warn);color:#fff" onclick="autToggleAtivo(${a.id},0)">⊘ Desativar</button>`
-                   :`<button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="autToggleAtivo(${a.id},1)">✓ Ativar</button>`}
-          <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="deleteAutonoma(${a.id})">🗑 Deletar</button>
-        </div>
-      </div>`).join('')+'</div>';
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function openAutAdminModal(){ autOpenAdminModal(null); }
-async function autOpenAdminModal(id){
-  const list=await api('GET','/admin/autonomas').catch(()=>[]);
-  const a=id?list.find(x=>x.id===id):null;
-  openModal(a?'Editar Autônoma':'Nova Autônoma',`
-    <div class="form-grid">
-      <div class="field"><label>Nome *</label><input id="aut-adm-nome" class="field-input" value="${esc(a?.nome||'')}"></div>
-      <div class="field"><label>CPF</label><input id="aut-adm-cpf" class="field-input" value="${esc(a?.cpf||'')}"></div>
-      <div class="field"><label>Email *</label><input id="aut-adm-email" class="field-input" type="email" value="${esc(a?.email||'')}"></div>
-      <div class="field"><label>Telefone</label><input id="aut-adm-tel" class="field-input" value="${esc(a?.telefone||'')}"></div>
-      <div class="field"><label>${a?'Nova Senha (deixe em branco para manter)':'Senha *'}</label><input id="aut-adm-senha" class="field-input" type="password" oninput="checkAutPwd()"></div>
-      <div class="field"><label>${a?'Confirmar Nova Senha':'Confirmar Senha *'}</label><input id="aut-adm-senha2" class="field-input" type="password" oninput="checkAutPwd()"></div>
-      <div id="aut-pwd-msg" style="grid-column:1/-1;font-size:.82rem;display:none"></div>
-    </div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" id="aut-adm-save-btn" onclick="saveAutAdm(${id||'null'})">Salvar</button>`);
-}
-
-function checkAutPwd(){
-  const s1=document.getElementById('aut-adm-senha').value;
-  const s2=document.getElementById('aut-adm-senha2').value;
-  const msg=document.getElementById('aut-pwd-msg');
-  const btn=document.getElementById('aut-adm-save-btn');
-  if(!s1&&!s2){msg.style.display='none';if(btn)btn.disabled=false;return;}
-  if(s2.length===0){msg.style.display='none';return;}
-  if(s1===s2){
-    msg.style.display='block';msg.style.color='var(--green)';msg.textContent='✓ Senhas conferem';
-    if(btn)btn.disabled=false;
-  } else {
-    msg.style.display='block';msg.style.color='var(--red)';msg.textContent='✗ Senhas não conferem';
-    if(btn)btn.disabled=true;
-  }
-}
-
-async function saveAutAdm(id){
-  const s1=document.getElementById('aut-adm-senha').value;
-  const s2=document.getElementById('aut-adm-senha2').value;
-  if(s1&&s1!==s2){toast('As senhas não conferem','erro');return;}
-  if(!id&&!s1){toast('Senha obrigatória para novo cadastro','erro');return;}
-  const body={
-    nome:document.getElementById('aut-adm-nome').value.trim(),
-    cpf:document.getElementById('aut-adm-cpf').value.trim(),
-    email:document.getElementById('aut-adm-email').value.trim(),
-    telefone:document.getElementById('aut-adm-tel').value.trim(),
-    senha:s1
-  };
-  try{
-    if(id) await api('PUT','/admin/autonomas/'+id,body);
-    else    await api('POST','/admin/autonomas',body);
-    closeModal(); toast('Autônoma salva!'); loadAutonomasList();
-  }catch(e){toast(e.message,'erro');}
-}
-
-async function autToggleAtivo(id,v){
-  const list=await api('GET','/admin/autonomas').catch(()=>[]);
-  const a=list.find(x=>x.id===id);
-  if(!a) return;
-  await api('PUT','/admin/autonomas/'+id,{...a,ativo:v}).catch(e=>toast(e.message,'erro'));
-  loadAutonomasList();
-}
-
-async function deleteAutonoma(id){
-  if(!confirm('Deletar esta autônoma e TODOS os seus dados? Esta ação é irreversível.')) return;
-  try{ await api('DELETE','/admin/autonomas/'+id); toast('Removida.'); loadAutonomasList(); }
-  catch(e){ toast(e.message,'erro'); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — DAILY VIEW
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutDaily(){
-  const el=document.getElementById('aut-daily-list');
-  document.getElementById('aut-date-label').textContent=fmtDate(state.autDate);
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _ap=autParam();
-    state.autReservasDia=await api('GET','/autonoma/reservas?data='+state.autDate+(_ap?'&'+_ap:''))||[];
-    renderAutDaily();
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function renderAutDaily(){
-  const el=document.getElementById('aut-daily-list');
-  const rs=state.autReservasDia||[];
-  if(!rs.length){
-    el.innerHTML='<div class="empty-day"><div class="empty-icon">📅</div><div>Nenhuma reserva para este dia.</div></div>';
-    return;
-  }
-  el.innerHTML=rs.map(r=>`
-    <div class="reserva-block" style="margin-bottom:12px;background:var(--bg-card);border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer"
-         onclick="autOpenReservaModal(${r.id})">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span style="font-weight:600;font-size:1rem">${r.hora_inicio.slice(0,5)} – ${r.hora_fim.slice(0,5)}</span>
-        <span class="status-badge status-${r.status}">${r.status}</span>
-        ${r.local_nome?`<span style="font-size:.82rem;color:var(--text-lt)">📍 ${esc(r.local_nome)}</span>`:''}
-      </div>
-      <div style="font-size:.95rem;font-weight:500">${esc(r.cliente_nome)}</div>
-      ${r.cliente_telefone?`<div style="font-size:.82rem;color:var(--text-lt)">📱 ${esc(r.cliente_telefone)}</div>`:''}
-      ${r.servico_nome?`<div style="font-size:.82rem;color:var(--accent)">💆 ${esc(r.servico_nome)} · ${fmtMoeda(r.valor_servico)}</div>`:''}
-      ${parseFloat(r.multa_valor||0)>0?`<div style="font-size:.82rem;color:var(--danger)">⚠ Multa: ${fmtMoeda(r.multa_valor)}</div>`:''}
-    </div>`).join('');
-}
-
-function autChangeDay(d){
-  const dt=new Date(state.autDate+'T12:00:00');
-  dt.setDate(dt.getDate()+d);
-  state.autDate=dt.toYMD();
-  loadAutDaily();
-}
-function autGoToday(){
-  state.autDate=new Date().toYMD();
-  loadAutDaily();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — MONTHLY VIEW
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutMonthly(){
-  const el=document.getElementById('aut-monthly-grid');
-  document.getElementById('aut-month-label').textContent=MESES[state.autMonth-1]+' '+state.autYear;
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _ap2=autParam();
-    const resumo=await api('GET',`/autonoma/resumo-mensal?mes=${state.autMonth}&ano=${state.autYear}`+(_ap2?'&'+_ap2:''))||[];
-    renderAutMonthly(resumo);
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function renderAutMonthly(resumo){
-  const el=document.getElementById('aut-monthly-grid');
-  const map={};
-  (resumo||[]).forEach(r=>{ map[r.data]={ total:parseInt(r.total), confirmadas:parseInt(r.confirmadas||0), concluidas:parseInt(r.concluidas||0), canceladas:parseInt(r.canceladas||0) }; });
-  const first=new Date(state.autYear,state.autMonth-1,1);
-  const last=new Date(state.autYear,state.autMonth,0);
-  const diasSemana=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let html='<div class="cal-grid"><div class="cal-header">'+diasSemana.map(d=>`<div class="cal-hd">${d}</div>`).join('')+'</div><div class="cal-body">';
-  for(let i=0;i<first.getDay();i++) html+='<div class="cal-cell empty"></div>';
-  for(let d=1;d<=last.getDate();d++){
-    const ds=`${state.autYear}-${String(state.autMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const info=map[ds];
-    const isToday=ds===new Date().toYMD();
-    html+=`<div class="cal-cell${isToday?' today':''}" onclick="autGoDay('${ds}')">
-      <span class="cal-day">${d}</span>
-      ${info?`<span class="cal-dot" title="${info.total} reserva(s)">${info.total}</span>`:''}
-    </div>`;
-  }
-  html+='</div></div>';
-  el.innerHTML=html;
-}
-
-function autChangeMonth(d){
-  state.autMonth+=d;
-  if(state.autMonth>12){state.autMonth=1;state.autYear++;}
-  else if(state.autMonth<1){state.autMonth=12;state.autYear--;}
-  loadAutMonthly();
-}
-function autGoDay(ds){
-  state.autDate=ds;
-  showView('aut-daily');
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — RESERVA MODAL
-// ═══════════════════════════════════════════════════════════════════════════
-async function autEnsureData(){
-  const _aap=autParam();
-  if(!(state.autLocais?.length))   state.autLocais=   (await api('GET','/autonoma/locais?todos=1'+(_aap?'&'+_aap:'')))??[];
-  if(!(state.autServicos?.length)) state.autServicos= (await api('GET','/autonoma/servicos?todos=1'+(_aap?'&'+_aap:'')))??[];
-  if(!(state.autClientes?.length)) state.autClientes= (await api('GET','/autonoma/clientes'+(_aap?'?'+_aap:'')))??[];
-}
-
-async function autOpenReservaModal(id){
-  try{ await autEnsureData(); }catch(e){ toast(e.message,'erro'); return; }
-  const r=id?state.autReservasDia.find(x=>x.id===id):null;
-  const optL=['<option value="">— Sem local —</option>',
-    ...state.autLocais.map(l=>`<option value="${l.id}"${r?.local_id===l.id?' selected':''}>${esc(l.nome)}</option>`)].join('');
-  const optS=['<option value="">— Sem serviço —</option>',
-    ...state.autServicos.map(s=>`<option value="${s.id}"${r?.servico_id===s.id?' selected':''}>${esc(s.nome)} (${s.duracao}min · ${fmtMoeda(s.preco)})</option>`)].join('');
-  const statusSel=r?`<div class="field"><label>Status</label><select id="arv-status">
-    <option value="confirmada"${r.status==='confirmada'?' selected':''}>Confirmada</option>
-    <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
-    <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
-  </select></div>`:'';
-  openModal(r?'Reserva #'+r.id:'Nova Reserva',`
-    <div class="form-grid">
-      <div class="field"><label>Data *</label><input id="arv-data" type="date" class="field-input" value="${r?.data||state.autDate}"></div>
-      <div class="field"><label>Início *</label><input id="arv-inicio" type="time" class="field-input" value="${r?.hora_inicio?.slice(0,5)||''}"></div>
-      <div class="field"><label>Fim *</label><input id="arv-fim" type="time" class="field-input" value="${r?.hora_fim?.slice(0,5)||''}"></div>
-      <div class="field"><label>Local</label><select id="arv-local" class="field-input">${optL}</select></div>
-      <div class="field"><label>Serviço</label><select id="arv-servico" class="field-input" onchange="autFillValor()">${optS}</select></div>
-      <div class="field"><label>Cliente *</label><input id="arv-cliente" class="field-input" value="${esc(r?.cliente_nome||'')}" placeholder="Nome do cliente"></div>
-      <div class="field"><label>Telefone</label><input id="arv-tel" class="field-input" value="${esc(r?.cliente_telefone||'')}"></div>
-      <div class="field"><label>Valor (R$)</label><input id="arv-valor" type="number" step="0.01" min="0" class="field-input" value="${r?.valor_servico||0}"></div>
-      <div class="field"><label>Observações</label><input id="arv-obs" class="field-input" value="${esc(r?.observacoes||'')}"></div>
-      <div class="field"><label>Pagamento</label>
-        <select id="arv-pag" class="field-input">
-          <option value="">—</option>
-          <option value="dinheiro"${r?.pagamento==='dinheiro'?' selected':''}>Dinheiro</option>
-          <option value="pix"${r?.pagamento==='pix'?' selected':''}>PIX</option>
-          <option value="credito"${r?.pagamento==='credito'?' selected':''}>Crédito</option>
-          <option value="debito"${r?.pagamento==='debito'?' selected':''}>Débito</option>
-        </select>
-      </div>
-      <div class="field">
-        <label><input type="checkbox" id="arv-multa-chk" onchange="autToggleMulta()" ${parseFloat(r?.multa_valor||0)>0?'checked':''}> Multa por tempo</label>
-        <input id="arv-multa-val" type="number" step="0.01" min="0" class="field-input" style="margin-top:6px;${parseFloat(r?.multa_valor||0)>0?'':'display:none'}" value="${r?.multa_valor||0}" placeholder="Valor da multa">
-      </div>
-      ${statusSel}
-    </div>`,
-    `${r?`<button class="btn" style="background:var(--danger);color:#fff" onclick="autDeleteReserva(${r.id})">🗑 Excluir</button>`:''}
-     <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="autSaveReserva(${id||'null'})">Salvar</button>`);
-}
-
-function autFillValor(){
-  const sid=parseInt(document.getElementById('arv-servico').value);
-  const s=state.autServicos.find(x=>x.id===sid);
-  if(s) document.getElementById('arv-valor').value=s.preco;
-}
-function autToggleMulta(){
-  const chk=document.getElementById('arv-multa-chk');
-  document.getElementById('arv-multa-val').style.display=chk.checked?'':'none';
-}
-
-async function autSaveReserva(id){
-  const multaChk=document.getElementById('arv-multa-chk').checked;
-  const body={
-    data:document.getElementById('arv-data').value,
-    hora_inicio:document.getElementById('arv-inicio').value,
-    hora_fim:document.getElementById('arv-fim').value,
-    local_id:document.getElementById('arv-local').value||null,
-    servico_id:document.getElementById('arv-servico').value||null,
-    cliente_nome:document.getElementById('arv-cliente').value.trim(),
-    cliente_telefone:document.getElementById('arv-tel').value.trim(),
-    valor_servico:parseFloat(document.getElementById('arv-valor').value||0),
-    observacoes:document.getElementById('arv-obs').value.trim(),
-    pagamento:document.getElementById('arv-pag').value||null,
-    multa_valor:multaChk?parseFloat(document.getElementById('arv-multa-val').value||0):0,
-    status:document.getElementById('arv-status')?.value||'confirmada'
-  };
-  try{
-    const _aapb=autParam();
-    if(_aapb) body.autonoma_id=parseInt(_aapb.split('=')[1]);
-    if(id) await api('PUT','/autonoma/reservas/'+id,body);
-    else    await api('POST','/autonoma/reservas',body);
-    closeModal(); toast('Reserva salva!'); loadAutDaily();
-  }catch(e){toast(e.message,'erro');}
-}
-
-async function autDeleteReserva(id){
-  if(!confirm('Excluir esta reserva?')) return;
-  try{ const _aapd=autParam(); await api('DELETE','/autonoma/reservas/'+id+(_aapd?'?'+_aapd:'')); closeModal(); toast('Excluída.'); loadAutDaily(); }
-  catch(e){ toast(e.message,'erro'); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — CLIENTES
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutClientes(){
-  const el=document.getElementById('aut-clientes-list');
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _apc=autParam(); state.autClientes=await api('GET','/autonoma/clientes'+(_apc?'?'+_apc:''))||[];
-    renderAutClientes(state.autClientes);
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function renderAutClientes(list){
-  const el=document.getElementById('aut-clientes-list');
-  if(!list.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">👥</div><div>Nenhum cliente cadastrado.</div></div>';return;}
-  el.innerHTML='<div class="item-grid">'+list.map(c=>`
-    <div class="item-card">
-      <div class="item-name">${esc(c.nome)}</div>
-      ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
-      ${c.email?`<div class="item-detail">✉ ${esc(c.email)}</div>`:''}
-      ${c.observacoes?`<div class="item-detail" style="font-style:italic">${esc(c.observacoes)}</div>`:''}
-      <div class="item-actions">
-        <button class="btn btn-secondary btn-sm" onclick="autOpenClienteModal(${c.id})">✏ Editar</button>
-        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="autDeleteCliente(${c.id})">🗑</button>
-      </div>
-    </div>`).join('')+'</div>';
-}
-
-function autFilterClientes(q){
-  const fl=state.autClientes.filter(c=>c.nome.toLowerCase().includes(q.toLowerCase())||(c.telefone||'').includes(q));
-  renderAutClientes(fl);
-}
-
-function autOpenClienteModal(id){
-  const c=id?state.autClientes.find(x=>x.id===id):null;
-  openModal(c?'Editar Cliente':'Novo Cliente',`
-    <div class="form-grid">
-      <div class="field full"><label>Nome *</label><input id="ac-nome" class="field-input" value="${esc(c?.nome||'')}"></div>
-      <div class="field"><label>Telefone</label><input id="ac-tel" class="field-input" value="${esc(c?.telefone||'')}"></div>
-      <div class="field"><label>Email</label><input id="ac-email" class="field-input" value="${esc(c?.email||'')}"></div>
-      <div class="field full"><label>Observações</label><textarea id="ac-obs" class="field-input" rows="2">${esc(c?.observacoes||'')}</textarea></div>
-    </div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="autSaveCliente(${id||'null'})">Salvar</button>`);
-}
-
-async function autSaveCliente(id){
-  const body={nome:document.getElementById('ac-nome').value.trim(),telefone:document.getElementById('ac-tel').value.trim(),email:document.getElementById('ac-email').value.trim(),observacoes:document.getElementById('ac-obs').value.trim()};
-  try{
-    const _apcs=autParam(); if(_apcs) body.autonoma_id=parseInt(_apcs.split('=')[1]);
-    if(id) await api('PUT','/autonoma/clientes/'+id,body);
-    else    await api('POST','/autonoma/clientes',body);
-    closeModal(); toast('Cliente salvo!'); loadAutClientes();
-  }catch(e){toast(e.message,'erro');}
-}
-
-async function autDeleteCliente(id){
-  if(!confirm('Excluir este cliente?')) return;
-  try{ const _apcd=autParam(); await api('DELETE','/autonoma/clientes/'+id+(_apcd?'?'+_apcd:'')); toast('Removido.'); loadAutClientes(); }
-  catch(e){ toast(e.message,'erro'); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — SERVIÇOS
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutServicos(){
-  const el=document.getElementById('aut-servicos-list');
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _aps=autParam(); state.autServicos=await api('GET','/autonoma/servicos?todos=1'+(_aps?'&'+_aps:''))||[];
-    renderAutServicos();
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function renderAutServicos(){
-  const el=document.getElementById('aut-servicos-list');
-  const list=state.autServicos||[];
-  if(!list.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">💆</div><div>Nenhum serviço cadastrado.</div></div>';return;}
-  el.innerHTML='<div class="item-grid">'+list.map(s=>`
-    <div class="item-card ${s.ativa?'':'item-inactive'}">
-      <div class="item-name">${esc(s.nome)}</div>
-      ${s.descricao?`<div class="item-detail">${esc(s.descricao)}</div>`:''}
-      <div class="item-detail">⏱ ${s.duracao} min · ${fmtMoeda(s.preco)}</div>
-      <div class="item-actions">
-        <button class="btn btn-secondary btn-sm" onclick="autOpenServicoModal(${s.id})">✏ Editar</button>
-        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="autDeleteServico(${s.id})">🗑</button>
-      </div>
-    </div>`).join('')+'</div>';
-}
-
-function autOpenServicoModal(id){
-  const s=id?state.autServicos.find(x=>x.id===id):null;
-  openModal(s?'Editar Serviço':'Novo Serviço',`
-    <div class="form-grid">
-      <div class="field full"><label>Nome *</label><input id="as-nome" class="field-input" value="${esc(s?.nome||'')}"></div>
-      <div class="field full"><label>Descrição</label><input id="as-desc" class="field-input" value="${esc(s?.descricao||'')}"></div>
-      <div class="field"><label>Duração (min) *</label><input id="as-dur" type="number" min="1" class="field-input" value="${s?.duracao||60}"></div>
-      <div class="field"><label>Preço (R$) *</label><input id="as-preco" type="number" step="0.01" min="0" class="field-input" value="${s?.preco||0}"></div>
-    </div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="autSaveServico(${id||'null'})">Salvar</button>`);
-}
-
-async function autSaveServico(id){
-  const body={nome:document.getElementById('as-nome').value.trim(),descricao:document.getElementById('as-desc').value.trim(),duracao:parseInt(document.getElementById('as-dur').value),preco:parseFloat(document.getElementById('as-preco').value),ativa:1};
-  try{
-    const _apss=autParam(); if(_apss) body.autonoma_id=parseInt(_apss.split('=')[1]);
-    if(id) await api('PUT','/autonoma/servicos/'+id,body);
-    else    await api('POST','/autonoma/servicos',body);
-    closeModal(); toast('Serviço salvo!'); loadAutServicos();
-  }catch(e){toast(e.message,'erro');}
-}
-
-async function autDeleteServico(id){
-  if(!confirm('Excluir este serviço?')) return;
-  try{ const _apsd=autParam(); await api('DELETE','/autonoma/servicos/'+id+(_apsd?'?'+_apsd:'')); toast('Removido.'); loadAutServicos(); }
-  catch(e){ toast(e.message,'erro'); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — LOCAIS
-// ═══════════════════════════════════════════════════════════════════════════
-async function loadAutLocais(){
-  const el=document.getElementById('aut-locais-list');
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _apl=autParam(); state.autLocais=await api('GET','/autonoma/locais?todos=1'+(_apl?'&'+_apl:''))||[];
-    renderAutLocais();
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
-function renderAutLocais(){
-  const el=document.getElementById('aut-locais-list');
-  const list=state.autLocais||[];
-  if(!list.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">📍</div><div>Nenhum local cadastrado.</div></div>';return;}
-  el.innerHTML='<div class="item-grid">'+list.map(l=>`
-    <div class="item-card ${l.ativo?'':'item-inactive'}">
-      <div class="item-name">${esc(l.nome)}</div>
-      ${l.endereco?`<div class="item-detail">📍 ${esc(l.endereco)}</div>`:''}
-      <div class="item-actions">
-        <button class="btn btn-secondary btn-sm" onclick="autOpenLocalModal(${l.id})">✏ Editar</button>
-        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="autDeleteLocal(${l.id})">🗑</button>
-      </div>
-    </div>`).join('')+'</div>';
-}
-
-function autOpenLocalModal(id){
-  const l=id?state.autLocais.find(x=>x.id===id):null;
-  openModal(l?'Editar Local':'Novo Local',`
-    <div class="form-grid">
-      <div class="field full"><label>Nome do local *</label><input id="al-nome" class="field-input" value="${esc(l?.nome||'')}"></div>
-      <div class="field full"><label>Endereço</label><input id="al-end" class="field-input" value="${esc(l?.endereco||'')}"></div>
-    </div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="autSaveLocal(${id||'null'})">Salvar</button>`);
-}
-
-async function autSaveLocal(id){
-  const body={nome:document.getElementById('al-nome').value.trim(),endereco:document.getElementById('al-end').value.trim(),ativo:1};
-  try{
-    const _apls=autParam(); if(_apls) body.autonoma_id=parseInt(_apls.split('=')[1]);
-    if(id) await api('PUT','/autonoma/locais/'+id,body);
-    else    await api('POST','/autonoma/locais',body);
-    closeModal(); toast('Local salvo!'); loadAutLocais();
-  }catch(e){toast(e.message,'erro');}
-}
-
-async function autDeleteLocal(id){
-  if(!confirm('Excluir este local?')) return;
-  try{ const _apld=autParam(); await api('DELETE','/autonoma/locais/'+id+(_apld?'?'+_apld:'')); toast('Removido.'); loadAutLocais(); }
-  catch(e){ toast(e.message,'erro'); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTÔNOMA — DASHBOARD / GANHOS
-// ═══════════════════════════════════════════════════════════════════════════
-function initAutDashSelectors(){
-  const now=new Date();
-  const selAno=document.getElementById('aut-dash-ano');
-  if(!selAno) return;
-  selAno.innerHTML='';
-  for(let y=now.getFullYear();y>=now.getFullYear()-3;y--){
-    const opt=document.createElement('option');
-    opt.value=y;opt.textContent=y;
-    selAno.appendChild(opt);
-  }
-  document.getElementById('aut-dash-mes').value=now.getMonth()+1;
-}
-
-async function loadAutDash(){
-  const el=document.getElementById('aut-dash-content');
-  const mes=document.getElementById('aut-dash-mes').value;
-  const ano=document.getElementById('aut-dash-ano').value;
-  if(!mes||!ano) return;
-  el.innerHTML='<div class="spinner"></div>';
-  try{
-    const _apd=autParam(); const d=await api('GET',`/autonoma/dashboard?mes=${mes}&ano=${ano}`+(_apd?'&'+_apd:''));
-    if(!d){el.innerHTML='';return;}
-    const {rows,totais}=d;
-    if(!rows.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Sem atendimentos neste período.</div></div>';return;}
-    el.innerHTML=`
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-        <div class="dash-kpi"><div class="kpi-label">Atendimentos</div><div class="kpi-val">${totais.qtd}</div></div>
-        <div class="dash-kpi"><div class="kpi-label">Serviços</div><div class="kpi-val">${fmtMoeda(totais.total_servicos)}</div></div>
-        <div class="dash-kpi" style="background:var(--green);color:#fff"><div class="kpi-label">Total</div><div class="kpi-val">${fmtMoeda(totais.total)}</div></div>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="dash-table">
-          <thead><tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Serviço</th><th>Local</th><th>Valor</th><th>Multa</th><th>Total</th><th>Pag.</th></tr></thead>
-          <tbody>${rows.map(r=>`
-            <tr>
-              <td>${r.data}</td>
-              <td>${r.hora_inicio.slice(0,5)}–${r.hora_fim.slice(0,5)}</td>
-              <td>${esc(r.cliente_nome)}</td>
-              <td>${esc(r.servico_nome||'—')}</td>
-              <td>${esc(r.local_nome||'—')}</td>
-              <td>${fmtMoeda(r.valor_servico)}</td>
-              <td>${parseFloat(r.multa_valor||0)>0?fmtMoeda(r.multa_valor):'—'}</td>
-              <td><strong>${fmtMoeda(parseFloat(r.valor_servico||0)+parseFloat(r.multa_valor||0))}</strong></td>
-              <td>${esc(r.pagamento||'—')}</td>
-            </tr>`).join('')}
-          </tbody>
-          <tfoot><tr>
-            <td colspan="5"><strong>TOTAL</strong></td>
-            <td>${fmtMoeda(totais.total_servicos)}</td>
-            <td>${fmtMoeda(totais.total_multas)}</td>
-            <td><strong>${fmtMoeda(totais.total)}</strong></td>
-            <td></td>
-          </tr></tfoot>
-        </table>
-      </div>`;
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
-}
-
 </script>
 </body>
 </html>
+                                                                                                                                                                                                                                            
