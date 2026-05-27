@@ -929,9 +929,10 @@ function initApp(){
   } else {
     document.getElementById('clinica-badge').style.display='flex';
     document.getElementById('clinica-badge').textContent='🏥 '+(auth.user.nome_clinica||auth.user.nome||auth.user.email);
-    // Gerente: acesso ao Dashboard (só Diário), sem Repasse
+    // Gerente: acesso ao Dashboard (só Diário), sem Repasse e sem Recepcionistas
     if(auth.user.role==='gerente'){
       document.getElementById('nav-repasse').style.display='none';
+      document.getElementById('nav-recepcionistas').style.display='none';
       // Restringe dashboard: oculta painéis que gerente não pode ver
       ['dash-mm','dash-mt','dash-rc','dash-pg'].forEach(id=>{
         const btn=document.getElementById('dmbtn-'+id);
