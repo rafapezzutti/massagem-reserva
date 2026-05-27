@@ -2319,6 +2319,81 @@ function renderDashTable(resp,containerId,type){
     }</div>`;
   }
 
+  // ── Payment method tables ─────────────────────────────────────────────────
+  const pagByMethod=Array.isArray(resp)?[]:(resp?.pagByMethod||[]);
+  const pagByProf=Array.isArray(resp)?[]:(resp?.pagByProf||[]);
+  if(!isMassagem&&pagByMethod.length>0){
+    const PAY_COLORS={'Pix':'#0ea5e9','Crédito':'#8b5cf6','Débito':'#06b6d4','Dinheiro':'#22c55e','Não informado':'#9ca3af'};
+    const payColor=m=>PAY_COLORS[m]||'#6b7280';
+
+    // Table 1 — overall by method
+    html+=`<div style="margin-top:24px">
+      <div style="font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        💳 Resumo por Método de Pagamento
+      </div>
+      <div style="overflow-x:auto"><table class="dash-table">
+        <thead><tr>
+          <th>Método</th>
+          <th class="ctr">Atend.</th>
+          <th class="num">Total (R$)</th>
+          <th class="num">% do Total</th>
+        </tr></thead>
+        <tbody>
+          ${pagByMethod.map(p=>{
+            const pct=sumTotal+sumExtAlug>0?((parseFloat(p.total)/( sumTotal+sumExtAlug))*100).toFixed(1):'0';
+            return `<tr>
+              <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${payColor(p.metodo)};margin-right:6px"></span><strong>${esc(p.metodo)}</strong></td>
+              <td class="ctr">${p.qtd}</td>
+              <td class="num" style="color:${payColor(p.metodo)};font-weight:600">${fmtMoeda(p.total)}</td>
+              <td class="num" style="color:var(--text-lt)">${pct}%</td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td class="ctr"><strong>${pagByMethod.reduce((s,p)=>s+parseInt(p.qtd),0)}</strong></td>
+            <td class="num" style="font-weight:700;color:#2d7a56">${fmtMoeda(pagByMethod.reduce((s,p)=>s+parseFloat(p.total),0))}</td>
+            <td class="num">100%</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </div>`;
+
+    // Table 2 — by massagista + method
+    if(pagByProf.length>0){
+      // group rows by prof name for merged display
+      const profGroups={};
+      pagByProf.forEach(r=>{
+        const k=r.nome_display||'—';
+        if(!profGroups[k]) profGroups[k]=[];
+        profGroups[k].push(r);
+      });
+
+      html+=`<div style="margin-top:20px">
+        <div style="font-weight:700;font-size:.95rem;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          👤 Pagamentos por Massagista
+        </div>
+        <div style="overflow-x:auto"><table class="dash-table">
+          <thead><tr>
+            <th>Massagista</th>
+            <th>Método</th>
+            <th class="ctr">Atend.</th>
+            <th class="num">Total (R$)</th>
+          </tr></thead>
+          <tbody>
+            ${Object.entries(profGroups).map(([nome,rows],gi)=>
+              rows.map((r,ri)=>`<tr style="${gi%2===0?'background:var(--bg-card,#fff)':'background:var(--bg)'}">
+                ${ri===0?`<td rowspan="${rows.length}" style="vertical-align:middle;font-weight:700;border-right:2px solid var(--border)">${esc(nome)}</td>`:''}
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${payColor(r.metodo)};margin-right:5px"></span>${esc(r.metodo)}</td>
+                <td class="ctr">${r.qtd}</td>
+                <td class="num" style="color:${payColor(r.metodo)};font-weight:600">${fmtMoeda(r.total)}</td>
+              </tr>`).join('')
+            ).join('')}
+          </tbody>
+        </table></div>
+      </div>`;
+    }
+  }
+
   el.innerHTML=html;
 }
 

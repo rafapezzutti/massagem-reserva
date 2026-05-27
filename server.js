@@ -936,7 +936,33 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
       GROUP BY r.profissional_externo
       ORDER BY total_alugueis DESC
     `, [cid, inicio, fim]);
-    return { rows, externas };
+    const pagByMethod = await q(`
+      SELECT
+        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
+          COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+        ELSE 0 END), 0) AS total
+      FROM reservas r
+      LEFT JOIN massagens m ON m.id = r.massagem_id
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada'
+      GROUP BY metodo ORDER BY total DESC
+    `, [cid, inicio, fim]);
+    const pagByProf = await q(`
+      SELECT
+        COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
+        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        COUNT(*) AS qtd,
+        COALESCE(SUM(COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+      FROM reservas r
+      LEFT JOIN profissionais p ON p.id = r.profissional_id
+      LEFT JOIN massagens m ON m.id = r.massagem_id
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.status != 'cancelada' AND r.data >= $2 AND r.data < $3
+      GROUP BY nome_display, metodo ORDER BY nome_display, total DESC
+    `, [cid, inicio, fim]);
+    return { rows, externas, pagByMethod, pagByProf };
   }));
 
 app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
@@ -982,7 +1008,33 @@ app.get('/api/dashboard/massagista-diario', requireDashboard, (req, res) =>
       GROUP BY r.profissional_externo
       ORDER BY total_alugueis DESC
     `, [cid, data]);
-    return { rows, externas };
+    const pagByMethod = await q(`
+      SELECT
+        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
+          COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+        ELSE 0 END), 0) AS total
+      FROM reservas r
+      LEFT JOIN massagens m ON m.id = r.massagem_id
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.data = $2 AND r.status != 'cancelada'
+      GROUP BY metodo ORDER BY total DESC
+    `, [cid, data]);
+    const pagByProf = await q(`
+      SELECT
+        COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
+        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        COUNT(*) AS qtd,
+        COALESCE(SUM(COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+      FROM reservas r
+      LEFT JOIN profissionais p ON p.id = r.profissional_id
+      LEFT JOIN massagens m ON m.id = r.massagem_id
+      LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      WHERE r.clinica_id=$1 AND r.status != 'cancelada' AND r.data = $2
+      GROUP BY nome_display, metodo ORDER BY nome_display, total DESC
+    `, [cid, data]);
+    return { rows, externas, pagByMethod, pagByProf };
   }));
 
 app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
