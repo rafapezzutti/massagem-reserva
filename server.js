@@ -276,6 +276,9 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS profissional_externo TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ALTER COLUMN profissional_id DROP NOT NULL`).catch(()=>{});
 
+  // 3m. Permissões granulares por gerente (JSON)
+  await pool.query(`ALTER TABLE gerentes ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT NULL`).catch(()=>{});
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -321,7 +324,17 @@ function requireDashboard(req, res, next) {
     next();
   });
 }
-// Permite gerentes apenas nos painéis diários (massagista e massagem)
+// Verifica permissão de gerente (key = chave de permissão)
+function gerenteCan(user, key) {
+  if (user.role !== 'gerente') return true;
+  const perm = user.permissoes;
+  if (!perm) {
+    // comportamento legado: apenas diários de massagista/massagem
+    return ['dash_dm','dash_dt'].includes(key);
+  }
+  return !!perm[key];
+}
+// Permite gerentes com permissão adequada no dashboard
 function requireDashDiario(req, res, next) {
   requireAuth(req, res, () => {
     const allowed = ['admin','clinica','gerente'];
@@ -398,11 +411,13 @@ app.post('/api/auth/login', async (req, res) => {
     if (gerente && await bcrypt.compare(senha, gerente.senha_hash)) {
       const token = jwt.sign(
         { id: gerente.id, email: gerente.email, role: 'gerente',
-          clinica_id: gerente.clinica_id, nome: gerente.nome },
+          clinica_id: gerente.clinica_id, nome: gerente.nome,
+          permissoes: gerente.permissoes ? JSON.parse(gerente.permissoes) : null },
         JWT_SECRET, { expiresIn: '10h' }
       );
       return res.json({ ok: true, data: { token,
-        user: { role: 'gerente', nome: gerente.nome, email: gerente.email, clinica_id: gerente.clinica_id } } });
+        user: { role: 'gerente', nome: gerente.nome, email: gerente.email, clinica_id: gerente.clinica_id,
+          permissoes: gerente.permissoes ? JSON.parse(gerente.permissoes) : null } } });
     }
 
     const autonoma = await qOne('SELECT * FROM autonomas WHERE email=$1 AND ativo=1', [em]);
@@ -522,40 +537,42 @@ app.get('/api/clinica/info', requireAuth, (req, res) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/admin/gerentes', requireAdmin, (req, res) =>
   send(res, () => q(`
-    SELECT g.id, g.nome, g.email, g.ativo, g.criado_em, g.clinica_id, c.nome AS clinica_nome
+    SELECT g.id, g.nome, g.email, g.ativo, g.criado_em, g.clinica_id, g.permissoes, c.nome AS clinica_nome
     FROM gerentes g LEFT JOIN clinicas c ON g.clinica_id=c.id
     ORDER BY g.nome
   `)));
 
 app.post('/api/admin/gerentes', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, clinica_id } = req.body;
+    const { nome, email, senha, clinica_id, permissoes } = req.body;
     if (!nome || !email || !senha) throw new Error('Nome, email e senha sao obrigatorios');
     if (!clinica_id) throw new Error('Selecione a clinica do gerente');
     const hash = await bcrypt.hash(senha, 10);
+    const permJson = permissoes ? JSON.stringify(permissoes) : null;
     return qOne(
-      'INSERT INTO gerentes (nome,email,senha_hash,clinica_id) VALUES ($1,$2,$3,$4) RETURNING id,nome,email,ativo,clinica_id,criado_em',
-      [nome.trim(), email.toLowerCase().trim(), hash, clinica_id]
+      'INSERT INTO gerentes (nome,email,senha_hash,clinica_id,permissoes) VALUES ($1,$2,$3,$4,$5) RETURNING id,nome,email,ativo,clinica_id,criado_em,permissoes',
+      [nome.trim(), email.toLowerCase().trim(), hash, clinica_id, permJson]
     );
   }));
 
 app.put('/api/admin/gerentes/:id', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, clinica_id, ativo } = req.body;
+    const { nome, email, senha, clinica_id, ativo, permissoes } = req.body;
     if (!nome || !email) throw new Error('Nome e email sao obrigatorios');
+    const permJson = permissoes !== undefined ? JSON.stringify(permissoes) : undefined;
     if (senha) {
       const hash = await bcrypt.hash(senha, 10);
       await qRun(
-        'UPDATE gerentes SET nome=$1,email=$2,senha_hash=$3,clinica_id=$4,ativo=$5 WHERE id=$6',
-        [nome.trim(), email.toLowerCase().trim(), hash, clinica_id, ativo??1, req.params.id]
+        'UPDATE gerentes SET nome=$1,email=$2,senha_hash=$3,clinica_id=$4,ativo=$5,permissoes=$6 WHERE id=$7',
+        [nome.trim(), email.toLowerCase().trim(), hash, clinica_id, ativo??1, permJson??null, req.params.id]
       );
     } else {
       await qRun(
-        'UPDATE gerentes SET nome=$1,email=$2,clinica_id=$3,ativo=$4 WHERE id=$5',
-        [nome.trim(), email.toLowerCase().trim(), clinica_id, ativo??1, req.params.id]
+        'UPDATE gerentes SET nome=$1,email=$2,clinica_id=$3,ativo=$4,permissoes=$5 WHERE id=$6',
+        [nome.trim(), email.toLowerCase().trim(), clinica_id, ativo??1, permJson??null, req.params.id]
       );
     }
-    return qOne('SELECT id,nome,email,ativo,clinica_id,criado_em FROM gerentes WHERE id=$1', [req.params.id]);
+    return qOne('SELECT id,nome,email,ativo,clinica_id,criado_em,permissoes FROM gerentes WHERE id=$1', [req.params.id]);
   }));
 
 app.delete('/api/admin/gerentes/:id', requireAdmin, (req, res) =>
@@ -976,6 +993,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
 
 app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
   send(res, async () => {
+    if (!gerenteCan(req.user,'dash_dm')) throw new Error('Acesso negado');
     const cid = getClinicaId(req);
     const { data } = req.query;
     if (!data) throw new Error('Data é obrigatória');
@@ -1076,6 +1094,7 @@ app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
 
 app.get('/api/dashboard/massagem-diario', requireDashDiario, (req, res) =>
   send(res, async () => {
+    if (!gerenteCan(req.user,'dash_dt')) throw new Error('Acesso negado');
     const cid = getClinicaId(req);
     const { data } = req.query;
     if (!data) throw new Error('Data é obrigatória');

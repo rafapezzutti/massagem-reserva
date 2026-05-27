@@ -902,6 +902,65 @@ async function start(){
   if(valid) initApp();
 }
 
+const GERENTE_PERMS=[
+  {key:'daily',label:'📅 Hoje',group:'op'},{key:'monthly',label:'📆 Mês',group:'op'},
+  {key:'quartos',label:'🛏 Quartos',group:'op'},{key:'profissionais',label:'👤 Profissionais',group:'op'},
+  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},
+  {key:'recepcionistas',label:'🗂 Recepcionistas',group:'op'},{key:'repasse',label:'💸 Repasse',group:'op'},
+  {key:'dash_dm',label:'👤 Diário Massagista',group:'dash'},{key:'dash_mm',label:'👤 Mensal Massagista',group:'dash'},
+  {key:'dash_dt',label:'💆 Diário Massagem',group:'dash'},{key:'dash_mt',label:'💆 Mensal Massagem',group:'dash'},
+  {key:'dash_rc',label:'🗂 Recepcionistas (dash)',group:'dash'},{key:'dash_pg',label:'💳 Pagamentos',group:'dash'},
+];
+const GERENTE_PERM_DEFAULT={
+  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,
+  recepcionistas:false,repasse:false,
+  dash_dm:true,dash_mm:false,dash_dt:true,dash_mt:false,dash_rc:false,dash_pg:false
+};
+function applyGerentePermissoes(permissoes){
+  const p=permissoes||GERENTE_PERM_DEFAULT;
+  const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
+    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',
+    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse'};
+  Object.entries(navMap).forEach(([key,nid])=>{
+    const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
+  });
+  const hasDash=Object.keys(p).some(k=>k.startsWith('dash_')&&p[k]);
+  const navDash=document.getElementById('nav-dashboard');
+  if(navDash)navDash.style.display=hasDash?'':'none';
+  const dashMap={dash_dm:'dmbtn-dash-dm',dash_mm:'dmbtn-dash-mm',
+    dash_dt:'dmbtn-dash-dt',dash_mt:'dmbtn-dash-mt',
+    dash_rc:'dmbtn-dash-rc',dash_pg:'dmbtn-dash-pg'};
+  Object.entries(dashMap).forEach(([key,nid])=>{
+    const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
+  });
+  const dashOrder=['dash_dm','dash_mm','dash_dt','dash_mt','dash_rc','dash_pg'];
+  const firstDash=dashOrder.find(k=>p[k]);
+  if(firstDash)showDashPanel(firstDash.replace('_','-'));
+}
+function buildPermCheckboxes(perm){
+  const p=perm||GERENTE_PERM_DEFAULT;
+  const opP=GERENTE_PERMS.filter(x=>x.group==='op');
+  const dshP=GERENTE_PERMS.filter(x=>x.group==='dash');
+  function chk(item){
+    return '<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:.84rem">'
+      +'<input type="checkbox" id="perm-'+item.key+'" '+(p[item.key]?'checked':'')+' style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer"/>'+item.label+'</label>';
+  }
+  return '<div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+    +'<div style="background:var(--cel-lt);padding:8px 14px;font-weight:700;font-size:.85rem;border-bottom:1px solid var(--border)">🔐 Permissões de Acesso</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr">'
+    +'<div style="padding:10px 12px;border-right:1px solid var(--border)">'
+    +'<div style="font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Operacional</div>'
+    +opP.map(chk).join('')+'</div>'
+    +'<div style="padding:10px 12px">'
+    +'<div style="font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Dashboard</div>'
+    +dshP.map(chk).join('')+'</div></div>'
+    +'<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px">'
+    +'<button type="button" class="btn btn-secondary btn-sm" onclick="setAllPerms(true)">✅ Marcar Tudo</button>'
+    +'<button type="button" class="btn btn-secondary btn-sm" onclick="setAllPerms(false)">⬜ Desmarcar Tudo</button>'
+    +'</div></div>';
+}
+function setAllPerms(v){GERENTE_PERMS.forEach(p=>{const el=document.getElementById('perm-'+p.key);if(el)el.checked=v;});}
+function collectPerms(){const p={};GERENTE_PERMS.forEach(x=>{const el=document.getElementById('perm-'+x.key);if(el)p[x.key]=el.checked;});return p;}
 function initApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -929,15 +988,9 @@ function initApp(){
   } else {
     document.getElementById('clinica-badge').style.display='flex';
     document.getElementById('clinica-badge').textContent='🏥 '+(auth.user.nome_clinica||auth.user.nome||auth.user.email);
-    // Gerente: acesso ao Dashboard (só Diário), sem Repasse e sem Recepcionistas
+    // Gerente: aplica permissoes dinâmicas
     if(auth.user.role==='gerente'){
-      document.getElementById('nav-repasse').style.display='none';
-      document.getElementById('nav-recepcionistas').style.display='none';
-      // Restringe dashboard: oculta painéis que gerente não pode ver
-      ['dash-mm','dash-mt','dash-rc','dash-pg'].forEach(id=>{
-        const btn=document.getElementById('dmbtn-'+id);
-        if(btn) btn.style.display='none';
-      });
+      applyGerentePermissoes(auth.user.permissoes);
     }
   }
 
@@ -2159,11 +2212,6 @@ function initDashboard(){
   const ym=t.getFullYear();
   const mm=t.getMonth()+1;
   const today=new Date().toYMD();
-  // Gerente só acessa painéis diários — mostrar dash-dm como padrão
-  if(auth.user?.role==='gerente'){
-    showDashPanel('dash-dm');
-  }
-
   ['mm','mt','rc','pg'].forEach(pre=>{
     const selM=document.getElementById(`dash-${pre}-mes`);
     const selA=document.getElementById(`dash-${pre}-ano`);
@@ -2817,7 +2865,8 @@ async function openGerenteModal(id){
     +'<div class="field"><label>'+(id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>')+'</label>'
     +'<input id="gr-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch(\'gr-senha\',\'gr-senha2\',\'gr-pwd-hint\')"/>'
     +'<div id="gr-pwd-hint" class="pwd-hint"></div></div>'
-    +'</div>',
+    +'</div>'
+    +'<div id="gr-perm-wrap">'+buildPermCheckboxes(null)+'</div>',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="saveGerente('+(id||'null')+')">'+(id?'Salvar':'Cadastrar')+'</button>');
   if(id){
@@ -2826,6 +2875,8 @@ async function openGerenteModal(id){
       document.getElementById('gr-nome').value=g.nome||'';
       document.getElementById('gr-email').value=g.email||'';
       document.getElementById('gr-clinica').value=g.clinica_id||'';
+      let perm=null;try{perm=g.permissoes?JSON.parse(g.permissoes):null}catch(e){}
+      document.getElementById('gr-perm-wrap').innerHTML=buildPermCheckboxes(perm);
     });
   }
 }
@@ -2839,7 +2890,8 @@ async function saveGerente(id){
   if(!clinica_id)return toast('Selecione a clinica do gerente','err');
   if(!id&&!senha)return toast('Senha e obrigatoria','err');
   if(senha&&senha!==senha2)return toast('As senhas nao coincidem','err');
-  const body={nome,email,clinica_id:parseInt(clinica_id),ativo:1};
+  const permissoes=collectPerms();
+  const body={nome,email,clinica_id:parseInt(clinica_id),ativo:1,permissoes};
   if(senha)body.senha=senha;
   try{
     if(id) await api('PUT','/admin/gerentes/'+id,body);
