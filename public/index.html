@@ -3223,21 +3223,27 @@ function renderAutMonthly(resumo){
   const el=document.getElementById('aut-monthly-grid');
   const map={};
   (resumo||[]).forEach(r=>{ map[r.data]={ total:parseInt(r.total), confirmadas:parseInt(r.confirmadas||0), concluidas:parseInt(r.concluidas||0), canceladas:parseInt(r.canceladas||0) }; });
+  const today=new Date().toYMD();
   const first=new Date(state.autYear,state.autMonth-1,1);
   const last=new Date(state.autYear,state.autMonth,0);
-  const diasSemana=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let html='<div class="cal-grid"><div class="cal-header">'+diasSemana.map(d=>`<div class="cal-hd">${d}</div>`).join('')+'</div><div class="cal-body">';
-  for(let i=0;i<first.getDay();i++) html+='<div class="cal-cell empty"></div>';
-  for(let d=1;d<=last.getDate();d++){
-    const ds=`${state.autYear}-${String(state.autMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const DIAS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const totalCells=Math.ceil((last.getDate()+first.getDay())/7)*7;
+  let html='<div class="calendar-grid">';
+  DIAS.forEach(d=>html+=`<div class="cal-weekday">${d}</div>`);
+  for(let i=0;i<totalCells;i++){
+    const col=i-first.getDay()+1;
+    if(col<1||col>last.getDate()){html+=`<div class="cal-day other-month"></div>`;continue;}
+    const ds=`${state.autYear}-${String(state.autMonth).padStart(2,'0')}-${String(col).padStart(2,'0')}`;
     const info=map[ds];
-    const isToday=ds===new Date().toYMD();
-    html+=`<div class="cal-cell${isToday?' today':''}" onclick="autGoDay('${ds}')">
-      <span class="cal-day">${d}</span>
-      ${info?`<span class="cal-dot" title="${info.total} reserva(s)">${info.total}</span>`:''}
-    </div>`;
+    const isToday=ds===today;
+    const total=info?(parseInt(info.confirmadas||0)+parseInt(info.concluidas||0)):0;
+    html+=`<div class="cal-day${isToday?' today':''}" onclick="autGoDay('${ds}')">
+      <div class="day-num">${col}</div>
+      ${total>0?`<span class="day-badge has-res">${total} reserva${total>1?'s':''}</span>`:
+        (info&&parseInt(info.canceladas||0)>0?`<span class="day-badge">${info.canceladas} cancel.</span>`:'')}` +
+    `</div>`;
   }
-  html+='</div></div>';
+  html+='</div>';
   el.innerHTML=html;
 }
 
