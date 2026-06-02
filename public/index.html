@@ -2541,7 +2541,7 @@ function normalizaNome(s){
   // Remove acentos (NFD + remove combining diacritical marks U+0300-U+036F)
   return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
 }
-function pesoMassagem(nome, tipo){
+function pesoBaseMassagem(nome, tipo){
   if(tipo==='aluguel') return 0;
   const n=normalizaNome(nome);
   // Ordem importa: 2x → 1x → 0x → default 1
@@ -2550,6 +2550,11 @@ function pesoMassagem(nome, tipo){
   if(MASSAGENS_UM.some(x=>n.includes(x)))    return 1;
   if(MASSAGENS_ZERO.some(x=>n.includes(x)))  return 0;
   return 1;
+}
+function pesoMassagem(nome, tipo, duracaoMin){
+  const base=pesoBaseMassagem(nome,tipo);
+  // Massagens de peso 1 pelo nome → sobem para 2 quando agendadas com 2h
+  return (base===1 && (duracaoMin||0)>=120) ? 2 : base;
 }
 function calcComissao(pontos){
   if(pontos>=200) return 900;
@@ -2569,11 +2574,15 @@ function renderDashRecepcionista(data,containerId){
     const tiposMap={};
     (rc.detalhes_massagens||[]).forEach(d=>{
       if(d.status==='cancelada')return;
-      const p=pesoMassagem(d.massagem, d.tipo);
+      const duracaoMin=d.duracao_min||0;
+      const p=pesoMassagem(d.massagem, d.tipo, duracaoMin);
       pontos+=p;
-      tiposMap[d.massagem]=(tiposMap[d.massagem]||{count:0,pontos:0,tipo:d.tipo});
-      tiposMap[d.massagem].count++;
-      tiposMap[d.massagem].pontos+=p;
+      // Massagens de 2h que sobem de peso ganham rótulo próprio na tabela
+      const isDuracaoDouble=pesoBaseMassagem(d.massagem,d.tipo)===1 && duracaoMin>=120;
+      const mapKey=isDuracaoDouble ? d.massagem+' (2h)' : d.massagem;
+      tiposMap[mapKey]=(tiposMap[mapKey]||{count:0,pontos:0,tipo:d.tipo,pesoUnit:p});
+      tiposMap[mapKey].count++;
+      tiposMap[mapKey].pontos+=p;
     });
     const comissao=calcComissao(pontos);
     html+=`<div class="card" style="margin-bottom:20px">
@@ -2598,11 +2607,11 @@ function renderDashRecepcionista(data,containerId){
         </div>
         <div style="font-size:.82rem;color:var(--text-lt);margin-bottom:8px">
           <strong>Faixas:</strong> 50pts=R$300 · 100pts=R$500 · 150pts=R$700 · 200pts=R$900<br>
-          <strong>Pesos:</strong> ✕2 Vivência, Ofurô, Ofurô Premium, Externos · ✕1 Nuru (e Nuru c/ Próstata), Fetiche, Secreta, Inversão · ✕0 Relaxante, Tântrica, Sensual, Próstatica, Aluguéis/Locações
+          <strong>Pesos:</strong> ✕2 Vivência, Ofurô, Ofurô Premium, Externos · ✕2 Qualquer massagem agendada em 2h · ✕1 Nuru (e Nuru c/ Próstata), Fetiche, Secreta, Inversão · ✕0 Relaxante, Tântrica, Sensual, Próstatica, Aluguéis/Locações
         </div>
         ${Object.keys(tiposMap).length?`<table class="dash-table"><thead><tr><th>Tipo</th><th class="ctr">Qtd</th><th class="ctr">Peso</th><th class="ctr">Pontos</th></tr></thead><tbody>`+
           Object.entries(tiposMap).sort((a,b)=>b[1].pontos-a[1].pontos).map(([nome,v])=>{
-            const peso=pesoMassagem(nome, v.tipo);
+            const peso=v.pesoUnit;
             const badge=peso===2?' <span style="color:var(--green);font-size:.75rem">✕2</span>':(peso===0?' <span style="color:var(--text-lt);font-size:.75rem">não pontua</span>':'');
             return `<tr><td>${esc(nome)}${badge}</td><td class="ctr">${v.count}</td><td class="ctr">${peso}</td><td class="ctr"><strong>${v.pontos}</strong></td></tr>`;
           }).join('')+'</tbody></table>':'<div class="dash-empty">Nenhum registro.</div>'}
