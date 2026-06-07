@@ -19,6 +19,16 @@ const q    = (sql, p = []) => pool.query(sql, p).then(r => r.rows);
 const qOne = (sql, p = []) => pool.query(sql, p).then(r => r.rows[0] || null);
 const qRun = (sql, p = []) => pool.query(sql, p);
 
+// Eventos de login (painel de atividade no Master) — autocria + helper
+qRun(`CREATE TABLE IF NOT EXISTS login_events (
+  id BIGSERIAL PRIMARY KEY, user_id INTEGER, user_name TEXT, user_role TEXT, ip TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)`).catch(() => {});
+qRun('CREATE INDEX IF NOT EXISTS idx_login_events_created ON login_events(created_at DESC)').catch(() => {});
+const logLogin = (req, id, nome, role) =>
+  qRun('INSERT INTO login_events (user_id, user_name, user_role, ip) VALUES ($1,$2,$3,$4)',
+    [id, nome, role, (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip]).catch(() => {});
+
 // ─── Inicialização do banco ───────────────────────────────────────────────────
 async function initDB() {
   // 1. Tabelas de autenticação
@@ -393,6 +403,7 @@ app.post('/api/auth/login', async (req, res) => {
         { id: admin.id, email: admin.email, role: 'admin', nome: admin.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
+      logLogin(req, admin.id, admin.nome, 'admin');
       return res.json({ ok: true, data: { token, user: { role: 'admin', nome: admin.nome, email: admin.email } } });
     }
 
@@ -403,6 +414,7 @@ app.post('/api/auth/login', async (req, res) => {
           clinica_id: clinica.id, nome_clinica: clinica.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
+      logLogin(req, clinica.id, clinica.nome, 'clinica');
       return res.json({ ok: true, data: { token,
         user: { role: 'clinica', nome_clinica: clinica.nome, email: clinica.email,
           clinica_id: clinica.id } } });
@@ -416,6 +428,7 @@ app.post('/api/auth/login', async (req, res) => {
           permissoes: gerente.permissoes ? JSON.parse(gerente.permissoes) : null },
         JWT_SECRET, { expiresIn: '10h' }
       );
+      logLogin(req, gerente.id, gerente.nome, 'gerente');
       return res.json({ ok: true, data: { token,
         user: { role: 'gerente', nome: gerente.nome, email: gerente.email, clinica_id: gerente.clinica_id,
           permissoes: gerente.permissoes ? JSON.parse(gerente.permissoes) : null } } });
@@ -428,6 +441,7 @@ app.post('/api/auth/login', async (req, res) => {
           autonoma_id: autonoma.id, nome: autonoma.nome },
         JWT_SECRET, { expiresIn: '10h' }
       );
+      logLogin(req, autonoma.id, autonoma.nome, 'autonoma');
       return res.json({ ok: true, data: { token,
         user: { role: 'autonoma', nome: autonoma.nome, email: autonoma.email, autonoma_id: autonoma.id } } });
     }
