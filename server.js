@@ -289,6 +289,57 @@ async function initDB() {
   // 3m. Permissões granulares por gerente (JSON)
   await pool.query(`ALTER TABLE gerentes ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT NULL`).catch(()=>{});
 
+  // 3n. Despesas operacionais
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS despesas (
+      id              SERIAL PRIMARY KEY,
+      clinica_id      INTEGER NOT NULL REFERENCES clinicas(id),
+      tipo            VARCHAR(50)  NOT NULL DEFAULT 'outro',
+      subtipo         VARCHAR(50),
+      descricao       VARCHAR(200),
+      nome_custom     VARCHAR(100),
+      valor           NUMERIC(10,2) NOT NULL DEFAULT 0,
+      recorrente      INTEGER NOT NULL DEFAULT 0,
+      dia_vencimento  INTEGER,
+      data_vencimento DATE,
+      data_pagamento  DATE,
+      status          VARCHAR(20)  NOT NULL DEFAULT 'pendente',
+      observacao      TEXT,
+      criado_em       TIMESTAMP DEFAULT NOW()
+    )
+  `).catch(()=>{});
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_despesas_clinica ON despesas(clinica_id)').catch(()=>{});
+
+  // 3o. Estoque
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS estoque (
+      id              SERIAL PRIMARY KEY,
+      clinica_id      INTEGER NOT NULL REFERENCES clinicas(id),
+      nome            VARCHAR(200) NOT NULL,
+      unidade         VARCHAR(50)  DEFAULT 'un',
+      quantidade      NUMERIC(10,3) NOT NULL DEFAULT 0,
+      custo_unitario  NUMERIC(10,2) NOT NULL DEFAULT 0,
+      estoque_minimo  NUMERIC(10,3) DEFAULT 0,
+      ativo           INTEGER NOT NULL DEFAULT 1,
+      criado_em       TIMESTAMP DEFAULT NOW()
+    )
+  `).catch(()=>{});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS estoque_movimentacoes (
+      id              SERIAL PRIMARY KEY,
+      estoque_id      INTEGER NOT NULL REFERENCES estoque(id),
+      clinica_id      INTEGER NOT NULL,
+      tipo            VARCHAR(10) NOT NULL,
+      quantidade      NUMERIC(10,3) NOT NULL,
+      custo_unitario  NUMERIC(10,2),
+      custo_total     NUMERIC(10,2),
+      data            DATE NOT NULL DEFAULT CURRENT_DATE,
+      observacao      TEXT,
+      criado_em       TIMESTAMP DEFAULT NOW()
+    )
+  `).catch(()=>{});
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_estoque_clinica ON estoque(clinica_id)').catch(()=>{});
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -1631,6 +1682,214 @@ app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
     const total_servicos = rows.reduce((s,r) => s + parseFloat(r.valor_servico||0), 0);
     const total_multas   = rows.reduce((s,r) => s + parseFloat(r.multa_valor||0), 0);
     return { rows, totais: { total_servicos, total_multas, total: total_servicos+total_multas, qtd: rows.length } };
+  }));
+
+
+// ─── Despesas ─────────────────────────────────────────────────────────────────
+app.get('/api/despesas', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { mes, ano, status } = req.query;
+    let q2 = 'SELECT * FROM despesas WHERE clinica_id=$1';
+    const p = [cid];
+    if (mes && ano) {
+      q2 += ` AND (EXTRACT(MONTH FROM data_vencimento)=$${p.length+1} AND EXTRACT(YEAR FROM data_vencimento)=$${p.length+2})`;
+      p.push(parseInt(mes), parseInt(ano));
+    }
+    if (status) { q2 += ` AND status=$${p.length+1}`; p.push(status); }
+    q2 += ' ORDER BY data_vencimento NULLS LAST, id';
+    return pool.query(q2, p).then(r => r.rows);
+  }));
+
+app.post('/api/despesas', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { tipo, subtipo, descricao, nome_custom, valor, recorrente,
+            dia_vencimento, data_vencimento, data_pagamento, status, observacao } = req.body;
+    if (!tipo || valor === undefined) throw new Error('Tipo e valor são obrigatórios');
+    const r = await pool.query(
+      `INSERT INTO despesas (clinica_id,tipo,subtipo,descricao,nome_custom,valor,recorrente,
+       dia_vencimento,data_vencimento,data_pagamento,status,observacao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [cid, tipo, subtipo||null, descricao||null, nome_custom||null, parseFloat(valor)||0,
+       recorrente?1:0, dia_vencimento||null, data_vencimento||null,
+       data_pagamento||null, status||'pendente', observacao||null]
+    );
+    return r.rows[0];
+  }));
+
+app.put('/api/despesas/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { tipo, subtipo, descricao, nome_custom, valor, recorrente,
+            dia_vencimento, data_vencimento, data_pagamento, status, observacao } = req.body;
+    await pool.query(
+      `UPDATE despesas SET tipo=$1,subtipo=$2,descricao=$3,nome_custom=$4,valor=$5,recorrente=$6,
+       dia_vencimento=$7,data_vencimento=$8,data_pagamento=$9,status=$10,observacao=$11
+       WHERE id=$12 AND clinica_id=$13`,
+      [tipo, subtipo||null, descricao||null, nome_custom||null, parseFloat(valor)||0,
+       recorrente?1:0, dia_vencimento||null, data_vencimento||null,
+       data_pagamento||null, status||'pendente', observacao||null,
+       req.params.id, cid]
+    );
+    return pool.query('SELECT * FROM despesas WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  }));
+
+app.delete('/api/despesas/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await pool.query('DELETE FROM despesas WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { ok: true };
+  }));
+
+// Fluxo de Caixa — dia a dia para N dias
+app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const dias = Math.min(parseInt(req.query.dias) || 30, 365);
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    const fimDate = new Date(hoje.getTime() + dias * 86400000);
+    const inicio = hoje.toISOString().split('T')[0];
+    const fim    = fimDate.toISOString().split('T')[0];
+
+    const [recRec, ponRec, receitasRec] = await Promise.all([
+      pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
+      pool.query(
+        `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=0
+         AND data_vencimento >= $2 AND data_vencimento <= $3`,
+        [cid, inicio, fim]
+      ),
+      pool.query(
+        `SELECT r.data,
+           SUM(CASE WHEN r.pagamento IS NOT NULL THEN
+             COALESCE(
+               CASE WHEN r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric ELSE NULL END,
+               COALESCE(m.preco, al.preco, 0)
+             )
+           ELSE COALESCE(m.preco, al.preco, 0) END) AS valor
+         FROM reservas r
+         LEFT JOIN massagens m  ON m.id = r.massagem_id
+         LEFT JOIN alugueis  al ON al.id = r.aluguel_id
+         WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data <= $3
+           AND r.status IN ('confirmada','concluida')
+         GROUP BY r.data`,
+        [cid, inicio, fim]
+      )
+    ]);
+
+    const fluxo = {};
+    for (let i = 0; i < dias; i++) {
+      const d = new Date(hoje.getTime() + i * 86400000);
+      const ds = d.toISOString().split('T')[0];
+      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, saldo_dia: 0, saldo_acum: 0 };
+    }
+
+    receitasRec.rows.forEach(r => {
+      if (fluxo[r.data]) fluxo[r.data].receitas += parseFloat(r.valor || 0);
+    });
+    ponRec.rows.forEach(d => {
+      const k = d.data_vencimento instanceof Date
+        ? d.data_vencimento.toISOString().split('T')[0]
+        : String(d.data_vencimento).split('T')[0];
+      if (fluxo[k]) fluxo[k].despesas += parseFloat(d.valor || 0);
+    });
+    recRec.rows.forEach(desp => {
+      if (!desp.dia_vencimento) return;
+      for (let i = 0; i < dias; i++) {
+        const d = new Date(hoje.getTime() + i * 86400000);
+        if (d.getDate() === parseInt(desp.dia_vencimento)) {
+          const ds = d.toISOString().split('T')[0];
+          if (fluxo[ds]) fluxo[ds].despesas += parseFloat(desp.valor || 0);
+        }
+      }
+    });
+
+    let saldo = 0;
+    return Object.values(fluxo).map(d => {
+      d.saldo_dia  = d.receitas - d.despesas;
+      saldo       += d.saldo_dia;
+      d.saldo_acum = saldo;
+      return d;
+    });
+  }));
+
+// ─── Estoque ──────────────────────────────────────────────────────────────────
+app.get('/api/estoque', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return pool.query(
+      'SELECT * FROM estoque WHERE clinica_id=$1 AND ativo=1 ORDER BY nome',
+      [cid]
+    ).then(r => r.rows);
+  }));
+
+app.post('/api/estoque', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { nome, unidade, quantidade, custo_unitario, estoque_minimo } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    const r = await pool.query(
+      `INSERT INTO estoque (clinica_id,nome,unidade,quantidade,custo_unitario,estoque_minimo)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [cid, nome.trim(), unidade||'un', parseFloat(quantidade)||0,
+       parseFloat(custo_unitario)||0, parseFloat(estoque_minimo)||0]
+    );
+    return r.rows[0];
+  }));
+
+app.put('/api/estoque/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { nome, unidade, custo_unitario, estoque_minimo, ativo } = req.body;
+    await pool.query(
+      `UPDATE estoque SET nome=$1,unidade=$2,custo_unitario=$3,estoque_minimo=$4,ativo=$5
+       WHERE id=$6 AND clinica_id=$7`,
+      [nome.trim(), unidade||'un', parseFloat(custo_unitario)||0,
+       parseFloat(estoque_minimo)||0, ativo!==undefined?(ativo?1:0):1,
+       req.params.id, cid]
+    );
+    return pool.query('SELECT * FROM estoque WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  }));
+
+app.delete('/api/estoque/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await pool.query('UPDATE estoque SET ativo=0 WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { ok: true };
+  }));
+
+app.post('/api/estoque/:id/movimentacao', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { tipo, quantidade, custo_unitario, custo_total, data, observacao } = req.body;
+    if (!tipo || !quantidade) throw new Error('Tipo e quantidade são obrigatórios');
+    const qtd = parseFloat(quantidade);
+    const cu  = parseFloat(custo_unitario) || (custo_total ? parseFloat(custo_total)/qtd : 0);
+    const ct  = parseFloat(custo_total)    || cu * qtd;
+    const delta = tipo === 'entrada' ? qtd : -qtd;
+    await pool.query(
+      'UPDATE estoque SET quantidade=quantidade+$1 WHERE id=$2 AND clinica_id=$3',
+      [delta, req.params.id, cid]
+    );
+    const r = await pool.query(
+      `INSERT INTO estoque_movimentacoes
+         (estoque_id,clinica_id,tipo,quantidade,custo_unitario,custo_total,data,observacao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, cid, tipo, qtd, cu||null, ct||null,
+       data||new Date().toISOString().split('T')[0], observacao||null]
+    );
+    return r.rows[0];
+  }));
+
+app.get('/api/estoque/:id/movimentacoes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return pool.query(
+      `SELECT * FROM estoque_movimentacoes WHERE estoque_id=$1 AND clinica_id=$2
+       ORDER BY data DESC, id DESC LIMIT 100`,
+      [req.params.id, cid]
+    ).then(r => r.rows);
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────
