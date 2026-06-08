@@ -1759,9 +1759,9 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     const totalDias = passado + futuro + 1;
 
     const [recRec, ponRec, receitasRec] = await Promise.all([
-      pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=true', [cid]),
+      pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
       pool.query(
-        `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=false
+        `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=0
          AND data_vencimento >= $2 AND data_vencimento <= $3`,
         [cid, inicio, fim]
       ),
