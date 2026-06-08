@@ -1746,28 +1746,30 @@ app.delete('/api/despesas/:id', requireAuth, (req, res) =>
 app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const dias = Math.min(parseInt(req.query.dias) || 30, 365);
+    // passado = dias antes de hoje (default 0), futuro = dias após hoje (default 30)
+    const passado = Math.min(Math.abs(parseInt(req.query.passado) || 0), 365);
+    const futuro  = Math.min(Math.abs(parseInt(req.query.futuro)  || 30), 365);
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
-    const fimDate = new Date(hoje.getTime() + dias * 86400000);
-    const inicio = hoje.toISOString().split('T')[0];
+    const inicioDate = new Date(hoje.getTime() - passado * 86400000);
+    const fimDate    = new Date(hoje.getTime() + futuro  * 86400000);
+    const inicio = inicioDate.toISOString().split('T')[0];
     const fim    = fimDate.toISOString().split('T')[0];
+    const hojeStr = hoje.toISOString().split('T')[0];
+    const totalDias = passado + futuro + 1;
 
     const [recRec, ponRec, receitasRec] = await Promise.all([
-      pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
+      pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=true', [cid]),
       pool.query(
-        `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=0
+        `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=false
          AND data_vencimento >= $2 AND data_vencimento <= $3`,
         [cid, inicio, fim]
       ),
       pool.query(
         `SELECT r.data,
-           SUM(CASE WHEN r.pagamento IS NOT NULL THEN
-             COALESCE(
-               CASE WHEN r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric ELSE NULL END,
-               COALESCE(m.preco, al.preco, 0)
-             )
-           ELSE COALESCE(m.preco, al.preco, 0) END) AS valor
+           SUM(CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
+               ELSE COALESCE(m.preco, al.valor, 0) END
+           ) AS valor
          FROM reservas r
          LEFT JOIN massagens m  ON m.id = r.massagem_id
          LEFT JOIN alugueis  al ON al.id = r.aluguel_id
@@ -1779,10 +1781,10 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     ]);
 
     const fluxo = {};
-    for (let i = 0; i < dias; i++) {
-      const d = new Date(hoje.getTime() + i * 86400000);
+    for (let i = 0; i < totalDias; i++) {
+      const d = new Date(inicioDate.getTime() + i * 86400000);
       const ds = d.toISOString().split('T')[0];
-      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, saldo_dia: 0, saldo_acum: 0 };
+      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === hojeStr };
     }
 
     receitasRec.rows.forEach(r => {
@@ -1796,8 +1798,8 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     });
     recRec.rows.forEach(desp => {
       if (!desp.dia_vencimento) return;
-      for (let i = 0; i < dias; i++) {
-        const d = new Date(hoje.getTime() + i * 86400000);
+      for (let i = 0; i < totalDias; i++) {
+        const d = new Date(inicioDate.getTime() + i * 86400000);
         if (d.getDate() === parseInt(desp.dia_vencimento)) {
           const ds = d.toISOString().split('T')[0];
           if (fluxo[ds]) fluxo[ds].despesas += parseFloat(desp.valor || 0);

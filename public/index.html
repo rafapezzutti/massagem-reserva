@@ -798,13 +798,20 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 16px 0">
       <h1 style="flex:1;margin:0">📊 Fluxo de Caixa</h1>
     </div>
-    <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-weight:600">Período:</span>
-      <button class="btn btn-secondary btn-sm" id="fluxo-btn-30"  onclick="loadFluxoCaixa(30)"  style="font-weight:700">30d</button>
-      <button class="btn btn-secondary btn-sm" id="fluxo-btn-60"  onclick="loadFluxoCaixa(60)">60d</button>
-      <button class="btn btn-secondary btn-sm" id="fluxo-btn-90"  onclick="loadFluxoCaixa(90)">90d</button>
-      <button class="btn btn-secondary btn-sm" id="fluxo-btn-180" onclick="loadFluxoCaixa(180)">180d</button>
-      <button class="btn btn-secondary btn-sm" id="fluxo-btn-360" onclick="loadFluxoCaixa(360)">360d</button>
+    <div style="padding:10px 16px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-weight:600;font-size:.85rem;color:var(--text-lt)">◀ Passado:</span>
+      <button class="btn btn-secondary btn-sm fluxo-past" data-p="30"  onclick="loadFluxoCaixa(-30,0)">−30d</button>
+      <button class="btn btn-secondary btn-sm fluxo-past" data-p="60"  onclick="loadFluxoCaixa(-60,0)">−60d</button>
+      <button class="btn btn-secondary btn-sm fluxo-past" data-p="90"  onclick="loadFluxoCaixa(-90,0)">−90d</button>
+      <span style="margin:0 4px;color:#ccc">|</span>
+      <button class="btn btn-sm fluxo-hoje" id="fluxo-btn-hoje" onclick="loadFluxoCaixa(0,0)" style="background:var(--cel);color:#fff;font-weight:700">📅 Hoje</button>
+      <span style="margin:0 4px;color:#ccc">|</span>
+      <span style="font-weight:600;font-size:.85rem;color:var(--text-lt)">Futuro ▶</span>
+      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="30"  onclick="loadFluxoCaixa(0,30)">+30d</button>
+      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="60"  onclick="loadFluxoCaixa(0,60)">+60d</button>
+      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="90"  onclick="loadFluxoCaixa(0,90)">+90d</button>
+      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="180" onclick="loadFluxoCaixa(0,180)">+180d</button>
+      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="360" onclick="loadFluxoCaixa(0,360)">+360d</button>
     </div>
     <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
     <div id="fluxo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
@@ -1106,7 +1113,7 @@ function showView(v){
   else if(v==='aut-locais') loadAutLocais();
   else if(v==='aut-dash') loadAutDash();
   else if(v==='despesas'){ initDespesasFiltros(); loadDespesas(); }
-  else if(v==='fluxo') loadFluxoCaixa(30);
+  else if(v==='fluxo') loadFluxoCaixa(0,30);
   else if(v==='estoque') loadEstoque();
 }
 function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
@@ -3833,48 +3840,66 @@ async function saveDespesa(){
 }
 
 // ─── Fluxo de Caixa ───────────────────────────────────────────────────────
-let _fluxoDias=30;
-async function loadFluxoCaixa(dias){
-  _fluxoDias=dias||_fluxoDias;
-  [30,60,90,180,360].forEach(d=>{
-    const btn=document.getElementById('fluxo-btn-'+d);
-    if(btn) btn.style.fontWeight=d===_fluxoDias?'700':'';
+let _fluxoPassado=0, _fluxoFuturo=30;
+async function loadFluxoCaixa(passado, futuro){
+  // passado: negative means X days back (e.g. -30), or 0 = hoje only on past side
+  // futuro: positive days forward, 0 = hoje only on future side
+  _fluxoPassado = Math.abs(passado ?? _fluxoPassado);
+  _fluxoFuturo  = futuro ?? _fluxoFuturo;
+
+  // Highlight active buttons
+  document.querySelectorAll('.fluxo-past').forEach(b=>{
+    b.style.fontWeight = parseInt(b.dataset.p)===_fluxoPassado ? '700':'';
   });
+  document.querySelectorAll('.fluxo-fut').forEach(b=>{
+    b.style.fontWeight = parseInt(b.dataset.f)===_fluxoFuturo ? '700':'';
+  });
+  const hj=document.getElementById('fluxo-btn-hoje');
+  if(hj) hj.style.fontWeight=(_fluxoPassado===0&&_fluxoFuturo===0)?'900':'700';
+
   const el=document.getElementById('fluxo-list');
   const kpis=document.getElementById('fluxo-kpis');
   if(el) el.innerHTML='<div class="spinner"></div>';
   const cid=cidParam();
   try{
-    const data=await api('GET',`/despesas/fluxo-caixa?dias=${_fluxoDias}`+(cid?'&'+cid:''))||[];
+    const data=await api('GET',`/despesas/fluxo-caixa?passado=${_fluxoPassado}&futuro=${_fluxoFuturo}`+(cid?'&'+cid:''))||[];
+    // Separate past vs future for KPIs
+    const hoje2=new Date(); hoje2.setHours(0,0,0,0);
+    const hojeStr2=hoje2.toISOString().split('T')[0];
     const totRec=data.reduce((s,d)=>s+d.receitas,0);
     const totDesp=data.reduce((s,d)=>s+d.despesas,0);
     const saldoFinal=data.length?data[data.length-1].saldo_acum:0;
+    const periodoLabel=(_fluxoPassado>0&&_fluxoFuturo>0)?`−${_fluxoPassado}d / +${_fluxoFuturo}d`
+                      :(_fluxoPassado>0)?`últimos ${_fluxoPassado}d`
+                      :(_fluxoFuturo>0)?`próximos ${_fluxoFuturo}d`:'Hoje';
     if(kpis) kpis.innerHTML=`
       <div style="background:var(--green-lt);border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:#2d7a56">${fmtMoeda(totRec)}</div>
-        <div style="font-size:.75rem;color:#2d7a56">↑ Receitas previstas</div>
+        <div style="font-size:.75rem;color:#2d7a56">↑ Receitas (${periodoLabel})</div>
       </div>
       <div style="background:#fde8e8;border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:var(--danger)">${fmtMoeda(totDesp)}</div>
-        <div style="font-size:.75rem;color:var(--danger)">↓ Despesas previstas</div>
+        <div style="font-size:.75rem;color:var(--danger)">↓ Despesas (${periodoLabel})</div>
       </div>
       <div style="background:${saldoFinal>=0?'var(--green-lt)':'#fde8e8'};border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:${saldoFinal>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(saldoFinal)}</div>
-        <div style="font-size:.75rem">Saldo ao final de ${_fluxoDias}d</div>
+        <div style="font-size:.75rem">Saldo ao final do período</div>
       </div>`;
-    const diasComMov=data.filter(d=>d.receitas>0||d.despesas>0);
-    if(!diasComMov.length){
-      if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Nenhuma movimentação prevista neste período.</div></div>';
+    // Always show today + days with movement
+    const diasVisiveis=data.filter(d=>d.receitas>0||d.despesas>0||d.hoje);
+    if(!diasVisiveis.length){
+      if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Nenhuma movimentação neste período.</div></div>';
       return;
     }
     let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
       +'<th>Data</th><th class="ctr">↑ Receita</th><th class="ctr">↓ Despesa</th>'
-      +'<th class="ctr">Dia</th><th class="ctr">Saldo Acum.</th></tr></thead><tbody>';
-    data.forEach(d=>{
-      if(d.receitas===0&&d.despesas===0)return;
+      +'<th class="ctr">Saldo dia</th><th class="ctr">Saldo Acum.</th></tr></thead><tbody>';
+    diasVisiveis.forEach(d=>{
       const sPos=d.saldo_acum>=0, dPos=d.saldo_dia>=0;
-      html+=`<tr>
-        <td>${fmtDate(d.data)}</td>
+      const isHoje=d.hoje;
+      const rowStyle=isHoje?'background:var(--cel-pale);font-weight:600':'';
+      html+=`<tr style="${rowStyle}">
+        <td>${isHoje?'<strong>📅 Hoje</strong> — ':''}${fmtDate(d.data)}</td>
         <td class="ctr" style="color:${d.receitas>0?'#2d7a56':'var(--text-lt)'}">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>
         <td class="ctr" style="color:${d.despesas>0?'var(--danger)':'var(--text-lt)'}">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>
         <td class="ctr" style="color:${dPos?'#2d7a56':'var(--danger)'};font-weight:600">${fmtMoeda(d.saldo_dia)}</td>
