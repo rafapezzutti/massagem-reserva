@@ -761,10 +761,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <h1 style="flex:1;margin:0">🧾 Despesas</h1>
       <button class="btn btn-primary btn-sm" onclick="openDespesaModal()">＋ Nova Despesa</button>
     </div>
-    <div style="display:flex;gap:4px;padding:12px 16px 0;border-bottom:1px solid var(--border)">
-      <button class="btn btn-secondary btn-sm" id="desp-tab-lista" onclick="despTab('lista')" style="font-weight:700">Lista</button>
-      <button class="btn btn-secondary btn-sm" id="desp-tab-fluxo" onclick="despTab('fluxo')">Fluxo de Caixa</button>
-    </div>
+
     <div id="desp-panel-lista" style="padding:16px">
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <select id="desp-fil-mes" class="field-input" style="width:120px" onchange="loadDespesas()">
@@ -783,18 +780,6 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       </div>
       <div id="despesas-list"><div class="spinner"></div></div>
     </div>
-    <div id="desp-panel-fluxo" style="padding:16px;display:none">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-        <span style="font-weight:600">Período:</span>
-        <button class="btn btn-secondary btn-sm" id="fluxo-btn-30"  onclick="loadFluxoCaixa(30)"  style="font-weight:700">30d</button>
-        <button class="btn btn-secondary btn-sm" id="fluxo-btn-60"  onclick="loadFluxoCaixa(60)">60d</button>
-        <button class="btn btn-secondary btn-sm" id="fluxo-btn-90"  onclick="loadFluxoCaixa(90)">90d</button>
-        <button class="btn btn-secondary btn-sm" id="fluxo-btn-180" onclick="loadFluxoCaixa(180)">180d</button>
-        <button class="btn btn-secondary btn-sm" id="fluxo-btn-360" onclick="loadFluxoCaixa(360)">360d</button>
-      </div>
-      <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
-      <div id="fluxo-list"><div class="spinner"></div></div>
-    </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════ ESTOQUE ════════ -->
@@ -804,6 +789,24 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="btn btn-primary btn-sm" onclick="openEstoqueModal()">＋ Novo Item</button>
     </div>
     <div id="estoque-list" style="padding:16px"><div class="spinner"></div></div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════ FLUXO DE CAIXA ════════ -->
+  <div id="view-fluxo" class="view">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 16px 0">
+      <h1 style="flex:1;margin:0">📊 Fluxo de Caixa</h1>
+    </div>
+    <div style="padding:12px 16px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-weight:600">Período:</span>
+      <button class="btn btn-secondary btn-sm" id="fluxo-btn-30"  onclick="loadFluxoCaixa(30)"  style="font-weight:700">30d</button>
+      <button class="btn btn-secondary btn-sm" id="fluxo-btn-60"  onclick="loadFluxoCaixa(60)">60d</button>
+      <button class="btn btn-secondary btn-sm" id="fluxo-btn-90"  onclick="loadFluxoCaixa(90)">90d</button>
+      <button class="btn btn-secondary btn-sm" id="fluxo-btn-180" onclick="loadFluxoCaixa(180)">180d</button>
+      <button class="btn btn-secondary btn-sm" id="fluxo-btn-360" onclick="loadFluxoCaixa(360)">360d</button>
+    </div>
+    <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
+    <div id="fluxo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
   </div>
 
   </div><!-- /main -->
@@ -964,19 +967,19 @@ const GERENTE_PERMS=[
   {key:'dash_dm',label:'👤 Diário Massagista',group:'dash'},{key:'dash_mm',label:'👤 Mensal Massagista',group:'dash'},
   {key:'dash_dt',label:'💆 Diário Massagem',group:'dash'},{key:'dash_mt',label:'💆 Mensal Massagem',group:'dash'},
   {key:'dash_rc',label:'🗂 Recepcionistas (dash)',group:'dash'},{key:'dash_pg',label:'💳 Pagamentos',group:'dash'},
-{key:'despesas',label:'🧾 Despesas',group:'op'},{key:'estoque',label:'📦 Estoque',group:'op'},
+{key:'despesas',label:'🧾 Despesas',group:'op'},{key:'fluxo',label:'📊 Fluxo de Caixa',group:'op'},{key:'estoque',label:'📦 Estoque',group:'op'},
 ];
 const GERENTE_PERM_DEFAULT={
   daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,
   recepcionistas:false,repasse:false,
   dash_dm:true,dash_mm:false,dash_dt:true,dash_mt:false,dash_rc:false,dash_pg:false,
-despesas:false,estoque:false
+despesas:false,fluxo:false,estoque:false
 };
 function applyGerentePermissoes(permissoes){
   const p=permissoes||GERENTE_PERM_DEFAULT;
   const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
     profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',
-    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',estoque:'nav-estoque'};
+    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',fluxo:'nav-fluxo',estoque:'nav-estoque'};
   Object.entries(navMap).forEach(([key,nid])=>{
     const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
   });
@@ -1101,6 +1104,9 @@ function showView(v){
   else if(v==='aut-servicos') loadAutServicos();
   else if(v==='aut-locais') loadAutLocais();
   else if(v==='aut-dash') loadAutDash();
+  else if(v==='despesas'){ initDespesasFiltros(); loadDespesas(); }
+  else if(v==='fluxo') loadFluxoCaixa(30);
+  else if(v==='estoque') loadEstoque();
 }
 function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
 
@@ -1136,7 +1142,7 @@ async function loadClinicaSelector(){
   }catch(e){}
 }
 
-const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard'];
+const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard','despesas','fluxo','estoque'];
 const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
 
 function onClinicaSelect(val){
@@ -3664,22 +3670,12 @@ function initDespesasFiltros(){
   if(selAno&&!selAno.options.length){
     for(let y=ano;y>=ano-3;y--){
       const o=document.createElement('option');
-      o.value=y; o.textContent=y;
-      if(y===ano) o.selected=true;
+      o.value=y; o.textContent=y; if(y===ano) o.selected=true;
       selAno.appendChild(o);
     }
   }
   const selMes=document.getElementById('desp-fil-mes');
-  if(selMes&&!selMes.value){
-    selMes.value=String(new Date().getMonth()+1);
-  }
-}
-function despTab(t){
-  document.getElementById('desp-panel-lista').style.display=t==='lista'?'':'none';
-  document.getElementById('desp-panel-fluxo').style.display=t==='fluxo'?'':'none';
-  document.getElementById('desp-tab-lista').style.fontWeight=t==='lista'?'700':'';
-  document.getElementById('desp-tab-fluxo').style.fontWeight=t==='fluxo'?'700':'';
-  if(t==='fluxo') loadFluxoCaixa(30);
+  if(selMes&&!selMes.value) selMes.value=String(new Date().getMonth()+1);
 }
 async function loadDespesas(){
   const el=document.getElementById('despesas-list');
@@ -3688,8 +3684,7 @@ async function loadDespesas(){
   const mes=document.getElementById('desp-fil-mes')?.value||'';
   const ano=document.getElementById('desp-fil-ano')?.value||'';
   const status=document.getElementById('desp-fil-status')?.value||'';
-  let url='/despesas';
-  const p=[];
+  let url='/despesas'; const p=[];
   if(mes&&ano){p.push('mes='+mes,'ano='+ano);}
   if(status) p.push('status='+status);
   if(cid)    p.push(cid);
@@ -3705,7 +3700,7 @@ function renderDespesas(data){
   const totalPend=data.filter(d=>d.status==='pendente').reduce((s,d)=>s+parseFloat(d.valor||0),0);
   const totalPago=data.filter(d=>d.status==='pago').reduce((s,d)=>s+parseFloat(d.valor||0),0);
   let html=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-    <div style="background:var(--danger-lt,#fde8e8);border-radius:8px;padding:10px 18px;text-align:center">
+    <div style="background:#fde8e8;border-radius:8px;padding:10px 18px;text-align:center">
       <div style="font-size:1.2rem;font-weight:800;color:var(--danger)">${fmtMoeda(totalPend)}</div>
       <div style="font-size:.75rem;color:var(--danger)">Pendente</div>
     </div>
@@ -3722,10 +3717,10 @@ function renderDespesas(data){
     const pago=d.status==='pago';
     const rec=d.recorrente==1||d.recorrente===true;
     const venc=d.data_vencimento?d.data_vencimento.split('T')[0]:'—';
-    return `<div class="card" style="margin-bottom:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;${pago?'opacity:.7':''}">
+    return `<div class="card" style="margin-bottom:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;${pago?'opacity:.75':''}">
       <div>
-        <div style="font-weight:600;font-size:.95rem">${despTipoLabel(d.tipo,d.nome_custom)}${d.subtipo?` <span style="font-size:.78rem;color:var(--text-lt)">(${d.subtipo})</span>`:''}${rec?' <span style="font-size:.72rem;background:var(--cel-lt);color:var(--cel);padding:2px 6px;border-radius:8px">🔄 Recorrente</span>':''}</div>
-        ${d.descricao?`<div style="font-size:.82rem;color:var(--text-lt)">${esc(d.descricao)}</div>`:''}
+        <div style="font-weight:600;font-size:.95rem">${despTipoLabel(d.tipo,d.nome_custom)}${d.subtipo?' <span style="font-size:.78rem;color:var(--text-lt)">('+esc(d.subtipo)+')</span>':''}${rec?' <span style="font-size:.72rem;background:var(--cel-lt);color:var(--cel);padding:2px 6px;border-radius:8px">🔄 Recorrente</span>':''}</div>
+        ${d.descricao?'<div style="font-size:.82rem;color:var(--text-lt)">'+esc(d.descricao)+'</div>':''}
         <div style="font-size:.8rem;color:var(--text-lt);margin-top:2px">Venc.: ${venc}${rec&&d.dia_vencimento?' · Dia '+d.dia_vencimento+'/mês':''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
@@ -3734,7 +3729,7 @@ function renderDespesas(data){
           <span style="font-size:.72rem;padding:2px 7px;border-radius:8px;background:${pago?'var(--green-lt)':'#fde8e8'};color:${pago?'#2d7a56':'var(--danger)'}">${pago?'✅ Pago':'⏳ Pendente'}</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px">
-          ${!pago?`<button class="btn btn-sm" style="background:var(--green);color:#fff;padding:4px 10px" onclick="marcarDespesaPago(${d.id})">✓ Pago</button>`:''}
+          ${!pago?'<button class="btn btn-sm" style="background:var(--green);color:#fff;padding:4px 10px" onclick="marcarDespesaPago('+d.id+')">✓ Pago</button>':''}
           <button class="btn btn-secondary btn-sm" onclick="openDespesaModal(${d.id})">✏️</button>
           <button class="btn btn-sm" style="background:var(--danger);color:#fff;padding:4px 8px" onclick="deleteDespesa(${d.id})">🗑</button>
         </div>
@@ -3745,29 +3740,28 @@ function renderDespesas(data){
 }
 async function marcarDespesaPago(id){
   const cid=cidParam();
-  const despesas=await api('GET','/despesas'+(cid?'?'+cid:''))||[];
-  const d=despesas.find(x=>x.id===id);
-  if(!d)return;
+  const all=await api('GET','/despesas'+(cid?'?'+cid:''))||[];
+  const d=all.find(x=>x.id===id); if(!d)return;
   await api('PUT',`/despesas/${id}`,{...d,status:'pago',data_pagamento:new Date().toISOString().split('T')[0],...cidBody()});
   loadDespesas();
 }
 async function deleteDespesa(id){
-  if(!confirm('Excluir esta despesa?')) return;
-  await api('DELETE',`/despesas/${id}`+cidParamQ());
+  if(!confirm('Excluir esta despesa?'))return;
+  const cid=cidParam();
+  await api('DELETE',`/despesas/${id}`+(cid?'?'+cid:''));
   loadDespesas();
 }
-function cidParamQ(){const c=cidParam();return c?'?'+c:'';}
+// despesa modal — _despSaveId guarda o id para a função de save
+let _despSaveId=null;
 function openDespesaModal(id){
-  const cid=cidParam();
-  // Try to find existing data
-  const existing=id?null:null; // will fetch if needed
+  _despSaveId=id||null;
   const today=new Date().toISOString().split('T')[0];
-  openModal('Nova Despesa',`
-    <div class="form-grid">
+  openModal(id?'Editar Despesa':'Nova Despesa',
+    `<div class="form-grid">
       <div class="field">
         <label>Tipo *</label>
         <select id="dform-tipo" class="field-input" onchange="dformTipoChange()">
-          ${DESP_TIPOS.map(t=>`<option value="${t.v}">${t.l}</option>`).join('')}
+          ${DESP_TIPOS.map(t=>'<option value="'+t.v+'">'+t.l+'</option>').join('')}
         </select>
       </div>
       <div class="field" id="dform-custom-wrap" style="display:none">
@@ -3777,8 +3771,7 @@ function openDespesaModal(id){
       <div class="field" id="dform-subtipo-wrap" style="display:none">
         <label>Vínculo</label>
         <select id="dform-subtipo" class="field-input">
-          <option value="CLT">CLT</option>
-          <option value="PJ">PJ</option>
+          <option value="CLT">CLT</option><option value="PJ">PJ</option>
         </select>
       </div>
       <div class="field full">
@@ -3799,7 +3792,7 @@ function openDespesaModal(id){
         </label>
       </div>
       <div class="field" id="dform-dia-wrap" style="display:none">
-        <label>Dia do vencimento (mensal)</label>
+        <label>Dia do vencimento no mês</label>
         <input id="dform-dia" type="number" min="1" max="31" class="field-input" placeholder="ex: 10">
       </div>
       <div class="field full">
@@ -3807,25 +3800,8 @@ function openDespesaModal(id){
         <input id="dform-obs" class="field-input">
       </div>
     </div>`,
-    async ()=>{
-      const tipo=document.getElementById('dform-tipo').value;
-      const subtipo=document.getElementById('dform-subtipo')?.value||null;
-      const nome_custom=document.getElementById('dform-custom')?.value.trim()||null;
-      const descricao=document.getElementById('dform-desc').value.trim()||null;
-      const valor=document.getElementById('dform-valor').value;
-      const data_vencimento=document.getElementById('dform-venc').value||null;
-      const recorrente=document.getElementById('dform-rec').checked;
-      const dia_vencimento=document.getElementById('dform-dia')?.value||null;
-      const observacao=document.getElementById('dform-obs').value.trim()||null;
-      if(!tipo||!valor) return toast('Preencha tipo e valor','err');
-      const body={tipo,subtipo,descricao,nome_custom,valor:parseFloat(valor),recorrente,
-                  dia_vencimento:dia_vencimento?parseInt(dia_vencimento):null,
-                  data_vencimento,status:'pendente',observacao,...cidBody()};
-      if(id) await api('PUT',`/despesas/${id}`,body);
-      else   await api('POST','/despesas',body);
-      closeModal(); loadDespesas();
-    },'Salvar');
-  if(id){/* TODO: pre-fill if edit needed */}
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveDespesa()">Salvar</button>`);
 }
 function dformTipoChange(){
   const t=document.getElementById('dform-tipo').value;
@@ -3833,29 +3809,46 @@ function dformTipoChange(){
   document.getElementById('dform-subtipo-wrap').style.display=t==='funcionario'?'':'none';
 }
 function dformRecChange(){
-  const v=document.getElementById('dform-rec').checked;
-  document.getElementById('dform-dia-wrap').style.display=v?'':'none';
+  document.getElementById('dform-dia-wrap').style.display=document.getElementById('dform-rec').checked?'':'none';
+}
+async function saveDespesa(){
+  const tipo=document.getElementById('dform-tipo').value;
+  const subtipo=document.getElementById('dform-subtipo')?.value||null;
+  const nome_custom=document.getElementById('dform-custom')?.value.trim()||null;
+  const descricao=document.getElementById('dform-desc').value.trim()||null;
+  const valor=document.getElementById('dform-valor').value;
+  const data_vencimento=document.getElementById('dform-venc').value||null;
+  const recorrente=document.getElementById('dform-rec').checked;
+  const dia_vencimento=document.getElementById('dform-dia')?.value?parseInt(document.getElementById('dform-dia').value):null;
+  const observacao=document.getElementById('dform-obs').value.trim()||null;
+  if(!tipo||!valor) return toast('Preencha tipo e valor','err');
+  try{
+    const body={tipo,subtipo,descricao,nome_custom,valor:parseFloat(valor),recorrente,
+                dia_vencimento,data_vencimento,status:'pendente',observacao,...cidBody()};
+    if(_despSaveId) await api('PUT',`/despesas/${_despSaveId}`,body);
+    else            await api('POST','/despesas',body);
+    closeModal(); loadDespesas();
+  }catch(e){toast(e.message,'err');}
 }
 
 // ─── Fluxo de Caixa ───────────────────────────────────────────────────────
 let _fluxoDias=30;
 async function loadFluxoCaixa(dias){
-  _fluxoDias=dias||_fluxoDias||30;
-  // highlight active button
+  _fluxoDias=dias||_fluxoDias;
   [30,60,90,180,360].forEach(d=>{
     const btn=document.getElementById('fluxo-btn-'+d);
     if(btn) btn.style.fontWeight=d===_fluxoDias?'700':'';
   });
   const el=document.getElementById('fluxo-list');
   const kpis=document.getElementById('fluxo-kpis');
-  el.innerHTML='<div class="spinner"></div>';
+  if(el) el.innerHTML='<div class="spinner"></div>';
   const cid=cidParam();
   try{
     const data=await api('GET',`/despesas/fluxo-caixa?dias=${_fluxoDias}`+(cid?'&'+cid:''))||[];
     const totRec=data.reduce((s,d)=>s+d.receitas,0);
     const totDesp=data.reduce((s,d)=>s+d.despesas,0);
     const saldoFinal=data.length?data[data.length-1].saldo_acum:0;
-    kpis.innerHTML=`
+    if(kpis) kpis.innerHTML=`
       <div style="background:var(--green-lt);border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:#2d7a56">${fmtMoeda(totRec)}</div>
         <div style="font-size:.75rem;color:#2d7a56">↑ Receitas previstas</div>
@@ -3868,30 +3861,28 @@ async function loadFluxoCaixa(dias){
         <div style="font-size:1.1rem;font-weight:800;color:${saldoFinal>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(saldoFinal)}</div>
         <div style="font-size:.75rem">Saldo ao final de ${_fluxoDias}d</div>
       </div>`;
-    // Only show days with movement, or group by week if >90d
     const diasComMov=data.filter(d=>d.receitas>0||d.despesas>0);
-    if(!diasComMov.length&&data.length){
-      el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Nenhuma movimentação prevista neste período.</div></div>';
+    if(!diasComMov.length){
+      if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Nenhuma movimentação prevista neste período.</div></div>';
       return;
     }
     let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
       +'<th>Data</th><th class="ctr">↑ Receita</th><th class="ctr">↓ Despesa</th>'
       +'<th class="ctr">Dia</th><th class="ctr">Saldo Acum.</th></tr></thead><tbody>';
     data.forEach(d=>{
-      if(d.receitas===0&&d.despesas===0) return;
-      const saldoPos=d.saldo_acum>=0;
-      const diaPos=d.saldo_dia>=0;
+      if(d.receitas===0&&d.despesas===0)return;
+      const sPos=d.saldo_acum>=0, dPos=d.saldo_dia>=0;
       html+=`<tr>
         <td>${fmtDate(d.data)}</td>
         <td class="ctr" style="color:${d.receitas>0?'#2d7a56':'var(--text-lt)'}">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>
         <td class="ctr" style="color:${d.despesas>0?'var(--danger)':'var(--text-lt)'}">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>
-        <td class="ctr" style="color:${diaPos?'#2d7a56':'var(--danger)'};font-weight:600">${fmtMoeda(d.saldo_dia)}</td>
-        <td class="ctr" style="color:${saldoPos?'#2d7a56':'var(--danger)'};font-weight:700">${fmtMoeda(d.saldo_acum)}</td>
+        <td class="ctr" style="color:${dPos?'#2d7a56':'var(--danger)'};font-weight:600">${fmtMoeda(d.saldo_dia)}</td>
+        <td class="ctr" style="color:${sPos?'#2d7a56':'var(--danger)'};font-weight:700">${fmtMoeda(d.saldo_acum)}</td>
       </tr>`;
     });
     html+='</tbody></table></div>';
-    el.innerHTML=html;
-  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
+    if(el) el.innerHTML=html;
+  }catch(e){if(el)el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3908,103 +3899,163 @@ async function loadEstoque(){
 }
 function renderEstoque(data){
   const el=document.getElementById('estoque-list');
-  if(!data.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">📦</div><div>Nenhum item no estoque.</div></div>';return;}
-  const totalCusto=data.reduce((s,i)=>s+parseFloat(i.quantidade||0)*parseFloat(i.custo_unitario||0),0);
-  let html=`<div style="background:var(--cel-pale);border-radius:8px;padding:10px 18px;display:inline-block;margin-bottom:16px">
-    <div style="font-size:1rem;font-weight:700">Valor total em estoque: ${fmtMoeda(totalCusto)}</div>
-  </div>
-  <div class="item-grid">`;
-  html+=data.map(item=>{
-    const baixo=parseFloat(item.estoque_minimo||0)>0&&parseFloat(item.quantidade||0)<=parseFloat(item.estoque_minimo||0);
-    return `<div class="item-card" style="${baixo?'border:2px solid var(--danger)':''}">
-      ${baixo?'<div style="font-size:.72rem;color:var(--danger);font-weight:700;margin-bottom:4px">⚠ Estoque baixo</div>':''}
-      <div class="item-title">${esc(item.nome)}</div>
-      <div class="item-detail" style="font-size:1.1rem;font-weight:700">${parseFloat(item.quantidade||0).toFixed(2)} ${esc(item.unidade||'un')}</div>
-      <div class="item-detail">Custo unit.: ${fmtMoeda(item.custo_unitario)} · Total: ${fmtMoeda(parseFloat(item.quantidade||0)*parseFloat(item.custo_unitario||0))}</div>
-      ${parseFloat(item.estoque_minimo||0)>0?`<div class="item-detail" style="font-size:.78rem;color:var(--text-lt)">Mínimo: ${parseFloat(item.estoque_minimo).toFixed(2)} ${esc(item.unidade||'un')}</div>`:''}
-      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-        <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="openMovimentacaoModal(${item.id},'entrada')">＋ Entrada</button>
-        <button class="btn btn-secondary btn-sm" onclick="openMovimentacaoModal(${item.id},'saida')">− Saída</button>
-        <button class="btn btn-secondary btn-sm" onclick="openHistorico(${item.id},'${esc(item.nome)}')">📋</button>
-        <button class="btn btn-secondary btn-sm" onclick="openEstoqueModal(${item.id})">✏️</button>
-        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="deleteEstoque(${item.id})">🗑</button>
-      </div>
-    </div>`;
-  }).join('');
-  html+='</div>';
+  if(!data.length){
+    el.innerHTML='<div class="empty-day"><div class="empty-icon">📦</div><div>Nenhum item no estoque.</div></div>';
+    return;
+  }
+  const totalValor=data.reduce((s,i)=>s+parseFloat(i.custo_unitario||0)*parseInt(i.quantidade||0),0);
+  let html=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    <div style="background:var(--cel-pale);border-radius:8px;padding:10px 18px;text-align:center">
+      <div style="font-size:1.2rem;font-weight:800">${data.length}</div>
+      <div style="font-size:.75rem;color:var(--text-lt)">Itens</div>
+    </div>
+    <div style="background:var(--green-lt);border-radius:8px;padding:10px 18px;text-align:center">
+      <div style="font-size:1.2rem;font-weight:800;color:#2d7a56">${fmtMoeda(totalValor)}</div>
+      <div style="font-size:.75rem;color:#2d7a56">Valor em estoque</div>
+    </div>
+    <div style="background:#fde8e8;border-radius:8px;padding:10px 18px;text-align:center">
+      <div style="font-size:1.2rem;font-weight:800;color:var(--danger)">${data.filter(i=>parseInt(i.quantidade||0)<=parseInt(i.qtd_minima||0)&&parseInt(i.qtd_minima||0)>0).length}</div>
+      <div style="font-size:.75rem;color:var(--danger)">Abaixo do mínimo</div>
+    </div>
+  </div>`;
+  html+='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
+    +'<th>Item</th><th class="ctr">Qtd.</th><th class="ctr">Custo Unit.</th>'
+    +'<th class="ctr">Valor Total</th><th class="ctr">Ações</th></tr></thead><tbody>';
+  data.forEach(i=>{
+    const baixo=parseInt(i.quantidade||0)<=parseInt(i.qtd_minima||0)&&parseInt(i.qtd_minima||0)>0;
+    html+=`<tr>
+      <td><strong>${esc(i.nome)}</strong>${i.categoria?'<br><span style="font-size:.78rem;color:var(--text-lt)">'+esc(i.categoria)+'</span>':''}${baixo?'<br><span style="font-size:.72rem;color:var(--danger)">⚠️ Estoque baixo</span>':''}</td>
+      <td class="ctr" style="font-weight:700;color:${baixo?'var(--danger)':'inherit'}">${i.quantidade||0}${i.unidade?' '+esc(i.unidade):''}</td>
+      <td class="ctr">${i.custo_unitario?fmtMoeda(i.custo_unitario):'—'}</td>
+      <td class="ctr">${i.custo_unitario?fmtMoeda(parseFloat(i.custo_unitario)*parseInt(i.quantidade||0)):'—'}</td>
+      <td class="ctr">
+        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-sm btn-secondary" onclick="openMovimentacaoModal(${i.id},'entrada')">+ Entrada</button>
+          <button class="btn btn-sm btn-secondary" onclick="openMovimentacaoModal(${i.id},'saida')">− Saída</button>
+          <button class="btn btn-sm btn-secondary" onclick="openHistoricoModal(${i.id})">📋</button>
+          <button class="btn btn-sm btn-secondary" onclick="openEstoqueModal(${i.id})">✏️</button>
+          <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="deleteEstoque(${i.id})">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
   el.innerHTML=html;
 }
+let _estSaveId=null;
 function openEstoqueModal(id){
-  openModal(id?'Editar Item':'Novo Item de Estoque',`
-    <div class="form-grid">
-      <div class="field full"><label>Nome *</label><input id="est-nome" class="field-input" placeholder="ex: Óleo de massagem"></div>
-      <div class="field"><label>Unidade</label><input id="est-un" class="field-input" value="un" placeholder="un, kg, L, caixa…"></div>
-      <div class="field"><label>Custo unitário (R$)</label><input id="est-custo" type="number" step="0.01" min="0" class="field-input" value="0"></div>
-      <div class="field"><label>Quantidade inicial</label><input id="est-qtd" type="number" step="0.001" min="0" class="field-input" value="0"></div>
-      <div class="field"><label>Estoque mínimo (alerta)</label><input id="est-min" type="number" step="0.001" min="0" class="field-input" value="0"></div>
-    </div>`,
-    async ()=>{
-      const nome=document.getElementById('est-nome').value.trim();
-      const unidade=document.getElementById('est-un').value.trim()||'un';
-      const custo_unitario=parseFloat(document.getElementById('est-custo').value)||0;
-      const quantidade=parseFloat(document.getElementById('est-qtd').value)||0;
-      const estoque_minimo=parseFloat(document.getElementById('est-min').value)||0;
-      if(!nome) return toast('Nome é obrigatório','err');
-      const body={nome,unidade,custo_unitario,quantidade,estoque_minimo,...cidBody()};
-      if(id) await api('PUT',`/estoque/${id}`,body);
-      else   await api('POST','/estoque',body);
-      closeModal(); loadEstoque();
-    },'Salvar');
-}
-function openMovimentacaoModal(id,tipoDefault){
-  openModal(tipoDefault==='entrada'?'📥 Entrada de Estoque':'📤 Saída de Estoque',`
-    <div class="form-grid">
-      <div class="field">
-        <label>Tipo</label>
-        <select id="mov-tipo" class="field-input">
-          <option value="entrada"${tipoDefault==='entrada'?' selected':''}>📥 Entrada</option>
-          <option value="saida"${tipoDefault==='saida'?' selected':''}>📤 Saída</option>
-        </select>
+  _estSaveId=id||null;
+  openModal(id?'Editar Item':'Novo Item de Estoque',
+    `<div class="form-grid">
+      <div class="field full">
+        <label>Nome do item *</label>
+        <input id="eform-nome" class="field-input" placeholder="ex: Óleo de massagem">
       </div>
-      <div class="field"><label>Data</label><input id="mov-data" type="date" class="field-input" value="${new Date().toISOString().split('T')[0]}"></div>
-      <div class="field"><label>Quantidade *</label><input id="mov-qtd" type="number" step="0.001" min="0.001" class="field-input"></div>
-      <div class="field"><label>Custo unitário (R$)</label><input id="mov-cu" type="number" step="0.01" min="0" class="field-input" value="0"></div>
-      <div class="field full"><label>Custo total (R$) — ou use unit. acima</label><input id="mov-ct" type="number" step="0.01" min="0" class="field-input" value="0"></div>
-      <div class="field full"><label>Observação</label><input id="mov-obs" class="field-input"></div>
+      <div class="field">
+        <label>Categoria</label>
+        <input id="eform-cat" class="field-input" placeholder="ex: Cosméticos">
+      </div>
+      <div class="field">
+        <label>Unidade</label>
+        <input id="eform-unid" class="field-input" placeholder="ex: un, L, kg">
+      </div>
+      <div class="field">
+        <label>Quantidade inicial</label>
+        <input id="eform-qtd" type="number" min="0" step="1" class="field-input" value="0">
+      </div>
+      <div class="field">
+        <label>Qtd. mínima (alerta)</label>
+        <input id="eform-min" type="number" min="0" step="1" class="field-input" value="0">
+      </div>
+      <div class="field">
+        <label>Custo unitário (R$)</label>
+        <input id="eform-custo" type="number" step="0.01" min="0" class="field-input">
+      </div>
+      <div class="field full">
+        <label>Observação</label>
+        <input id="eform-obs" class="field-input">
+      </div>
     </div>`,
-    async ()=>{
-      const tipo=document.getElementById('mov-tipo').value;
-      const qtd=parseFloat(document.getElementById('mov-qtd').value)||0;
-      const cu=parseFloat(document.getElementById('mov-cu').value)||0;
-      const ct=parseFloat(document.getElementById('mov-ct').value)||0;
-      const data=document.getElementById('mov-data').value;
-      const observacao=document.getElementById('mov-obs').value.trim()||null;
-      if(!qtd) return toast('Quantidade é obrigatória','err');
-      await api('POST',`/estoque/${id}/movimentacao`,{tipo,quantidade:qtd,custo_unitario:cu,custo_total:ct,data,observacao,...cidBody()});
-      closeModal(); loadEstoque();
-    },'Registrar');
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveEstoque()">Salvar</button>`);
 }
-async function openHistorico(id,nome){
+async function saveEstoque(){
+  const nome=document.getElementById('eform-nome').value.trim();
+  if(!nome) return toast('Nome obrigatório','err');
+  const body={
+    nome,
+    categoria:document.getElementById('eform-cat').value.trim()||null,
+    unidade:document.getElementById('eform-unid').value.trim()||null,
+    quantidade:parseInt(document.getElementById('eform-qtd').value)||0,
+    qtd_minima:parseInt(document.getElementById('eform-min').value)||0,
+    custo_unitario:document.getElementById('eform-custo').value?parseFloat(document.getElementById('eform-custo').value):null,
+    observacao:document.getElementById('eform-obs').value.trim()||null,
+    ...cidBody()
+  };
+  try{
+    if(_estSaveId) await api('PUT',`/estoque/${_estSaveId}`,body);
+    else           await api('POST','/estoque',body);
+    closeModal(); loadEstoque();
+  }catch(e){toast(e.message,'err');}
+}
+let _movEstoqueId=null, _movTipo=null;
+function openMovimentacaoModal(estoqueId,tipo){
+  _movEstoqueId=estoqueId; _movTipo=tipo;
+  const today=new Date().toISOString().split('T')[0];
+  openModal(tipo==='entrada'?'Registrar Entrada':'Registrar Saída',
+    `<div class="form-grid">
+      <div class="field">
+        <label>Quantidade *</label>
+        <input id="mform-qtd" type="number" min="1" step="1" class="field-input">
+      </div>
+      <div class="field">
+        <label>Custo unitário (R$)</label>
+        <input id="mform-custo" type="number" step="0.01" min="0" class="field-input" placeholder="opcional">
+      </div>
+      <div class="field full">
+        <label>Motivo / Observação</label>
+        <input id="mform-obs" class="field-input" placeholder="ex: Compra, Uso em atendimento...">
+      </div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveMovimentacao()">Salvar</button>`);
+}
+async function saveMovimentacao(){
+  const quantidade=parseInt(document.getElementById('mform-qtd').value);
+  if(!quantidade||quantidade<1) return toast('Informe a quantidade','err');
+  const custo_unitario=document.getElementById('mform-custo').value?parseFloat(document.getElementById('mform-custo').value):null;
+  const observacao=document.getElementById('mform-obs').value.trim()||null;
+  try{
+    await api('POST',`/estoque/${_movEstoqueId}/movimentacao`,{tipo:_movTipo,quantidade,custo_unitario,observacao,...cidBody()});
+    closeModal(); loadEstoque();
+  }catch(e){toast(e.message,'err');}
+}
+async function openHistoricoModal(estoqueId){
   const cid=cidParam();
-  const movs=await api('GET',`/estoque/${id}/movimentacoes`+(cid?'?'+cid:''))||[];
-  let html='';
-  if(!movs.length){html='<div class="empty-day">Nenhuma movimentação registrada.</div>';}
-  else{
-    html='<table class="dash-table"><thead><tr><th>Data</th><th>Tipo</th><th class="ctr">Qtd</th><th class="ctr">Custo Unit.</th><th class="ctr">Custo Total</th><th>Obs.</th></tr></thead><tbody>';
-    html+=movs.map(m=>`<tr>
-      <td>${fmtDate(m.data.split('T')[0])}</td>
-      <td>${m.tipo==='entrada'?'📥 Entrada':'📤 Saída'}</td>
-      <td class="ctr">${parseFloat(m.quantidade).toFixed(3)}</td>
-      <td class="ctr">${m.custo_unitario?fmtMoeda(m.custo_unitario):'—'}</td>
-      <td class="ctr">${m.custo_total?fmtMoeda(m.custo_total):'—'}</td>
-      <td>${esc(m.observacao||'')}</td>
-    </tr>`).join('');
-    html+='</tbody></table>';
-  }
-  openModal('📋 Histórico — '+nome,html,null,'Fechar');
+  try{
+    const movs=await api('GET',`/estoque/${estoqueId}/movimentacoes`+(cid?'?'+cid:''))||[];
+    let html;
+    if(!movs.length){
+      html='<div class="empty-day" style="padding:24px;text-align:center">Nenhuma movimentação registrada.</div>';
+    } else {
+      html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
+        +'<th>Data</th><th class="ctr">Tipo</th><th class="ctr">Qtd.</th>'
+        +'<th class="ctr">Custo Unit.</th><th>Obs.</th></tr></thead><tbody>'
+        +movs.map(m=>`<tr>
+          <td>${fmtDate(m.created_at||m.data)}</td>
+          <td class="ctr"><span style="color:${m.tipo==='entrada'?'#2d7a56':'var(--danger)'};font-weight:600">${m.tipo==='entrada'?'↑ Entrada':'↓ Saída'}</span></td>
+          <td class="ctr">${m.quantidade}</td>
+          <td class="ctr">${m.custo_unitario?fmtMoeda(m.custo_unitario):'—'}</td>
+          <td>${esc(m.observacao||'')}</td>
+        </tr>`).join('')
+        +'</tbody></table></div>';
+    }
+    openModal('Histórico de Movimentações', html,
+      `<button class="btn btn-secondary" onclick="closeModal()">Fechar</button>`);
+  }catch(e){toast(e.message,'err');}
 }
 async function deleteEstoque(id){
-  if(!confirm('Desativar este item do estoque?'))return;
+  if(!confirm('Excluir este item do estoque?'))return;
   const cid=cidParam();
   await api('DELETE',`/estoque/${id}`+(cid?'?'+cid:''));
   loadEstoque();
