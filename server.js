@@ -1746,16 +1746,18 @@ app.delete('/api/despesas/:id', requireAuth, (req, res) =>
 app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    // passado = dias antes de hoje (default 0), futuro = dias após hoje (default 30)
+    // passado = dias antes da data âncora, futuro = dias após, data = âncora (default hoje)
     const passado = Math.min(Math.abs(parseInt(req.query.passado) || 0), 365);
     const futuro  = Math.min(Math.abs(parseInt(req.query.futuro)  || 30), 365);
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    const inicioDate = new Date(hoje.getTime() - passado * 86400000);
-    const fimDate    = new Date(hoje.getTime() + futuro  * 86400000);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const hojeStr = hoje.toISOString().split('T')[0];
+    const anchorStr = req.query.data && /^\d{4}-\d{2}-\d{2}$/.test(req.query.data)
+      ? req.query.data : hojeStr;
+    const anchor = new Date(anchorStr + 'T00:00:00');
+    const inicioDate = new Date(anchor.getTime() - passado * 86400000);
+    const fimDate    = new Date(anchor.getTime() + futuro  * 86400000);
     const inicio = inicioDate.toISOString().split('T')[0];
     const fim    = fimDate.toISOString().split('T')[0];
-    const hojeStr = hoje.toISOString().split('T')[0];
     const totalDias = passado + futuro + 1;
 
     const [recRec, ponRec, receitasRec, repasseCfg] = await Promise.all([
@@ -1792,7 +1794,7 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     for (let i = 0; i < totalDias; i++) {
       const d = new Date(inicioDate.getTime() + i * 86400000);
       const ds = d.toISOString().split('T')[0];
-      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, repasse: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === hojeStr };
+      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, repasse: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === anchorStr };
     }
 
     receitasRec.rows.forEach(r => {
