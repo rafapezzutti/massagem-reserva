@@ -1758,7 +1758,7 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     const hojeStr = hoje.toISOString().split('T')[0];
     const totalDias = passado + futuro + 1;
 
-    const [recRec, ponRec, receitasRec] = await Promise.all([
+    const [recRec, ponRec, receitasRec, repasseCfg] = await Promise.all([
       pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
       pool.query(
         `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=0
@@ -1767,8 +1767,14 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
       ),
       pool.query(
         `SELECT r.data,
-           SUM(CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
-               ELSE COALESCE(m.preco, al.valor, 0) END
+           SUM(
+             CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]'
+               THEN r.pagamento::numeric
+               ELSE COALESCE(m.preco, 0)
+                  + COALESCE(r.preco_bebida, 0)
+                  + COALESCE(r.multa_valor, 0)
+                  + COALESCE(al.valor, 0)
+             END
            ) AS valor
          FROM reservas r
          LEFT JOIN massagens m  ON m.id = r.massagem_id
@@ -1777,18 +1783,24 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
            AND r.status IN ('confirmada','concluida')
          GROUP BY r.data`,
         [cid, inicio, fim]
-      )
+      ),
+      pool.query('SELECT percentual FROM repasse_config WHERE clinica_id=$1', [cid])
     ]);
+    const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
 
     const fluxo = {};
     for (let i = 0; i < totalDias; i++) {
       const d = new Date(inicioDate.getTime() + i * 86400000);
       const ds = d.toISOString().split('T')[0];
-      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === hojeStr };
+      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, repasse: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === hojeStr };
     }
 
     receitasRec.rows.forEach(r => {
-      if (fluxo[r.data]) fluxo[r.data].receitas += parseFloat(r.valor || 0);
+      if (fluxo[r.data]) {
+        const rec = parseFloat(r.valor || 0);
+        fluxo[r.data].receitas += rec;
+        fluxo[r.data].repasse  += rec * repassePct;
+      }
     });
     ponRec.rows.forEach(d => {
       const k = d.data_vencimento instanceof Date
@@ -1809,7 +1821,8 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
 
     let saldo = 0;
     return Object.values(fluxo).map(d => {
-      d.saldo_dia  = d.receitas - d.despesas;
+      d.repasse    = Math.round(d.repasse * 100) / 100;
+      d.saldo_dia  = d.receitas - d.despesas - d.repasse;
       saldo       += d.saldo_dia;
       d.saldo_acum = saldo;
       return d;

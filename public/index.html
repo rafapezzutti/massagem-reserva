@@ -3884,6 +3884,10 @@ async function loadFluxoCaixa(passado, futuro){
       <div style="background:${saldoFinal>=0?'var(--green-lt)':'#fde8e8'};border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:${saldoFinal>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(saldoFinal)}</div>
         <div style="font-size:.75rem">Saldo ao final do período</div>
+      </div>
+      <div style="background:#fdf3e3;border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:1.1rem;font-weight:800;color:#7a5c2d">${fmtMoeda(data.reduce((s,d)=>s+(d.repasse||0),0))}</div>
+        <div style="font-size:.75rem;color:#7a5c2d">💸 Repasses (${periodoLabel})</div>
       </div>`;
     // Always show today + days with movement
     const diasVisiveis=data.filter(d=>d.receitas>0||d.despesas>0||d.hoje);
@@ -3893,7 +3897,7 @@ async function loadFluxoCaixa(passado, futuro){
     }
     let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
       +'<th>Data</th><th class="ctr">↑ Receita</th><th class="ctr">↓ Despesa</th>'
-      +'<th class="ctr">Saldo dia</th><th class="ctr">Saldo Acum.</th></tr></thead><tbody>';
+      +'<th class="ctr">💸 Repasse</th><th class="ctr">Saldo dia</th><th class="ctr">Saldo Acum.</th></tr></thead><tbody>';
     diasVisiveis.forEach(d=>{
       const sPos=d.saldo_acum>=0, dPos=d.saldo_dia>=0;
       const isHoje=d.hoje;
@@ -3902,6 +3906,7 @@ async function loadFluxoCaixa(passado, futuro){
         <td>${isHoje?'<strong>📅 Hoje</strong> — ':''}${fmtDate(d.data)}</td>
         <td class="ctr" style="color:${d.receitas>0?'#2d7a56':'var(--text-lt)'}">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>
         <td class="ctr" style="color:${d.despesas>0?'var(--danger)':'var(--text-lt)'}">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>
+        <td class="ctr" style="color:${(d.repasse||0)>0?'#7a5c2d':'var(--text-lt)'}">${(d.repasse||0)>0?fmtMoeda(d.repasse):'—'}</td>
         <td class="ctr" style="color:${dPos?'#2d7a56':'var(--danger)'};font-weight:600">${fmtMoeda(d.saldo_dia)}</td>
         <td class="ctr" style="color:${sPos?'#2d7a56':'var(--danger)'};font-weight:700">${fmtMoeda(d.saldo_acum)}</td>
       </tr>`;
