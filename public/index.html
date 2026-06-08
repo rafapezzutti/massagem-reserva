@@ -3660,12 +3660,17 @@ async function loadAutDash(){
 // DESPESAS
 // ═══════════════════════════════════════════════════════════════════════════
 const DESP_TIPOS=[
-  {v:'agua',    l:'💧 Água'},
-  {v:'luz',     l:'💡 Luz'},
-  {v:'gas',     l:'🔥 Gás'},
-  {v:'internet',l:'🌐 Internet'},
-  {v:'funcionario',l:'👤 Funcionário'},
-  {v:'outro',   l:'📝 Outro'},
+  {v:'agua',         l:'💧 Água'},
+  {v:'luz',          l:'💡 Luz'},
+  {v:'gas',          l:'🔥 Gás'},
+  {v:'internet',     l:'🌐 Internet'},
+  {v:'funcionario',  l:'👤 Funcionário'},
+  {v:'tarifa_banco', l:'🏦 Tarifa Banco'},
+  {v:'tarifa_cartao',l:'💳 Tarifa Cartão'},
+  {v:'contador',     l:'📒 Contador'},
+  {v:'acertos',      l:'⚖️ Acertos'},
+  {v:'bonificacao',  l:'🎁 Bonificação'},
+  {v:'outro',        l:'📝 Outro'},
 ];
 function despTipoLabel(tipo,nomeCustom){
   const t=DESP_TIPOS.find(x=>x.v===tipo);
