@@ -815,6 +815,20 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     </div>
     <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
     <div id="fluxo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
+
+    <!-- ── Agenda do Dia ── -->
+    <div style="padding:0 16px 24px">
+      <div class="card" style="padding:20px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <h2 style="margin:0;font-size:1.1rem">📅 Agenda do Dia</h2>
+          <input type="date" id="fluxo-dia-picker" class="field-input"
+            style="width:auto;padding:6px 10px;font-size:.9rem"
+            onchange="loadFluxoDia(this.value)">
+          <button class="btn btn-secondary btn-sm" onclick="loadFluxoDia()">🔄 Hoje</button>
+        </div>
+        <div id="fluxo-dia-content"><div class="spinner"></div></div>
+      </div>
+    </div>
   </div>
 
   </div><!-- /main -->
@@ -1113,7 +1127,7 @@ function showView(v){
   else if(v==='aut-locais') loadAutLocais();
   else if(v==='aut-dash') loadAutDash();
   else if(v==='despesas'){ initDespesasFiltros(); loadDespesas(); }
-  else if(v==='fluxo') loadFluxoCaixa(0,30);
+  else if(v==='fluxo'){ loadFluxoCaixa(0,30); loadFluxoDia(); }
   else if(v==='estoque') loadEstoque();
 }
 function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
@@ -3921,8 +3935,96 @@ async function loadFluxoCaixa(passado, futuro){
   }catch(e){if(el)el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ESTOQUE
+// ─── Agenda do Dia ────────────────────────────────────────────────────────────
+async function loadFluxoDia(data){
+  const today=new Date().toISOString().split('T')[0];
+  const d=data||today;
+  // sync picker
+  const pk=document.getElementById('fluxo-dia-picker');
+  if(pk){if(!pk.value||data===undefined) pk.value=today; else pk.value=d;}
+  const el=document.getElementById('fluxo-dia-content');
+  if(!el)return;
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const r=await api('GET',`/fluxo-dia?data=${d}`+(cid?'&'+cid:''));
+    const {reservas=[],despesas=[],resumo={}}=r||{};
+
+    // ── KPIs ──
+    let html=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="background:var(--green-lt);border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:#2d7a56">${fmtMoeda(resumo.receita||0)}</div>
+        <div style="font-size:.72rem;color:#2d7a56">↑ Receita</div>
+      </div>
+      <div style="background:#fdf3e3;border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:#7a5c2d">${fmtMoeda(resumo.repasse||0)}</div>
+        <div style="font-size:.72rem;color:#7a5c2d">💸 Repasse</div>
+      </div>
+      <div style="background:#fde8e8;border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:var(--danger)">${fmtMoeda(resumo.despesas||0)}</div>
+        <div style="font-size:.72rem;color:var(--danger)">↓ Despesas</div>
+      </div>
+      <div style="background:${(resumo.liquido||0)>=0?'var(--green-lt)':'#fde8e8'};border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:${(resumo.liquido||0)>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(resumo.liquido||0)}</div>
+        <div style="font-size:.72rem">💰 Líquido</div>
+      </div>
+    </div>`;
+
+    // ── Reservas ──
+    if(reservas.length){
+      html+='<div style="font-weight:700;margin-bottom:8px;font-size:.9rem">🗓 Atendimentos</div>';
+      html+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+      reservas.forEach(r=>{
+        const cancelada=r.status==='cancelada';
+        const statusColor=r.status==='concluida'?'#2d7a56':r.status==='confirmada'?'var(--cel)':'var(--danger)';
+        const statusLabel=r.status==='concluida'?'Concluída':r.status==='confirmada'?'Confirmada':'Cancelada';
+        html+=`<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 12px;${cancelada?'opacity:.55':''}">
+          <div style="min-width:90px;font-size:.85rem;font-weight:600">${r.hora_inicio.slice(0,5)}–${r.hora_fim.slice(0,5)}</div>
+          <div style="flex:1">
+            <div style="font-weight:600">${esc(r.cliente)}</div>
+            <div style="font-size:.8rem;color:var(--text-lt)">${esc(r.servico)}${r.profissional&&r.profissional!=='—'?' · '+esc(r.profissional):''}${r.quarto?' · Sala '+r.quarto:''}</div>
+            ${r.bebida?'<div style="font-size:.78rem;color:var(--text-lt)">🥤 '+esc(r.bebida)+(r.preco_bebida?' ('+fmtMoeda(r.preco_bebida)+')':'')+' </div>':''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">${cancelada?'—':fmtMoeda(r.total)}</div>
+            <span style="font-size:.72rem;color:${statusColor};font-weight:600">${statusLabel}</span>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    } else {
+      html+='<div style="color:var(--text-lt);font-size:.88rem;margin-bottom:12px">Nenhum atendimento neste dia.</div>';
+    }
+
+    // ── Despesas ──
+    if(despesas.length){
+      html+='<div style="font-weight:700;margin-bottom:8px;font-size:.9rem">🧾 Despesas do dia</div>';
+      html+='<div style="display:flex;flex-direction:column;gap:6px">';
+      despesas.forEach(d=>{
+        const pago=d.status==='pago';
+        html+=`<div style="display:flex;align-items:center;gap:10px;background:var(--bg2);border-radius:8px;padding:10px 12px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:.88rem">${despTipoLabel(d.tipo,d.nome_custom)}${d.recorrente?' <span style="font-size:.7rem;background:var(--cel-lt);color:var(--cel);padding:1px 5px;border-radius:6px">🔄</span>':''}</div>
+            ${d.descricao?'<div style="font-size:.78rem;color:var(--text-lt)">'+esc(d.descricao)+'</div>':''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700;color:var(--danger)">${fmtMoeda(d.valor)}</div>
+            <span style="font-size:.7rem;color:${pago?'#2d7a56':'var(--danger)'}">${pago?'✅ Pago':'⏳ Pendente'}</span>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    }
+
+    if(!reservas.length&&!despesas.length){
+      html='<div class="empty-day" style="padding:20px;text-align:center"><div class="empty-icon">📅</div><div>Nenhum registro para este dia.</div></div>';
+    }
+
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadEstoque(){
   const el=document.getElementById('estoque-list');

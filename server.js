@@ -1829,6 +1829,90 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     });
   }));
 
+// ─── Fluxo Dia (agenda detalhada de um dia) ─────────────────────────────────
+app.get('/api/fluxo-dia', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const data = req.query.data || new Date().toISOString().split('T')[0];
+    const diaMes = parseInt(data.split('-')[2]);
+
+    const [reservas, pontuais, recorrentes, repasseCfg] = await Promise.all([
+      pool.query(
+        `SELECT r.hora_inicio, r.hora_fim, r.status, r.cliente_nome,
+                r.pagamento, r.preco_bebida, r.multa_valor, r.bebida,
+                m.nome AS massagem_nome, m.preco AS massagem_preco,
+                al.nome AS aluguel_nome, al.valor AS aluguel_valor,
+                p.nome AS profissional_nome,
+                q.numero AS quarto_numero
+         FROM reservas r
+         LEFT JOIN massagens   m  ON m.id  = r.massagem_id
+         LEFT JOIN alugueis    al ON al.id = r.aluguel_id
+         LEFT JOIN profissionais p ON p.id = r.profissional_id
+         LEFT JOIN quartos      q ON q.id  = r.quarto_id
+         WHERE r.clinica_id=$1 AND r.data=$2
+         ORDER BY r.hora_inicio`,
+        [cid, data]
+      ),
+      pool.query(
+        `SELECT tipo, nome_custom, descricao, valor, status, recorrente
+         FROM despesas WHERE clinica_id=$1 AND recorrente=0
+           AND data_vencimento::date = $2::date`,
+        [cid, data]
+      ),
+      pool.query(
+        `SELECT tipo, nome_custom, descricao, valor, status, dia_vencimento
+         FROM despesas WHERE clinica_id=$1 AND recorrente=1
+           AND dia_vencimento=$2`,
+        [cid, diaMes]
+      ),
+      pool.query('SELECT percentual FROM repasse_config WHERE clinica_id=$1', [cid])
+    ]);
+
+    const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
+
+    const reservasFormatadas = reservas.rows.map(r => {
+      const valorBase = r.massagem_preco
+        ? parseFloat(r.massagem_preco)
+        : (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
+      let total = valorBase + parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
+      if (r.pagamento && /^[0-9]/.test(r.pagamento)) total = parseFloat(r.pagamento);
+      return {
+        hora_inicio: r.hora_inicio,
+        hora_fim:    r.hora_fim,
+        status:      r.status,
+        cliente:     r.cliente_nome,
+        servico:     r.massagem_nome || r.aluguel_nome || '—',
+        profissional:r.profissional_nome || r.profissional_externo || '—',
+        quarto:      r.quarto_numero,
+        total,
+        repasse: r.status !== 'cancelada' ? Math.round(total * repassePct * 100) / 100 : 0,
+        bebida:  r.bebida || null,
+        preco_bebida: parseFloat(r.preco_bebida || 0)
+      };
+    });
+
+    const despesasFormatadas = [
+      ...pontuais.rows.map(d => ({...d, recorrente: false})),
+      ...recorrentes.rows.map(d => ({...d, recorrente: true}))
+    ];
+
+    const totReceita  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.total,0);
+    const totRepasse  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.repasse,0);
+    const totDespesas = despesasFormatadas.reduce((s,d)=>s+parseFloat(d.valor||0),0);
+
+    return {
+      data,
+      reservas:  reservasFormatadas,
+      despesas:  despesasFormatadas,
+      resumo: {
+        receita:  Math.round(totReceita  * 100) / 100,
+        repasse:  Math.round(totRepasse  * 100) / 100,
+        despesas: Math.round(totDespesas * 100) / 100,
+        liquido:  Math.round((totReceita - totRepasse - totDespesas) * 100) / 100
+      }
+    };
+  }));
+
 // ─── Estoque ──────────────────────────────────────────────────────────────────
 app.get('/api/estoque', requireAuth, (req, res) =>
   send(res, async () => {
