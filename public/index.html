@@ -3886,17 +3886,21 @@ function loadFluxoMes(anoMes){
   _fluxoPassado=Math.max(Math.round((today-primeiroDia)/86400000),0);
   _fluxoFuturo=Math.max(Math.round((ultimoDia-today)/86400000),0);
   _fluxoData=primeiroDia.toISOString().split('T')[0];
+  // guarda o mês selecionado para filtrar e rotular
+  _fluxoMesStr=anoMes;
+  const labelMes=primeiroDia.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  _fluxoMesLabel=labelMes.charAt(0).toUpperCase()+labelMes.slice(1);
   const pk=document.getElementById('fluxo-data-picker');
   if(pk) pk.value=_fluxoData;
   loadFluxoCaixa(undefined,undefined,undefined);
 }
 
 // ─── Fluxo de Caixa ───────────────────────────────────────────────────────
-let _fluxoPassado=0, _fluxoFuturo=0, _fluxoData=null;
+let _fluxoPassado=0, _fluxoFuturo=0, _fluxoData=null, _fluxoMesStr=null, _fluxoMesLabel=null;
 async function loadFluxoCaixa(passado, futuro, dataAncora){
   const today=new Date().toISOString().split('T')[0];
   // dataAncora=null → reset to today; undefined/omitted → keep current
-  if(dataAncora===null) _fluxoData=today;
+  if(dataAncora===null){ _fluxoData=today; _fluxoMesStr=null; _fluxoMesLabel=null; }
   else if(dataAncora!==undefined) _fluxoData=dataAncora;
   if(!_fluxoData) _fluxoData=today;
 
@@ -3917,16 +3921,12 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
     const isToday=_fluxoData===today;
     const dataLabel=isToday?'Hoje':fmtDate(_fluxoData);
     const data=await api('GET',`/despesas/fluxo-caixa?passado=${_fluxoPassado}&futuro=${_fluxoFuturo}&data=${_fluxoData}`+(cid?'&'+cid:''))||[];
-    // Separate past vs future for KPIs
-    const hoje2=new Date(); hoje2.setHours(0,0,0,0);
-    const hojeStr2=hoje2.toISOString().split('T')[0];
-    const totRec=data.reduce((s,d)=>s+d.receitas,0);
-    const totDesp=data.reduce((s,d)=>s+d.despesas,0);
-    const saldoFinal=data.length?data[data.length-1].saldo_acum:0;
-    const periodoLabel=(_fluxoPassado>0&&_fluxoFuturo>0)?`−${_fluxoPassado}d / +${_fluxoFuturo}d em torno de ${dataLabel}`
-                      :(_fluxoPassado>0)?`${_fluxoPassado}d antes de ${dataLabel}`
-                      :(_fluxoFuturo>0)?`${_fluxoFuturo}d após ${dataLabel}`
-                      :dataLabel;
+    // Se mês selecionado, filtra apenas as datas do mês
+    const dataFiltrada=_fluxoMesStr ? data.filter(d=>d.data&&d.data.startsWith(_fluxoMesStr)) : data;
+    const periodoLabel=_fluxoMesLabel||dataLabel;
+    const totRec=dataFiltrada.reduce((s,d)=>s+d.receitas,0);
+    const totDesp=dataFiltrada.reduce((s,d)=>s+d.despesas,0);
+    const saldoFinal=dataFiltrada.length?dataFiltrada[dataFiltrada.length-1].saldo_acum:0;
     if(kpis) kpis.innerHTML=`
       <div style="background:var(--green-lt);border-radius:8px;padding:10px 18px;text-align:center">
         <div style="font-size:1.1rem;font-weight:800;color:#2d7a56">${fmtMoeda(totRec)}</div>
@@ -3941,11 +3941,11 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
         <div style="font-size:.75rem">Saldo ao final do período</div>
       </div>
       <div style="background:#fdf3e3;border-radius:8px;padding:10px 18px;text-align:center">
-        <div style="font-size:1.1rem;font-weight:800;color:#7a5c2d">${fmtMoeda(data.reduce((s,d)=>s+(d.repasse||0),0))}</div>
+        <div style="font-size:1.1rem;font-weight:800;color:#7a5c2d">${fmtMoeda(dataFiltrada.reduce((s,d)=>s+(d.repasse||0),0))}</div>
         <div style="font-size:.75rem;color:#7a5c2d">💸 Repasses (${periodoLabel})</div>
       </div>`;
-    // Always show today + days with movement
-    const diasVisiveis=data.filter(d=>d.receitas>0||d.despesas>0||d.hoje);
+    // Mostra apenas dias com movimento (filtrados pelo mês se selecionado)
+    const diasVisiveis=dataFiltrada.filter(d=>d.receitas>0||d.despesas>0||d.hoje);
     if(!diasVisiveis.length){
       if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">📊</div><div>Nenhuma movimentação neste período.</div></div>';
       return;
