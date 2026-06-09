@@ -1746,14 +1746,21 @@ app.delete('/api/despesas/:id', requireAuth, (req, res) =>
 app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const dias = Math.min(parseInt(req.query.dias) || 30, 365);
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    const fimDate = new Date(hoje.getTime() + dias * 86400000);
-    const inicio = hoje.toISOString().split('T')[0];
+    // passado = dias antes da data âncora, futuro = dias após, data = âncora (default hoje)
+    const passado = Math.min(Math.abs(parseInt(req.query.passado) || 0), 365);
+    const futuro  = Math.min(Math.abs(parseInt(req.query.futuro)  || 30), 365);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const hojeStr = hoje.toISOString().split('T')[0];
+    const anchorStr = req.query.data && /^\d{4}-\d{2}-\d{2}$/.test(req.query.data)
+      ? req.query.data : hojeStr;
+    const anchor = new Date(anchorStr + 'T00:00:00');
+    const inicioDate = new Date(anchor.getTime() - passado * 86400000);
+    const fimDate    = new Date(anchor.getTime() + futuro  * 86400000);
+    const inicio = inicioDate.toISOString().split('T')[0];
     const fim    = fimDate.toISOString().split('T')[0];
+    const totalDias = passado + futuro + 1;
 
-    const [recRec, ponRec, receitasRec] = await Promise.all([
+    const [recRec, ponRec, receitasRec, repasseCfg] = await Promise.all([
       pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
       pool.query(
         `SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=0
@@ -1762,12 +1769,15 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
       ),
       pool.query(
         `SELECT r.data,
-           SUM(CASE WHEN r.pagamento IS NOT NULL THEN
-             COALESCE(
-               CASE WHEN r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric ELSE NULL END,
-               COALESCE(m.preco, al.preco, 0)
-             )
-           ELSE COALESCE(m.preco, al.preco, 0) END) AS valor
+           SUM(
+             CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]'
+               THEN r.pagamento::numeric
+               ELSE COALESCE(m.preco, 0)
+                  + COALESCE(r.preco_bebida, 0)
+                  + COALESCE(r.multa_valor, 0)
+                  + COALESCE(al.valor, 0)
+             END
+           ) AS valor
          FROM reservas r
          LEFT JOIN massagens m  ON m.id = r.massagem_id
          LEFT JOIN alugueis  al ON al.id = r.aluguel_id
@@ -1775,18 +1785,24 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
            AND r.status IN ('confirmada','concluida')
          GROUP BY r.data`,
         [cid, inicio, fim]
-      )
+      ),
+      pool.query('SELECT percentual FROM repasse_config WHERE clinica_id=$1', [cid])
     ]);
+    const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
 
     const fluxo = {};
-    for (let i = 0; i < dias; i++) {
-      const d = new Date(hoje.getTime() + i * 86400000);
+    for (let i = 0; i < totalDias; i++) {
+      const d = new Date(inicioDate.getTime() + i * 86400000);
       const ds = d.toISOString().split('T')[0];
-      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, saldo_dia: 0, saldo_acum: 0 };
+      fluxo[ds] = { data: ds, receitas: 0, despesas: 0, repasse: 0, saldo_dia: 0, saldo_acum: 0, hoje: ds === anchorStr };
     }
 
     receitasRec.rows.forEach(r => {
-      if (fluxo[r.data]) fluxo[r.data].receitas += parseFloat(r.valor || 0);
+      if (fluxo[r.data]) {
+        const rec = parseFloat(r.valor || 0);
+        fluxo[r.data].receitas += rec;
+        fluxo[r.data].repasse  += rec * repassePct;
+      }
     });
     ponRec.rows.forEach(d => {
       const k = d.data_vencimento instanceof Date
@@ -1796,8 +1812,8 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     });
     recRec.rows.forEach(desp => {
       if (!desp.dia_vencimento) return;
-      for (let i = 0; i < dias; i++) {
-        const d = new Date(hoje.getTime() + i * 86400000);
+      for (let i = 0; i < totalDias; i++) {
+        const d = new Date(inicioDate.getTime() + i * 86400000);
         if (d.getDate() === parseInt(desp.dia_vencimento)) {
           const ds = d.toISOString().split('T')[0];
           if (fluxo[ds]) fluxo[ds].despesas += parseFloat(desp.valor || 0);
@@ -1807,11 +1823,96 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
 
     let saldo = 0;
     return Object.values(fluxo).map(d => {
-      d.saldo_dia  = d.receitas - d.despesas;
+      d.repasse    = Math.round(d.repasse * 100) / 100;
+      d.saldo_dia  = d.receitas - d.despesas - d.repasse;
       saldo       += d.saldo_dia;
       d.saldo_acum = saldo;
       return d;
     });
+  }));
+
+// ─── Fluxo Dia (agenda detalhada de um dia) ─────────────────────────────────
+app.get('/api/fluxo-dia', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const data = req.query.data || new Date().toISOString().split('T')[0];
+    const diaMes = parseInt(data.split('-')[2]);
+
+    const [reservas, pontuais, recorrentes, repasseCfg] = await Promise.all([
+      pool.query(
+        `SELECT r.hora_inicio, r.hora_fim, r.status, r.cliente_nome,
+                r.pagamento, r.preco_bebida, r.multa_valor, r.bebida,
+                m.nome AS massagem_nome, m.preco AS massagem_preco,
+                al.nome AS aluguel_nome, al.valor AS aluguel_valor,
+                p.nome AS profissional_nome,
+                q.numero AS quarto_numero
+         FROM reservas r
+         LEFT JOIN massagens   m  ON m.id  = r.massagem_id
+         LEFT JOIN alugueis    al ON al.id = r.aluguel_id
+         LEFT JOIN profissionais p ON p.id = r.profissional_id
+         LEFT JOIN quartos      q ON q.id  = r.quarto_id
+         WHERE r.clinica_id=$1 AND r.data=$2
+         ORDER BY r.hora_inicio`,
+        [cid, data]
+      ),
+      pool.query(
+        `SELECT tipo, nome_custom, descricao, valor, status, recorrente
+         FROM despesas WHERE clinica_id=$1 AND recorrente=0
+           AND data_vencimento::date = $2::date`,
+        [cid, data]
+      ),
+      pool.query(
+        `SELECT tipo, nome_custom, descricao, valor, status, dia_vencimento
+         FROM despesas WHERE clinica_id=$1 AND recorrente=1
+           AND dia_vencimento=$2`,
+        [cid, diaMes]
+      ),
+      pool.query('SELECT percentual FROM repasse_config WHERE clinica_id=$1', [cid])
+    ]);
+
+    const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
+
+    const reservasFormatadas = reservas.rows.map(r => {
+      const valorBase = r.massagem_preco
+        ? parseFloat(r.massagem_preco)
+        : (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
+      let total = valorBase + parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
+      if (r.pagamento && /^[0-9]/.test(r.pagamento)) total = parseFloat(r.pagamento);
+      return {
+        hora_inicio: r.hora_inicio,
+        hora_fim:    r.hora_fim,
+        status:      r.status,
+        cliente:     r.cliente_nome,
+        servico:     r.massagem_nome || r.aluguel_nome || '—',
+        profissional:r.profissional_nome || r.profissional_externo || '—',
+        quarto:      r.quarto_numero,
+        total,
+        repasse: r.status !== 'cancelada' ? Math.round(total * repassePct * 100) / 100 : 0,
+        bebida:  r.bebida || null,
+        preco_bebida: parseFloat(r.preco_bebida || 0)
+      };
+    });
+
+    const despesasFormatadas = [
+      ...pontuais.rows.map(d => ({...d, recorrente: false})),
+      ...recorrentes.rows.map(d => ({...d, recorrente: true}))
+    ];
+
+    const totReceita  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.total,0);
+    const totRepasse  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.repasse,0);
+    const totDespesas = despesasFormatadas.reduce((s,d)=>s+parseFloat(d.valor||0),0);
+
+    return {
+      data,
+      reservas:  reservasFormatadas,
+      despesas:  despesasFormatadas,
+      resumo: {
+        receita:  Math.round(totReceita  * 100) / 100,
+        repasse:  Math.round(totRepasse  * 100) / 100,
+        despesas: Math.round(totDespesas * 100) / 100,
+        liquido:  Math.round((totReceita - totRepasse - totDespesas) * 100) / 100
+      }
+    };
   }));
 
 // ─── Estoque ──────────────────────────────────────────────────────────────────
