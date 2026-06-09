@@ -809,12 +809,10 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
         onchange="loadFluxoCaixa(null,null,this.value)">
       <button class="btn btn-secondary btn-sm" onclick="loadFluxoCaixa(null,null,null)" title="Voltar para hoje" style="font-size:.8rem">↺ Hoje</button>
       <span style="margin:0 4px;color:#ccc">|</span>
-      <span style="font-weight:600;font-size:.85rem;color:var(--text-lt)">Futuro ▶</span>
-      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="30"  onclick="loadFluxoCaixa(0,30)">+30d</button>
-      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="60"  onclick="loadFluxoCaixa(0,60)">+60d</button>
-      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="90"  onclick="loadFluxoCaixa(0,90)">+90d</button>
-      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="180" onclick="loadFluxoCaixa(0,180)">+180d</button>
-      <button class="btn btn-secondary btn-sm fluxo-fut" data-f="360" onclick="loadFluxoCaixa(0,360)">+360d</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-secondary btn-sm" id="btn-fluxo-mes" onclick="toggleFluxoMesDropdown()" style="font-size:.85rem">📅 Mês ▾</button>
+        <div id="fluxo-mes-dropdown" style="display:none;position:absolute;top:110%;left:0;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:4px 0;z-index:200;min-width:175px;max-height:300px;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,.18)"></div>
+      </div>
     </div>
     <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
     <div id="fluxo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
@@ -1117,7 +1115,7 @@ function showView(v){
   else if(v==='aut-locais') loadAutLocais();
   else if(v==='aut-dash') loadAutDash();
   else if(v==='despesas'){ initDespesasFiltros(); loadDespesas(); }
-  else if(v==='fluxo') loadFluxoCaixa(0,30,null);
+  else if(v==='fluxo') loadFluxoCaixa(0,0,null);
   else if(v==='estoque') loadEstoque();
 }
 function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
@@ -3848,8 +3846,58 @@ async function saveDespesa(){
   }catch(e){toast(e.message,'err');}
 }
 
+
+function buildFluxoMesDropdown(){
+  const dd=document.getElementById('fluxo-mes-dropdown');
+  if(!dd) return;
+  const now=new Date();
+  let html='';
+  for(let i=1;i<=18;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const anoMes=d.toISOString().split('T')[0].substring(0,7);
+    const label=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const cap=label.charAt(0).toUpperCase()+label.slice(1);
+    html+=`<div onclick="loadFluxoMes('${anoMes}')" style="padding:7px 16px;cursor:pointer;font-size:.87rem;white-space:nowrap" onmouseover="this.style.background='var(--cel-pale)'" onmouseout="this.style.background=''">${cap}</div>`;
+  }
+  dd.innerHTML=html;
+}
+
+function toggleFluxoMesDropdown(){
+  const dd=document.getElementById('fluxo-mes-dropdown');
+  if(!dd) return;
+  if(dd.style.display==='none'||!dd.style.display){
+    buildFluxoMesDropdown();
+    dd.style.display='block';
+    setTimeout(()=>{
+      document.addEventListener('click',function closeDD(e){
+        if(!e.target.closest('#fluxo-mes-dropdown')&&!e.target.closest('#btn-fluxo-mes')){
+          dd.style.display='none';
+          document.removeEventListener('click',closeDD);
+        }
+      });
+    },50);
+  } else {
+    dd.style.display='none';
+  }
+}
+
+function loadFluxoMes(anoMes){
+  const dd=document.getElementById('fluxo-mes-dropdown');
+  if(dd) dd.style.display='none';
+  const [ano,mes]=anoMes.split('-').map(Number);
+  const primeiroDia=new Date(ano,mes-1,1);
+  const ultimoDia=new Date(ano,mes,0);
+  const today=new Date(); today.setHours(0,0,0,0);
+  _fluxoPassado=Math.max(Math.round((today-primeiroDia)/86400000),0);
+  _fluxoFuturo=Math.max(Math.round((ultimoDia-today)/86400000),0);
+  _fluxoData=primeiroDia.toISOString().split('T')[0];
+  const pk=document.getElementById('fluxo-data-picker');
+  if(pk) pk.value=_fluxoData;
+  loadFluxoCaixa(undefined,undefined,undefined);
+}
+
 // ─── Fluxo de Caixa ───────────────────────────────────────────────────────
-let _fluxoPassado=0, _fluxoFuturo=30, _fluxoData=null;
+let _fluxoPassado=0, _fluxoFuturo=0, _fluxoData=null;
 async function loadFluxoCaixa(passado, futuro, dataAncora){
   const today=new Date().toISOString().split('T')[0];
   // dataAncora=null → reset to today; undefined/omitted → keep current
@@ -3867,9 +3915,6 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
   // Highlight active buttons
   document.querySelectorAll('.fluxo-past').forEach(b=>{
     b.style.fontWeight=parseInt(b.dataset.p)===_fluxoPassado?'700':'';
-  });
-  document.querySelectorAll('.fluxo-fut').forEach(b=>{
-    b.style.fontWeight=parseInt(b.dataset.f)===_fluxoFuturo?'700':'';
   });
 
   const el=document.getElementById('fluxo-list');
