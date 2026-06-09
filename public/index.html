@@ -799,11 +799,6 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <h1 style="flex:1;margin:0">📊 Fluxo de Caixa</h1>
     </div>
     <div style="padding:10px 16px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span style="font-weight:600;font-size:.85rem;color:var(--text-lt)">◀ Passado:</span>
-      <button class="btn btn-secondary btn-sm fluxo-past" data-p="30"  onclick="loadFluxoCaixa(-30,0)">−30d</button>
-      <button class="btn btn-secondary btn-sm fluxo-past" data-p="60"  onclick="loadFluxoCaixa(-60,0)">−60d</button>
-      <button class="btn btn-secondary btn-sm fluxo-past" data-p="90"  onclick="loadFluxoCaixa(-90,0)">−90d</button>
-      <span style="margin:0 4px;color:#ccc">|</span>
       <input type="date" id="fluxo-data-picker" class="field-input"
         style="width:auto;padding:5px 10px;font-size:.85rem;background:var(--cel);color:#fff;border-color:var(--cel);font-weight:700;cursor:pointer"
         onchange="loadFluxoCaixa(null,null,this.value)">
@@ -3852,7 +3847,7 @@ function buildFluxoMesDropdown(){
   if(!dd) return;
   const now=new Date();
   let html='';
-  for(let i=1;i<=18;i++){
+  for(let i=0;i<=18;i++){
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
     const anoMes=d.toISOString().split('T')[0].substring(0,7);
     const label=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
@@ -3913,9 +3908,6 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
   if(pk) pk.value=_fluxoData;
 
   // Highlight active buttons
-  document.querySelectorAll('.fluxo-past').forEach(b=>{
-    b.style.fontWeight=parseInt(b.dataset.p)===_fluxoPassado?'700':'';
-  });
 
   const el=document.getElementById('fluxo-list');
   const kpis=document.getElementById('fluxo-kpis');
