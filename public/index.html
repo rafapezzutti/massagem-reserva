@@ -3930,7 +3930,7 @@ async function loadFluxoDiario(data){
           <td>${pd.reservas.length}</td>
           <td class="ctr" style="color:#2d7a56">${fmtMoeda(pd.total)}</td>
           <td class="ctr" style="color:#7a5c2d">${fmtMoeda(pd.repasse)}</td>
-          <td class="ctr" style="color:${liq>=0?'#2d7a56':'var(--danger)';}">${fmtMoeda(liq)}</td>
+          <td class="ctr" style="color:${liq>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(liq)}</td>
         </tr>`;
       });
       html+=`</tbody></table></div></div>`;
