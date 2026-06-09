@@ -3945,7 +3945,7 @@ async function loadFluxoDiario(data){
         html+=`<tr>
           <td style="white-space:nowrap">${r.hora_inicio||''}${r.hora_fim?' – '+r.hora_fim:''}</td>
           <td>${r.cliente||'—'}</td>
-          <td>${r.servico||'—'}${r.bebida?` + ${r.bebida}`:''}</td>
+          <td>${r.servico||'—'}${r.bebida?' + '+r.bebida:''}</td>
           <td>${r.profissional||'—'}</td>
           <td class="ctr" style="color:#2d7a56">${fmtMoeda(r.total||0)}</td>
           <td class="ctr" style="color:#7a5c2d">${fmtMoeda(r.repasse||0)}</td>
