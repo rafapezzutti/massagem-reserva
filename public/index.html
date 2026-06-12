@@ -416,6 +416,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
       <button class="nav-btn" id="nav-despesas"        onclick="showView('despesas')">🧾 Despesas</button>
+      <button class="nav-btn" id="nav-cartao"          onclick="showView('cartao')">💳 Cartões</button>
       <button class="nav-btn" id="nav-fluxo"           onclick="showView('fluxo')">📊 Fluxo de Caixa</button>
       <button class="nav-btn" id="nav-estoque"         onclick="showView('estoque')">📦 Estoque</button>
       <button class="nav-btn" id="nav-dashboard"       onclick="showView('dashboard')">📊 Dashboard</button>
@@ -794,6 +795,16 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 
 
   <!-- ════════════════════════════════════════════════ FLUXO DE CAIXA ════════ -->
+  <!-- ── CARTÕES ── -->
+  <div id="view-cartao" class="view">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 16px 8px">
+      <h1 style="flex:1;margin:0">💳 Máquinas de Cartão</h1>
+      <button class="btn btn-primary btn-sm" onclick="openCartaoModal()">＋ Nova Máquina</button>
+    </div>
+    <div style="padding:0 16px 4px;font-size:.85rem;color:var(--text-lt)">Configure as taxas cobradas por cada maquininha (crédito e débito).</div>
+    <div id="cartao-list" style="padding:12px 16px 24px"><div class="spinner"></div></div>
+  </div>
+
   <div id="view-fluxo" class="view">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 16px 0">
       <h1 style="flex:1;margin:0">📊 Fluxo de Caixa</h1>
@@ -999,7 +1010,7 @@ function applyGerentePermissoes(permissoes){
   const p=permissoes||GERENTE_PERM_DEFAULT;
   const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
     profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',
-    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',fluxo:'nav-fluxo',estoque:'nav-estoque'};
+    recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',cartao:'nav-cartao',fluxo:'nav-fluxo',estoque:'nav-estoque'};
   Object.entries(navMap).forEach(([key,nid])=>{
     const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
   });
@@ -1125,6 +1136,7 @@ function showView(v){
   else if(v==='aut-locais') loadAutLocais();
   else if(v==='aut-dash') loadAutDash();
   else if(v==='despesas'){ initDespesasFiltros(); loadDespesas(); }
+  else if(v==='cartao') loadCartoes();
   else if(v==='fluxo') showFluxoTab('diario');
   else if(v==='estoque') loadEstoque();
 }
@@ -1162,7 +1174,7 @@ async function loadClinicaSelector(){
   }catch(e){}
 }
 
-const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard','despesas','fluxo','estoque'];
+const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard','despesas','cartao','fluxo','estoque'];
 const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
 
 function onClinicaSelect(val){
@@ -1902,16 +1914,27 @@ function setTipoReserva(tipo){
   const aRow=document.getElementById('rv-aluguel-row');
   const mBtn=document.getElementById('tipo-massagem-btn');
   const aBtn=document.getElementById('tipo-aluguel-btn');
-  const profMassRow=document.getElementById('rv-prof-mass-row');
+  const profMassSection=document.getElementById('rv-prof-mass-section');
   const profAlugSection=document.getElementById('rv-prof-aluguel-section');
   if(mRow) mRow.style.display=isMass?'':'none';
   if(aRow) aRow.style.display=isMass?'none':'';
   if(mBtn) mBtn.className='btn '+(isMass?'btn-primary':'btn-secondary')+' btn-sm';
   if(aBtn) aBtn.className='btn '+(isMass?'btn-secondary':'btn-primary')+' btn-sm';
-  if(profMassRow) profMassRow.style.display=isMass?'':'none';
+  if(profMassSection) profMassSection.style.display=isMass?'':'none';
   if(profAlugSection) profAlugSection.style.display=isMass?'none':'';
-  // Always reset profissional toggle when switching type
+  setProfMassTipo('cadastrada');
   setProfTipo('cadastrada');
+}
+function setProfMassTipo(tipo){
+  const isCad=tipo==='cadastrada';
+  const cadRow=document.getElementById('rv-prof-mass-cad-row');
+  const extWrap=document.getElementById('rv-prof-mass-ext-wrap');
+  const cadBtn=document.getElementById('prof-mass-cad-btn');
+  const extBtn=document.getElementById('prof-mass-ext-btn');
+  if(cadRow) cadRow.style.display=isCad?'':'none';
+  if(extWrap) extWrap.style.display=isCad?'none':'';
+  if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
+  if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
 function setProfTipo(tipo){
   const isCad=tipo==='cadastrada';
@@ -2023,8 +2046,21 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <input id="rv-inicio" type="time" value="${r?.hora_inicio||horaPre||'09:00'}" step="1800" onchange="autoFillHoraFim()"/></div>
       <div class="field"><label>Hora Fim <span class="required">*</span></label>
         <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"/></div>
-      <div class="field full" id="rv-prof-mass-row"><label>Massagista <span class="required">*</span></label>
-        <select id="rv-prof">${optP}</select></div>
+      <div id="rv-prof-mass-section">
+        <div class="field full" style="margin-bottom:6px">
+          <label style="margin-bottom:4px">Massagista / Terapeuta <span class="required">*</span></label>
+          <div style="display:flex;gap:8px">
+            <button type="button" id="prof-mass-cad-btn" class="btn btn-primary btn-sm" onclick="setProfMassTipo('cadastrada')">👤 Cadastrada</button>
+            <button type="button" id="prof-mass-ext-btn" class="btn btn-secondary btn-sm" onclick="setProfMassTipo('externa')">🔤 Externa</button>
+          </div>
+        </div>
+        <div class="field full" id="rv-prof-mass-cad-row">
+          <select id="rv-prof">${optP}</select>
+        </div>
+        <div class="field full" id="rv-prof-mass-ext-wrap" style="display:none">
+          <input id="rv-prof-mass-externo" type="text" placeholder="Nome da terapeuta externa…" value="${r&&!r.aluguel_id&&r.profissional_externo?esc(r.profissional_externo):''}"/>
+        </div>
+      </div>
       <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
         <select id="rv-quarto">${optQ}</select></div>
       <div class="field full" style="margin-bottom:2px">
@@ -2104,8 +2140,9 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   setTimeout(()=>{
     renderDrinksList();
     setTipoReserva(tipoInicial);
-    // If editing a reservation with external professional, switch toggle
-    if(r?.profissional_externo) setProfTipo('externa');
+    // Restaura toggle de profissional externa conforme tipo
+    if(r?.profissional_externo && r?.aluguel_id) setProfTipo('externa');
+    if(r?.profissional_externo && !r?.aluguel_id) setProfMassTipo('externa');
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
@@ -2174,12 +2211,19 @@ async function saveReserva(id){
   const hora_fim=document.getElementById('rv-fim').value;
   const quarto_id=parseInt(document.getElementById('rv-quarto').value);
   const tipoMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
-  const isExterna=document.getElementById('rv-prof-externo-wrap')?.style.display!=='none';
-  // For massagem: use rv-prof; for aluguel+cadastrada: use rv-prof-aluguel; for aluguel+externa: use text input
+  const isExternaMass=document.getElementById('rv-prof-mass-ext-wrap')?.style.display!=='none';
+  const isExternaAlug=document.getElementById('rv-prof-externo-wrap')?.style.display!=='none';
+  const isExterna=tipoMass?isExternaMass:isExternaAlug;
+  // profissional_id: cadastrada de massagem, ou cadastrada de aluguel
   const profissional_id=tipoMass
-    ? (parseInt(document.getElementById('rv-prof')?.value)||null)
-    : (!isExterna ? (parseInt(document.getElementById('rv-prof-aluguel')?.value)||null) : null);
-  const profissional_externo=(!tipoMass&&isExterna)?(document.getElementById('rv-prof-externo')?.value.trim()||null):null;
+    ? (isExternaMass ? null : (parseInt(document.getElementById('rv-prof')?.value)||null))
+    : (!isExternaAlug ? (parseInt(document.getElementById('rv-prof-aluguel')?.value)||null) : null);
+  // profissional_externo: externa de massagem OU externa de aluguel
+  const profissional_externo=tipoMass&&isExternaMass
+    ? (document.getElementById('rv-prof-mass-externo')?.value.trim()||null)
+    : (!tipoMass&&isExternaAlug)
+      ? (document.getElementById('rv-prof-externo')?.value.trim()||null)
+      : null;
   const massagem_id=tipoMass?parseInt(document.getElementById('rv-massagem')?.value)||null:null;
   const aluguel_id=!tipoMass?parseInt(document.getElementById('rv-aluguel')?.value)||null:null;
   const cliente_nome=document.getElementById('rv-cliente').value.trim();
@@ -3856,6 +3900,82 @@ async function saveDespesa(){
   }catch(e){toast(e.message,'err');}
 }
 
+
+// ─── Máquinas de Cartão ───────────────────────────────────────────────────────
+async function loadCartoes(){
+  const el=document.getElementById('cartao-list');
+  if(el) el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const data=await api('GET','/maquinas-cartao'+(cid?'?'+cid:''))||[];
+    if(!data.length){
+      if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">💳</div><div>Nenhuma máquina cadastrada.</div></div>';
+      return;
+    }
+    let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
+      +'<th>Máquina / Nome</th><th>Bandeira</th><th class="ctr">Taxa Crédito</th><th class="ctr">Taxa Débito</th><th class="ctr">Ações</th>'
+      +'</tr></thead><tbody>';
+    data.forEach(m=>{
+      html+=`<tr>
+        <td style="font-weight:600">${esc(m.nome)}</td>
+        <td>${esc(m.bandeira)}</td>
+        <td class="ctr">${parseFloat(m.taxa_credito).toFixed(2).replace('.',',')}%</td>
+        <td class="ctr">${parseFloat(m.taxa_debito).toFixed(2).replace('.',',')}%</td>
+        <td class="ctr" style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="openCartaoModal(${m.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCartao(${m.id})" style="margin-left:4px">🗑</button>
+        </td>
+      </tr>`;
+    });
+    html+='</tbody></table></div>';
+    if(el) el.innerHTML=html;
+  }catch(e){toast(e.message,'err');}
+}
+async function openCartaoModal(id){
+  const cid=cidParam();
+  let m=null;
+  if(id){
+    try{ const list=await api('GET','/maquinas-cartao'+(cid?'?'+cid:'')); m=(list||[]).find(x=>x.id===id); }catch(e){}
+  }
+  const bandeiras=['Todas','Visa','Mastercard','Elo','American Express','Hipercard'];
+  const optBand=bandeiras.map(b=>`<option value="${b}"${m?.bandeira===b?' selected':''}>${b}</option>`).join('');
+  openModal(m?'Editar Máquina de Cartão':'Nova Máquina de Cartão',`
+    <div class="form-grid">
+      <div class="field full"><label>Nome da Máquina <span class="required">*</span></label>
+        <input id="mc-nome" type="text" placeholder="Ex: Stone Principal, Cielo Débito…" value="${m?esc(m.nome):''}"/></div>
+      <div class="field full"><label>Bandeira</label>
+        <select id="mc-bandeira">${optBand}</select></div>
+      <div class="field"><label>Taxa Crédito (%)</label>
+        <input id="mc-credito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${m?parseFloat(m.taxa_credito).toFixed(2):''}"/></div>
+      <div class="field"><label>Taxa Débito (%)</label>
+        <input id="mc-debito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${m?parseFloat(m.taxa_debito).toFixed(2):''}"/></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveCartao(${id||'null'})">Salvar</button>`);
+}
+async function saveCartao(id){
+  const nome=document.getElementById('mc-nome')?.value.trim();
+  const bandeira=document.getElementById('mc-bandeira')?.value;
+  const taxa_credito=parseFloat(document.getElementById('mc-credito')?.value)||0;
+  const taxa_debito=parseFloat(document.getElementById('mc-debito')?.value)||0;
+  if(!nome) return toast('Informe o nome da máquina','err');
+  const cid=cidParam();
+  try{
+    const body={nome,bandeira,taxa_credito,taxa_debito,...cidBody()};
+    if(id) await api('PUT','/maquinas-cartao/'+id,body);
+    else   await api('POST','/maquinas-cartao',body);
+    toast(id?'Máquina atualizada!':'Máquina cadastrada! ✅');
+    closeModal(); loadCartoes();
+  }catch(e){toast(e.message,'err');}
+}
+async function deleteCartao(id){
+  if(!confirm('Remover esta máquina de cartão?')) return;
+  const cid=cidParam();
+  try{
+    await api('DELETE','/maquinas-cartao/'+id+(cid?'?'+cid:''));
+    toast('Máquina removida','info'); loadCartoes();
+  }catch(e){toast(e.message,'err');}
+}
 
 // ─── Fluxo sub-abas ───────────────────────────────────────────────────────────
 let _fluxoTabAtiva='diario';

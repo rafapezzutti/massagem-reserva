@@ -340,6 +340,20 @@ async function initDB() {
   `).catch(()=>{});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_estoque_clinica ON estoque(clinica_id)').catch(()=>{});
 
+  // ── Máquinas de cartão ──────────────────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS maquinas_cartao (
+      id             SERIAL PRIMARY KEY,
+      clinica_id     INTEGER NOT NULL,
+      nome           TEXT NOT NULL,
+      bandeira       TEXT NOT NULL DEFAULT 'Todas',
+      taxa_credito   NUMERIC(5,2) NOT NULL DEFAULT 0,
+      taxa_debito    NUMERIC(5,2) NOT NULL DEFAULT 0,
+      ativo          INTEGER NOT NULL DEFAULT 1,
+      criado_em      TIMESTAMP DEFAULT NOW()
+    )
+  `).catch(()=>{});
+
   console.log('✅ Banco de dados pronto');
 }
 
@@ -882,7 +896,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
             bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
     const cid = getClinicaId(req);
     const pid = profissional_id ? parseInt(profissional_id) : null;
-    const isExterno = aluguel_id && !pid && profissional_externo?.trim();
+    const isExterno = !pid && profissional_externo?.trim();
     if (!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
     if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
@@ -914,7 +928,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
             cliente_nome, cliente_telefone, status, observacoes,
             bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
     const pid = profissional_id ? parseInt(profissional_id) : null;
-    const isExterno = aluguel_id && !pid && profissional_externo?.trim();
+    const isExterno = !pid && profissional_externo?.trim();
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
     if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
     if (status !== 'cancelada') {
@@ -930,11 +944,12 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       }
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16 WHERE id=$17 AND clinica_id=$18',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17 WHERE id=$18 AND clinica_id=$19',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
-       bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null, id, cid]);
+       bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
+       parseFloat(multa_valor)||0, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -1991,6 +2006,56 @@ app.get('/api/estoque/:id/movimentacoes', requireAuth, (req, res) =>
        ORDER BY data DESC, id DESC LIMIT 100`,
       [req.params.id, cid]
     ).then(r => r.rows);
+  }));
+
+// ─── Máquinas de Cartão ───────────────────────────────────────────────────────
+app.get('/api/maquinas-cartao', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return pool.query(
+      'SELECT * FROM maquinas_cartao WHERE clinica_id=$1 AND ativo=1 ORDER BY nome',
+      [cid]
+    ).then(r => r.rows);
+  }));
+
+app.post('/api/maquinas-cartao', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { nome, bandeira, taxa_credito, taxa_debito } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    const r = await pool.query(
+      `INSERT INTO maquinas_cartao (clinica_id,nome,bandeira,taxa_credito,taxa_debito)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [cid, nome.trim(), bandeira||'Todas',
+       parseFloat(taxa_credito)||0, parseFloat(taxa_debito)||0]
+    );
+    return r.rows[0];
+  }));
+
+app.put('/api/maquinas-cartao/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { nome, bandeira, taxa_credito, taxa_debito } = req.body;
+    if (!nome) throw new Error('Nome é obrigatório');
+    await pool.query(
+      `UPDATE maquinas_cartao SET nome=$1,bandeira=$2,taxa_credito=$3,taxa_debito=$4
+       WHERE id=$5 AND clinica_id=$6`,
+      [nome.trim(), bandeira||'Todas',
+       parseFloat(taxa_credito)||0, parseFloat(taxa_debito)||0,
+       req.params.id, cid]
+    );
+    return pool.query('SELECT * FROM maquinas_cartao WHERE id=$1', [req.params.id])
+      .then(r => r.rows[0]);
+  }));
+
+app.delete('/api/maquinas-cartao/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await pool.query(
+      'UPDATE maquinas_cartao SET ativo=0 WHERE id=$1 AND clinica_id=$2',
+      [req.params.id, cid]
+    );
+    return { ok: true };
   }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────
