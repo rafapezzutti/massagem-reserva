@@ -309,6 +309,7 @@ async function initDB() {
     )
   `).catch(()=>{});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_despesas_clinica ON despesas(clinica_id)').catch(()=>{});
+  await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS reserva_id INTEGER`).catch(()=>{});
 
   // 3o. Estoque
   await pool.query(`
@@ -863,6 +864,36 @@ app.delete('/api/alugueis/:id', requireAuth, (req, res) =>
     return { id: parseInt(req.params.id) };
   }));
 
+
+// ─── Helper: taxa cartão automática ──────────────────────────────────────────
+async function gerarDespesaCartao(cid, reservaId, data, clienteNome, pagamento, parcelas, maquinaId, valorServico) {
+  if (!maquinaId || !['Crédito','Débito'].includes(pagamento)) return;
+  // apagar despesa anterior desta reserva (se existir)
+  await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2`, [reservaId, cid]).catch(()=>{});
+  const mq = await pool.query(`SELECT * FROM maquinas_cartao WHERE id=$1 AND clinica_id=$2`, [maquinaId, cid]);
+  if (!mq.rows.length) return;
+  const m = mq.rows[0];
+  const p = parseInt(parcelas) || 1;
+  let taxa = 0;
+  if (pagamento === 'Débito') {
+    taxa = parseFloat(m.taxa_debito) || 0;
+  } else {
+    if (p >= 7)      taxa = parseFloat(m.taxa_credito_7_12) || 0;
+    else if (p >= 2) taxa = parseFloat(m.taxa_credito_2_6)  || 0;
+    else             taxa = parseFloat(m.taxa_credito)       || 0;
+  }
+  if (taxa <= 0) return;
+  const valor = Math.round(parseFloat(valorServico) * taxa) / 100;
+  if (valor <= 0) return;
+  const parcelaStr = pagamento === 'Crédito' ? ` ${p}x` : '';
+  const descricao = `Taxa cartão ${m.bandeira} (${pagamento}${parcelaStr}) – ${clienteNome}`;
+  await pool.query(
+    `INSERT INTO despesas (clinica_id,tipo,descricao,valor,status,data_pagamento,data_vencimento,reserva_id)
+     VALUES ($1,'tarifa_cartao',$2,$3,'pago',$4,$4,$5)`,
+    [cid, descricao, valor, data, reservaId]
+  ).catch(()=>{});
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // RESERVAS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -948,6 +979,13 @@ app.post('/api/reservas', requireAuth, (req, res) =>
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null,
        parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null]);
+    // gerar despesa de taxa cartão automaticamente
+    if (maquina_cartao_id && ['Crédito','Débito'].includes(pagamento)) {
+      const svcVal = massagem_id
+        ? (await pool.query('SELECT preco FROM massagens WHERE id=$1',[massagem_id]).then(r=>r.rows[0]?.preco||0))
+        : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
+      await gerarDespesaCartao(cid, nova.id, data, cliente_nome.trim(), pagamento, parcelas, parseInt(maquina_cartao_id), svcVal);
+    }
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -984,6 +1022,16 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
        parseFloat(multa_valor)||0, parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null,
        id, cid]);
+    // atualizar despesa de taxa cartão (apaga e recria se mudou)
+    if (['Crédito','Débito'].includes(pagamento) && maquina_cartao_id) {
+      const svcVal = massagem_id
+        ? (await pool.query('SELECT preco FROM massagens WHERE id=$1',[massagem_id]).then(r=>r.rows[0]?.preco||0))
+        : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
+      await gerarDespesaCartao(cid, id, data, cliente_nome.trim(), pagamento, parcelas, parseInt(maquina_cartao_id), svcVal);
+    } else {
+      // pagamento mudou para não-cartão: remover despesa anterior
+      await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`,[id,cid]).catch(()=>{});
+    }
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
