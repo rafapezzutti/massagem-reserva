@@ -359,6 +359,31 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS parcelas          INTEGER DEFAULT 1`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS maquina_cartao_id INTEGER`).catch(()=>{});
 
+  // ── Seed: taxas Inter para Bali Spa ─────────────────────────────────────────
+  await (async () => {
+    try {
+      const bali = await pool.query(`SELECT id FROM clinicas WHERE nome ILIKE '%bali%' LIMIT 1`);
+      if (!bali.rows.length) return;
+      const cid = bali.rows[0].id;
+      const existing = await pool.query(`SELECT COUNT(*) FROM maquinas_cartao WHERE clinica_id=$1`, [cid]);
+      if (parseInt(existing.rows[0].count) > 0) return;
+      const bandeiras = [
+        { nome:'Inter Visa',       bandeira:'Visa',             taxa_debito:1.55, taxa_credito:2.73, taxa_credito_2_6:2.92, taxa_credito_7_12:3.34, taxa_antecipacao:2.09 },
+        { nome:'Inter Mastercard', bandeira:'Mastercard',       taxa_debito:1.55, taxa_credito:2.73, taxa_credito_2_6:2.92, taxa_credito_7_12:3.34, taxa_antecipacao:2.09 },
+        { nome:'Inter Elo',        bandeira:'Elo',              taxa_debito:1.89, taxa_credito:3.22, taxa_credito_2_6:3.70, taxa_credito_7_12:3.97, taxa_antecipacao:2.09 },
+        { nome:'Inter Amex',       bandeira:'American Express', taxa_debito:0.00, taxa_credito:3.49, taxa_credito_2_6:4.09, taxa_credito_7_12:4.39, taxa_antecipacao:2.09 },
+        { nome:'Inter Hipercard',  bandeira:'Hipercard',        taxa_debito:0.00, taxa_credito:4.46, taxa_credito_2_6:4.09, taxa_credito_7_12:4.39, taxa_antecipacao:2.09 },
+      ];
+      for (const b of bandeiras) {
+        await pool.query(
+          `INSERT INTO maquinas_cartao (clinica_id,nome,bandeira,taxa_credito,taxa_debito,taxa_credito_2_6,taxa_credito_7_12,taxa_antecipacao) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [cid, b.nome, b.bandeira, b.taxa_credito, b.taxa_debito, b.taxa_credito_2_6, b.taxa_credito_7_12, b.taxa_antecipacao]
+        );
+      }
+      console.log(`✅ Taxas Inter inseridas para Bali Spa (clinica_id=${cid})`);
+    } catch(e) { console.error('Seed Bali Spa cartoes:', e.message); }
+  })();
+
   console.log('✅ Banco de dados pronto');
 }
 
