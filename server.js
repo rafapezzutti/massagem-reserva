@@ -353,6 +353,11 @@ async function initDB() {
       criado_em      TIMESTAMP DEFAULT NOW()
     )
   `).catch(()=>{});
+  await pool.query(`ALTER TABLE maquinas_cartao ADD COLUMN IF NOT EXISTS taxa_credito_2_6  NUMERIC(5,2) NOT NULL DEFAULT 0`).catch(()=>{});
+  await pool.query(`ALTER TABLE maquinas_cartao ADD COLUMN IF NOT EXISTS taxa_credito_7_12 NUMERIC(5,2) NOT NULL DEFAULT 0`).catch(()=>{});
+  await pool.query(`ALTER TABLE maquinas_cartao ADD COLUMN IF NOT EXISTS taxa_antecipacao  NUMERIC(5,2) NOT NULL DEFAULT 0`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS parcelas          INTEGER DEFAULT 1`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS maquina_cartao_id INTEGER`).catch(()=>{});
 
   console.log('✅ Banco de dados pronto');
 }
@@ -893,7 +898,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, observacoes,
-            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento,
+            parcelas, maquina_cartao_id } = req.body;
     const cid = getClinicaId(req);
     const pid = profissional_id ? parseInt(profissional_id) : null;
     const isExterno = !pid && profissional_externo?.trim();
@@ -911,11 +917,12 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id',
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
-       bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null]);
+       bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null,
+       parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -926,7 +933,8 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, status, observacoes,
-            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento,
+            parcelas, maquina_cartao_id } = req.body;
     const pid = profissional_id ? parseInt(profissional_id) : null;
     const isExterno = !pid && profissional_externo?.trim();
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
@@ -944,12 +952,13 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       }
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17 WHERE id=$18 AND clinica_id=$19',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19 WHERE id=$20 AND clinica_id=$21',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
-       parseFloat(multa_valor)||0, id, cid]);
+       parseFloat(multa_valor)||0, parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null,
+       id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -2021,13 +2030,16 @@ app.get('/api/maquinas-cartao', requireAuth, (req, res) =>
 app.post('/api/maquinas-cartao', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { nome, bandeira, taxa_credito, taxa_debito } = req.body;
+    const { nome, bandeira, taxa_credito, taxa_debito,
+            taxa_credito_2_6, taxa_credito_7_12, taxa_antecipacao } = req.body;
     if (!nome) throw new Error('Nome é obrigatório');
     const r = await pool.query(
-      `INSERT INTO maquinas_cartao (clinica_id,nome,bandeira,taxa_credito,taxa_debito)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      `INSERT INTO maquinas_cartao (clinica_id,nome,bandeira,taxa_credito,taxa_debito,taxa_credito_2_6,taxa_credito_7_12,taxa_antecipacao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [cid, nome.trim(), bandeira||'Todas',
-       parseFloat(taxa_credito)||0, parseFloat(taxa_debito)||0]
+       parseFloat(taxa_credito)||0, parseFloat(taxa_debito)||0,
+       parseFloat(taxa_credito_2_6)||0, parseFloat(taxa_credito_7_12)||0,
+       parseFloat(taxa_antecipacao)||0]
     );
     return r.rows[0];
   }));
@@ -2035,13 +2047,17 @@ app.post('/api/maquinas-cartao', requireAuth, (req, res) =>
 app.put('/api/maquinas-cartao/:id', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { nome, bandeira, taxa_credito, taxa_debito } = req.body;
+    const { nome, bandeira, taxa_credito, taxa_debito,
+            taxa_credito_2_6, taxa_credito_7_12, taxa_antecipacao } = req.body;
     if (!nome) throw new Error('Nome é obrigatório');
     await pool.query(
-      `UPDATE maquinas_cartao SET nome=$1,bandeira=$2,taxa_credito=$3,taxa_debito=$4
-       WHERE id=$5 AND clinica_id=$6`,
+      `UPDATE maquinas_cartao SET nome=$1,bandeira=$2,taxa_credito=$3,taxa_debito=$4,
+       taxa_credito_2_6=$5,taxa_credito_7_12=$6,taxa_antecipacao=$7
+       WHERE id=$8 AND clinica_id=$9`,
       [nome.trim(), bandeira||'Todas',
        parseFloat(taxa_credito)||0, parseFloat(taxa_debito)||0,
+       parseFloat(taxa_credito_2_6)||0, parseFloat(taxa_credito_7_12)||0,
+       parseFloat(taxa_antecipacao)||0,
        req.params.id, cid]
     );
     return pool.query('SELECT * FROM maquinas_cartao WHERE id=$1', [req.params.id])

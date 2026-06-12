@@ -2112,13 +2112,23 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         </div>
       </div>
       <div class="field"><label>💳 Método de Pagamento</label>
-        <select id="rv-pagamento">
+        <select id="rv-pagamento" onchange="toggleCartaoFields()">
           <option value="">— Selecione —</option>
           <option value="Pix"${r?.pagamento==='Pix'?' selected':''}>Pix</option>
           <option value="Crédito"${r?.pagamento==='Crédito'?' selected':''}>Crédito</option>
           <option value="Débito"${r?.pagamento==='Débito'?' selected':''}>Débito</option>
           <option value="Dinheiro"${r?.pagamento==='Dinheiro'?' selected':''}>Dinheiro</option>
         </select></div>
+      <div class="field full" id="rv-cartao-row" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:.82rem;margin-bottom:4px">Bandeira / Máquina</label>
+            <select id="rv-maquina-cartao" style="width:100%"><option value="">— Selecione —</option></select></div>
+          <div><label style="font-size:.82rem;margin-bottom:4px">Parcelas</label>
+            <select id="rv-parcelas" style="width:100%">
+              ${Array.from({length:12},(_,i)=>`<option value="${i+1}"${r?.parcelas===i+1?' selected':''}>${i+1}x${i===0?' (à vista)':''}</option>`).join('')}
+            </select></div>
+        </div>
+      </div>
       <div class="field full"><label>Observações</label>
         <textarea id="rv-obs">${r?.observacoes?esc(r.observacoes):''}</textarea></div>
       <div class="field full" style="padding:10px 12px;background:${parseFloat(r?.multa_valor||0)>0?'#fff5f5':'var(--bg)'};border-radius:8px;border:1.5px solid ${parseFloat(r?.multa_valor||0)>0?'var(--red)':'var(--border)'}">
@@ -2137,15 +2147,39 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
      <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
+  // Carrega maquinas de cartão para o select
+  const cid=cidParam();
+  api('GET','/maquinas-cartao'+(cid?'?'+cid:'')).then(mqs=>{
+    const sel=document.getElementById('rv-maquina-cartao');
+    if(!sel) return;
+    (mqs||[]).forEach(m=>{
+      const opt=document.createElement('option');
+      opt.value=m.id;
+      opt.textContent=m.bandeira+' – '+m.nome;
+      if(r?.maquina_cartao_id===m.id) opt.selected=true;
+      sel.appendChild(opt);
+    });
+  }).catch(()=>{});
   setTimeout(()=>{
     renderDrinksList();
     setTipoReserva(tipoInicial);
     // Restaura toggle de profissional externa conforme tipo
     if(r?.profissional_externo && r?.aluguel_id) setProfTipo('externa');
     if(r?.profissional_externo && !r?.aluguel_id) setProfMassTipo('externa');
+    // Mostra campos de cartão se pagamento já era Crédito ou Débito
+    toggleCartaoFields();
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
+}
+function toggleCartaoFields(){
+  const pag=document.getElementById('rv-pagamento')?.value;
+  const show=pag==='Crédito'||pag==='Débito';
+  const row=document.getElementById('rv-cartao-row');
+  if(row) row.style.display=show?'block':'none';
+  // Se Débito, oculta seletor de parcelas (debito é sempre 1x)
+  const parcelasWrap=document.getElementById('rv-parcelas')?.parentElement;
+  if(parcelasWrap) parcelasWrap.style.display=pag==='Crédito'?'block':'none';
 }
 function toggleMulta(){
   const chk=document.getElementById('rv-multa-chk');
@@ -2236,6 +2270,8 @@ async function saveReserva(id){
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
   const pagamento=document.getElementById('rv-pagamento')?.value||null;
+  const maquina_cartao_id=parseInt(document.getElementById('rv-maquina-cartao')?.value)||null;
+  const parcelas=pagamento==='Crédito'?(parseInt(document.getElementById('rv-parcelas')?.value)||1):1;
   if(!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
   if(!profissional_id&&!profissional_externo) return toast('Selecione ou informe o nome da profissional','err');
@@ -2264,7 +2300,7 @@ async function saveReserva(id){
   }
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
@@ -3902,6 +3938,7 @@ async function saveDespesa(){
 
 
 // ─── Máquinas de Cartão ───────────────────────────────────────────────────────
+function fmtTaxa(v){ return parseFloat(v||0).toFixed(2).replace('.',',')+'%'; }
 async function loadCartoes(){
   const el=document.getElementById('cartao-list');
   if(el) el.innerHTML='<div class="spinner"></div>';
@@ -3912,15 +3949,21 @@ async function loadCartoes(){
       if(el) el.innerHTML='<div class="empty-day"><div class="empty-icon">💳</div><div>Nenhuma máquina cadastrada.</div></div>';
       return;
     }
-    let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
-      +'<th>Máquina / Nome</th><th>Bandeira</th><th class="ctr">Taxa Crédito</th><th class="ctr">Taxa Débito</th><th class="ctr">Ações</th>'
+    let html='<div style="overflow-x:auto"><table class="dash-table" style="font-size:.85rem"><thead><tr>'
+      +'<th>Máquina</th><th>Bandeira</th>'
+      +'<th class="ctr">Débito</th><th class="ctr">Crédito 1x</th>'
+      +'<th class="ctr">2x–6x</th><th class="ctr">7x–12x</th>'
+      +'<th class="ctr">Antecip.</th><th class="ctr">Ações</th>'
       +'</tr></thead><tbody>';
     data.forEach(m=>{
       html+=`<tr>
         <td style="font-weight:600">${esc(m.nome)}</td>
         <td>${esc(m.bandeira)}</td>
-        <td class="ctr">${parseFloat(m.taxa_credito).toFixed(2).replace('.',',')}%</td>
-        <td class="ctr">${parseFloat(m.taxa_debito).toFixed(2).replace('.',',')}%</td>
+        <td class="ctr">${fmtTaxa(m.taxa_debito)}</td>
+        <td class="ctr">${fmtTaxa(m.taxa_credito)}</td>
+        <td class="ctr">${fmtTaxa(m.taxa_credito_2_6)}</td>
+        <td class="ctr">${fmtTaxa(m.taxa_credito_7_12)}</td>
+        <td class="ctr">${fmtTaxa(m.taxa_antecipacao)}</td>
         <td class="ctr" style="white-space:nowrap">
           <button class="btn btn-secondary btn-sm" onclick="openCartaoModal(${m.id})">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteCartao(${m.id})" style="margin-left:4px">🗑</button>
@@ -3937,18 +3980,27 @@ async function openCartaoModal(id){
   if(id){
     try{ const list=await api('GET','/maquinas-cartao'+(cid?'?'+cid:'')); m=(list||[]).find(x=>x.id===id); }catch(e){}
   }
-  const bandeiras=['Todas','Visa','Mastercard','Elo','American Express','Hipercard'];
+  const bandeiras=['Todas','Visa','Mastercard','Elo','American Express','Hipercard','Outras'];
   const optBand=bandeiras.map(b=>`<option value="${b}"${m?.bandeira===b?' selected':''}>${b}</option>`).join('');
+  const v=(f,d='')=>m?parseFloat(m[f]||0).toFixed(2):d;
   openModal(m?'Editar Máquina de Cartão':'Nova Máquina de Cartão',`
     <div class="form-grid">
       <div class="field full"><label>Nome da Máquina <span class="required">*</span></label>
         <input id="mc-nome" type="text" placeholder="Ex: Stone Principal, Cielo Débito…" value="${m?esc(m.nome):''}"/></div>
       <div class="field full"><label>Bandeira</label>
         <select id="mc-bandeira">${optBand}</select></div>
-      <div class="field"><label>Taxa Crédito (%)</label>
-        <input id="mc-credito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${m?parseFloat(m.taxa_credito).toFixed(2):''}"/></div>
-      <div class="field"><label>Taxa Débito (%)</label>
-        <input id="mc-debito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${m?parseFloat(m.taxa_debito).toFixed(2):''}"/></div>
+      <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="font-size:.8rem;color:var(--text-lt)">Débito (%)</label>
+          <input id="mc-debito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${v('taxa_debito')}"/></div>
+        <div><label style="font-size:.8rem;color:var(--text-lt)">Crédito 1x (%)</label>
+          <input id="mc-credito" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${v('taxa_credito')}"/></div>
+        <div><label style="font-size:.8rem;color:var(--text-lt)">Crédito 2x–6x (%)</label>
+          <input id="mc-cred26" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${v('taxa_credito_2_6')}"/></div>
+        <div><label style="font-size:.8rem;color:var(--text-lt)">Crédito 7x–12x (%)</label>
+          <input id="mc-cred712" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${v('taxa_credito_7_12')}"/></div>
+        <div><label style="font-size:.8rem;color:var(--text-lt)">Taxa de Antecipação (%)</label>
+          <input id="mc-antecip" type="number" min="0" max="100" step="0.01" placeholder="0,00" value="${v('taxa_antecipacao')}"/></div>
+      </div>
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="saveCartao(${id||'null'})">Salvar</button>`);
@@ -3956,12 +4008,15 @@ async function openCartaoModal(id){
 async function saveCartao(id){
   const nome=document.getElementById('mc-nome')?.value.trim();
   const bandeira=document.getElementById('mc-bandeira')?.value;
-  const taxa_credito=parseFloat(document.getElementById('mc-credito')?.value)||0;
   const taxa_debito=parseFloat(document.getElementById('mc-debito')?.value)||0;
+  const taxa_credito=parseFloat(document.getElementById('mc-credito')?.value)||0;
+  const taxa_credito_2_6=parseFloat(document.getElementById('mc-cred26')?.value)||0;
+  const taxa_credito_7_12=parseFloat(document.getElementById('mc-cred712')?.value)||0;
+  const taxa_antecipacao=parseFloat(document.getElementById('mc-antecip')?.value)||0;
   if(!nome) return toast('Informe o nome da máquina','err');
   const cid=cidParam();
   try{
-    const body={nome,bandeira,taxa_credito,taxa_debito,...cidBody()};
+    const body={nome,bandeira,taxa_credito,taxa_debito,taxa_credito_2_6,taxa_credito_7_12,taxa_antecipacao,...cidBody()};
     if(id) await api('PUT','/maquinas-cartao/'+id,body);
     else   await api('POST','/maquinas-cartao',body);
     toast(id?'Máquina atualizada!':'Máquina cadastrada! ✅');
