@@ -1428,7 +1428,7 @@ function renderTimeline(){
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
             <div class="rb-client">${esc(rb.cliente_nome)}</div>
-            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}${rb.profissional_externo?` <span style="font-size:.75rem;color:var(--text-lt)">(${esc(rb.profissional_externo)})</span>`:''}</div>
+            <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
           </div></div>`;
@@ -1437,6 +1437,48 @@ function renderTimeline(){
       }
     }
   }
+
+  // ── Profissionais Externas ────────────────────────────────────────────────
+  const resExternas=state.reservasDia.filter(r=>r.profissional_externo&&!r.profissional_id);
+  if(resExternas.length){
+    // separador visual (grid-column:1/-1 para ocupar toda a linha)
+    html+=`<div style="grid-column:1/-1;background:#fff8ee;border-top:2px dashed #e8a040;padding:5px 12px;font-size:.78rem;font-weight:700;color:#b36800;letter-spacing:.04em">🔤 TERAPEUTAS EXTERNAS</div>`;
+    // agrupa por nome da externa
+    const porNome={};
+    resExternas.forEach(r=>{
+      const n=r.profissional_externo;
+      if(!porNome[n]) porNome[n]=[];
+      porNome[n].push(r);
+    });
+    for(const [nome, resList] of Object.entries(porNome)){
+      html+=`<div class="tl-room-label" style="background:#fff8ee">
+        <div class="room-name" style="color:#b36800">${esc(nome)}</div>
+        <div class="room-num" style="color:#e8a040">🔤 Externa</div>
+      </div>`;
+      const startMap={};
+      resList.forEach(r=>{
+        const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-startMin)/30));
+        const se=Math.min(slots,Math.ceil((timeToMin(r.hora_fim)-startMin)/30));
+        startMap[ss]={...r,startSlot:ss,endSlot:se,span:se-ss};
+      });
+      for(let i=0;i<slots;i++){
+        const cm=startMin+i*30;const isH=cm%60===0;const rb=startMap[i];
+        if(rb){
+          const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':'res-conf';
+          html+=`<div class="tl-cell${isH?' half-border':''}" style="background:#fff8ee">
+            <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px);border-left:3px solid #e8a040;background:linear-gradient(135deg,#fff3e0,#ffe0b2)" onclick="event.stopPropagation();viewReserva(${rb.id})">
+              <div class="rb-client">${esc(rb.cliente_nome)}</div>
+              <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome||'')}</div>
+              ${fmtBebidasTimeline(rb.bebida)}
+              <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
+            </div></div>`;
+        }else{
+          html+=`<div class="tl-cell${isH?' half-border':''}" style="background:#fff8ee"></div>`;
+        }
+      }
+    }
+  }
+
   html+='</div></div>';
   cont.innerHTML=html;
 }
