@@ -1,6 +1,8 @@
 const express = require('express');
 const https   = require('https');
-const { Pool } = require('pg');
+const { Pool, neonConfig } = require('@neondatabase/serverless');
+const ws = require('ws');
+neonConfig.webSocketConstructor = ws; // WebSocket em vez de TCP → Neon escala a zero mais rápido
 const path     = require('path');
 const fs       = require('fs');
 const bcrypt   = require('bcryptjs');
@@ -13,7 +15,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mr-secret-unimidia-2024';
 // ─── Pool PostgreSQL ──────────────────────────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  max: 5,
+  idleTimeoutMillis: 5000,
+  connectionTimeoutMillis: 5000,
 });
 const q    = (sql, p = []) => pool.query(sql, p).then(r => r.rows);
 const qOne = (sql, p = []) => pool.query(sql, p).then(r => r.rows[0] || null);
