@@ -1966,6 +1966,8 @@ function setTipoReserva(tipo){
   if(profAlugSection) profAlugSection.style.display=isMass?'none':'';
   setProfMassTipo('cadastrada');
   setProfTipo('cadastrada');
+  // Re-renderiza pagamentos com/sem opção Acerto conforme tipo
+  renderPaymentsList(!isMass);
 }
 function setProfMassTipo(tipo){
   const isCad=tipo==='cadastrada';
@@ -2153,22 +2155,11 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
           <div id="rv-drinks-total" class="drinks-total" style="display:none"></div>
         </div>
       </div>
-      <div class="field"><label>💳 Método de Pagamento</label>
-        <select id="rv-pagamento" onchange="toggleCartaoFields()">
-          <option value="">— Selecione —</option>
-          <option value="Pix"${r?.pagamento==='Pix'?' selected':''}>Pix</option>
-          <option value="Crédito"${r?.pagamento==='Crédito'?' selected':''}>Crédito</option>
-          <option value="Débito"${r?.pagamento==='Débito'?' selected':''}>Débito</option>
-          <option value="Dinheiro"${r?.pagamento==='Dinheiro'?' selected':''}>Dinheiro</option>
-        </select></div>
-      <div class="field full" id="rv-cartao-row" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:.82rem;margin-bottom:4px">Bandeira / Máquina</label>
-            <select id="rv-maquina-cartao" style="width:100%"><option value="">— Selecione —</option></select></div>
-          <div><label style="font-size:.82rem;margin-bottom:4px">Parcelas</label>
-            <select id="rv-parcelas" style="width:100%">
-              ${Array.from({length:12},(_,i)=>`<option value="${i+1}"${r?.parcelas===i+1?' selected':''}>${i+1}x${i===0?' (à vista)':''}</option>`).join('')}
-            </select></div>
+      <div class="field full">
+        <label>💳 Formas de Pagamento</label>
+        <div id="rv-payments-box" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div id="rv-payments-list"></div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addPayment()" style="margin-top:6px;width:100%">＋ Adicionar Forma de Pagamento</button>
         </div>
       </div>
       <div class="field full"><label>Observações</label>
@@ -2189,40 +2180,26 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
      <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
-  // Carrega maquinas de cartão para o select
+  // Carrega máquinas de cartão e inicializa lista de pagamentos
   const cid=cidParam();
   api('GET','/maquinas-cartao'+(cid?'?'+cid:'')).then(mqs=>{
-    const sel=document.getElementById('rv-maquina-cartao');
-    if(!sel) return;
-    (mqs||[]).forEach(m=>{
-      const opt=document.createElement('option');
-      opt.value=m.id;
-      opt.textContent=m.bandeira+' – '+m.nome;
-      if(r?.maquina_cartao_id===m.id) opt.selected=true;
-      sel.appendChild(opt);
-    });
-  }).catch(()=>{});
+    _maquinasCartao=mqs||[];
+    initPayments(r, tipoInicial==='aluguel');
+  }).catch(()=>{
+    _maquinasCartao=[];
+    initPayments(r, tipoInicial==='aluguel');
+  });
   setTimeout(()=>{
     renderDrinksList();
     setTipoReserva(tipoInicial);
     // Restaura toggle de profissional externa conforme tipo
     if(r?.profissional_externo && r?.aluguel_id) setProfTipo('externa');
     if(r?.profissional_externo && !r?.aluguel_id) setProfMassTipo('externa');
-    // Mostra campos de cartão se pagamento já era Crédito ou Débito
-    toggleCartaoFields();
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
   },30);
 }
-function toggleCartaoFields(){
-  const pag=document.getElementById('rv-pagamento')?.value;
-  const show=pag==='Crédito'||pag==='Débito';
-  const row=document.getElementById('rv-cartao-row');
-  if(row) row.style.display=show?'block':'none';
-  // Se Débito, oculta seletor de parcelas (debito é sempre 1x)
-  const parcelasWrap=document.getElementById('rv-parcelas')?.parentElement;
-  if(parcelasWrap) parcelasWrap.style.display=pag==='Crédito'?'block':'none';
-}
+function toggleCartaoFields(){/* substituído por sistema de pagamentos múltiplos */}
 function toggleMulta(){
   const chk=document.getElementById('rv-multa-chk');
   const wrap=document.getElementById('rv-multa-wrap');
@@ -2251,6 +2228,82 @@ function checkPwdMatch(id1,id2,hintId){
 }
 
 let _drinks=[];
+
+// ── Pagamentos múltiplos ──────────────────────────────────────────────────────
+let _payments=[];
+let _maquinasCartao=[];
+
+function _payMetodoOpts(isAluguel){
+  const base=['','Pix','Crédito','Débito','Dinheiro'];
+  if(isAluguel) base.push('Acerto');
+  return base;
+}
+function initPayments(r, isAluguel){
+  _payments=[];
+  if(r?.pagamentos_json){
+    try{ _payments=JSON.parse(r.pagamentos_json); }catch(e){}
+  }
+  if(!_payments.length && r?.pagamento){
+    const p={metodo:r.pagamento,valor:null};
+    if(['Crédito','Débito'].includes(r.pagamento)){
+      p.maquina_cartao_id=r.maquina_cartao_id||null;
+      p.parcelas=r.parcelas||1;
+    }
+    _payments=[p];
+  }
+  if(!_payments.length) _payments=[{metodo:'',valor:null}];
+  renderPaymentsList(isAluguel);
+}
+function renderPaymentsList(isAluguel){
+  const list=document.getElementById('rv-payments-list');
+  if(!list) return;
+  const opts=_payMetodoOpts(!!isAluguel);
+  list.innerHTML=_payments.map((p,i)=>{
+    const optHtml=opts.map(o=>`<option value="${o}"${p.metodo===o?' selected':''}>${o||'— Método —'}</option>`).join('');
+    const isCard=p.metodo==='Crédito'||p.metodo==='Débito';
+    const mqOpts=(_maquinasCartao||[]).map(m=>`<option value="${m.id}"${p.maquina_cartao_id==m.id?' selected':''}>${esc(m.bandeira)} – ${esc(m.nome)}</option>`).join('');
+    const parcOpts=Array.from({length:12},(_,k)=>`<option value="${k+1}"${(p.parcelas||1)===k+1?' selected':''}>${k+1}x${k===0?' (à vista)':''}</option>`).join('');
+    const cardHtml=isCard?`
+      <select style="flex:1.4;min-width:100px" onchange="_payments[${i}].maquina_cartao_id=parseInt(this.value)||null;renderPaymentsList(${!!isAluguel})">
+        <option value="">— Bandeira —</option>${mqOpts}
+      </select>
+      ${p.metodo==='Crédito'?`<select style="flex:0.7;min-width:60px" onchange="_payments[${i}].parcelas=parseInt(this.value)">${parcOpts}</select>`:''}
+    `:'';
+    const removeBtn=_payments.length>1?`<button type="button" class="drink-remove" onclick="removePayment(${i})" title="Remover" style="flex:none">✕</button>`:'';
+    return `<div style="display:flex;gap:5px;align-items:center;margin-bottom:5px;flex-wrap:wrap">
+      <select style="flex:1;min-width:90px" onchange="onPaymentChange(${i},this.value)">
+        ${optHtml}
+      </select>
+      <span style="color:var(--text-lt);font-size:.85rem;flex:none">R$</span>
+      <input type="number" min="0" step="0.01" placeholder="0,00" value="${p.valor!=null&&p.valor!==''?p.valor:''}"
+        style="flex:0.9;min-width:70px" oninput="_payments[${i}].valor=parseFloat(this.value)||null"/>
+      ${cardHtml}
+      ${removeBtn}
+    </div>`;
+  }).join('');
+}
+function onPaymentChange(i,val){
+  _payments[i].metodo=val;
+  if(!['Crédito','Débito'].includes(val)){
+    delete _payments[i].maquina_cartao_id;
+    delete _payments[i].parcelas;
+  } else if(!_payments[i].parcelas){
+    _payments[i].parcelas=1;
+  }
+  const isAluguel=document.getElementById('rv-aluguel-row')?.style.display!=='none';
+  renderPaymentsList(isAluguel);
+}
+function addPayment(){
+  _payments.push({metodo:'',valor:null});
+  const isAluguel=document.getElementById('rv-aluguel-row')?.style.display!=='none';
+  renderPaymentsList(isAluguel);
+}
+function removePayment(i){
+  _payments.splice(i,1);
+  if(!_payments.length) _payments=[{metodo:'',valor:null}];
+  const isAluguel=document.getElementById('rv-aluguel-row')?.style.display!=='none';
+  renderPaymentsList(isAluguel);
+}
 function renderDrinksList(){
   const list=document.getElementById('rv-drinks-list');
   const tot=document.getElementById('rv-drinks-total');
@@ -2311,9 +2364,9 @@ async function saveReserva(id){
   const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
-  const pagamento=document.getElementById('rv-pagamento')?.value||null;
-  const maquina_cartao_id=parseInt(document.getElementById('rv-maquina-cartao')?.value)||null;
-  const parcelas=pagamento==='Crédito'?(parseInt(document.getElementById('rv-parcelas')?.value)||1):1;
+  // Monta pagamentos_json a partir da lista dinâmica
+  const validPays=_payments.filter(p=>p.metodo);
+  const pagamentos_json=validPays.length>0?JSON.stringify(validPays):null;
   if(!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
     return toast('Preencha todos os campos obrigatórios','err');
   if(!profissional_id&&!profissional_externo) return toast('Selecione ou informe o nome da profissional','err');
@@ -2342,7 +2395,7 @@ async function saveReserva(id){
   }
   try{
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();

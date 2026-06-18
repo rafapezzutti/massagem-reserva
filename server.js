@@ -363,6 +363,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE maquinas_cartao ADD COLUMN IF NOT EXISTS taxa_antecipacao  NUMERIC(5,2) NOT NULL DEFAULT 0`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS parcelas          INTEGER DEFAULT 1`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS maquina_cartao_id INTEGER`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamentos_json TEXT`).catch(()=>{});
 
   // ── Seed: taxas Inter para Bali Spa ─────────────────────────────────────────
   await (async () => {
@@ -870,32 +871,37 @@ app.delete('/api/alugueis/:id', requireAuth, (req, res) =>
 
 
 // ─── Helper: taxa cartão automática ──────────────────────────────────────────
-async function gerarDespesaCartao(cid, reservaId, data, clienteNome, pagamento, parcelas, maquinaId, valorServico) {
-  if (!maquinaId || !['Crédito','Débito'].includes(pagamento)) return;
-  // apagar despesa anterior desta reserva (se existir)
-  await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2`, [reservaId, cid]).catch(()=>{});
-  const mq = await pool.query(`SELECT * FROM maquinas_cartao WHERE id=$1 AND clinica_id=$2`, [maquinaId, cid]);
-  if (!mq.rows.length) return;
-  const m = mq.rows[0];
-  const p = parseInt(parcelas) || 1;
-  let taxa = 0;
-  if (pagamento === 'Débito') {
-    taxa = parseFloat(m.taxa_debito) || 0;
-  } else {
-    if (p >= 7)      taxa = parseFloat(m.taxa_credito_7_12) || 0;
-    else if (p >= 2) taxa = parseFloat(m.taxa_credito_2_6)  || 0;
-    else             taxa = parseFloat(m.taxa_credito)       || 0;
+async function gerarDespesasCartao(cid, reservaId, data, clienteNome, pagamentosJson, valorServico) {
+  // Apaga despesas de cartão anteriores para esta reserva
+  await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [reservaId, cid]).catch(()=>{});
+  let pagamentos = [];
+  if (pagamentosJson) { try { pagamentos = JSON.parse(pagamentosJson); } catch(e) {} }
+  for (const pag of pagamentos) {
+    if (!['Crédito','Débito'].includes(pag.metodo) || !pag.maquina_cartao_id) continue;
+    const mq = await pool.query(`SELECT * FROM maquinas_cartao WHERE id=$1 AND clinica_id=$2`, [pag.maquina_cartao_id, cid]);
+    if (!mq.rows.length) continue;
+    const m = mq.rows[0];
+    const p = parseInt(pag.parcelas) || 1;
+    let taxa = 0;
+    if (pag.metodo === 'Débito') {
+      taxa = parseFloat(m.taxa_debito) || 0;
+    } else {
+      if (p >= 7)      taxa = parseFloat(m.taxa_credito_7_12) || 0;
+      else if (p >= 2) taxa = parseFloat(m.taxa_credito_2_6)  || 0;
+      else             taxa = parseFloat(m.taxa_credito)       || 0;
+    }
+    if (taxa <= 0) continue;
+    const valorPag = parseFloat(pag.valor) > 0 ? parseFloat(pag.valor) : parseFloat(valorServico) || 0;
+    const valor = Math.round(valorPag * taxa) / 100;
+    if (valor <= 0) continue;
+    const parcelaStr = pag.metodo === 'Crédito' ? ` ${p}x` : '';
+    const descricao = `Taxa cartão ${m.bandeira} (${pag.metodo}${parcelaStr}) – ${clienteNome}`;
+    await pool.query(
+      `INSERT INTO despesas (clinica_id,tipo,descricao,valor,status,data_pagamento,data_vencimento,reserva_id)
+       VALUES ($1,'tarifa_cartao',$2,$3,'pago',$4,$4,$5)`,
+      [cid, descricao, valor, data, reservaId]
+    ).catch(()=>{});
   }
-  if (taxa <= 0) return;
-  const valor = Math.round(parseFloat(valorServico) * taxa) / 100;
-  if (valor <= 0) return;
-  const parcelaStr = pagamento === 'Crédito' ? ` ${p}x` : '';
-  const descricao = `Taxa cartão ${m.bandeira} (${pagamento}${parcelaStr}) – ${clienteNome}`;
-  await pool.query(
-    `INSERT INTO despesas (clinica_id,tipo,descricao,valor,status,data_pagamento,data_vencimento,reserva_id)
-     VALUES ($1,'tarifa_cartao',$2,$3,'pago',$4,$4,$5)`,
-    [cid, descricao, valor, data, reservaId]
-  ).catch(()=>{});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -958,8 +964,20 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, observacoes,
-            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento,
-            parcelas, maquina_cartao_id } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id,
+            pagamentos_json } = req.body;
+    // Deriva pagamento principal e campos cartão do primeiro item dos pagamentos
+    let pagamento = null, parcelas = 1, maquina_cartao_id = null;
+    if (pagamentos_json) {
+      try {
+        const pags = JSON.parse(pagamentos_json);
+        if (pags.length) {
+          pagamento = pags[0].metodo || null;
+          const card = pags.find(p => ['Crédito','Débito'].includes(p.metodo));
+          if (card) { maquina_cartao_id = card.maquina_cartao_id || null; parcelas = card.parcelas || 1; }
+        }
+      } catch(e) {}
+    }
     const cid = getClinicaId(req);
     const pid = profissional_id ? parseInt(profissional_id) : null;
     const isExterno = !pid && profissional_externo?.trim();
@@ -977,18 +995,18 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id',
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null,
-       parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null]);
-    // gerar despesa de taxa cartão automaticamente
-    if (maquina_cartao_id && ['Crédito','Débito'].includes(pagamento)) {
+       parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null, pagamentos_json||null]);
+    // gerar despesas de taxa cartão automaticamente
+    if (pagamentos_json) {
       const svcVal = massagem_id
         ? (await pool.query('SELECT preco FROM massagens WHERE id=$1',[massagem_id]).then(r=>r.rows[0]?.preco||0))
         : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
-      await gerarDespesaCartao(cid, nova.id, data, cliente_nome.trim(), pagamento, parcelas, parseInt(maquina_cartao_id), svcVal);
+      await gerarDespesasCartao(cid, nova.id, data, cliente_nome.trim(), pagamentos_json, svcVal);
     }
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
@@ -1000,8 +1018,20 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, status, observacoes,
-            bebida, preco_bebida, multa_valor, recepcionista_id, pagamento,
-            parcelas, maquina_cartao_id } = req.body;
+            bebida, preco_bebida, multa_valor, recepcionista_id,
+            pagamentos_json } = req.body;
+    // Deriva pagamento principal e campos cartão do primeiro item dos pagamentos
+    let pagamento = null, parcelas = 1, maquina_cartao_id = null;
+    if (pagamentos_json) {
+      try {
+        const pags = JSON.parse(pagamentos_json);
+        if (pags.length) {
+          pagamento = pags[0].metodo || null;
+          const card = pags.find(p => ['Crédito','Débito'].includes(p.metodo));
+          if (card) { maquina_cartao_id = card.maquina_cartao_id || null; parcelas = card.parcelas || 1; }
+        }
+      } catch(e) {}
+    }
     const pid = profissional_id ? parseInt(profissional_id) : null;
     const isExterno = !pid && profissional_externo?.trim();
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
@@ -1019,21 +1049,21 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       }
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19 WHERE id=$20 AND clinica_id=$21',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20 WHERE id=$21 AND clinica_id=$22',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
        parseFloat(multa_valor)||0, parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null,
-       id, cid]);
-    // atualizar despesa de taxa cartão (apaga e recria se mudou)
-    if (['Crédito','Débito'].includes(pagamento) && maquina_cartao_id) {
+       pagamentos_json||null, id, cid]);
+    // atualizar despesas de taxa cartão (apaga e recria)
+    if (pagamentos_json) {
       const svcVal = massagem_id
         ? (await pool.query('SELECT preco FROM massagens WHERE id=$1',[massagem_id]).then(r=>r.rows[0]?.preco||0))
         : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
-      await gerarDespesaCartao(cid, id, data, cliente_nome.trim(), pagamento, parcelas, parseInt(maquina_cartao_id), svcVal);
+      await gerarDespesasCartao(cid, id, data, cliente_nome.trim(), pagamentos_json, svcVal);
     } else {
-      // pagamento mudou para não-cartão: remover despesa anterior
+      // sem pagamentos_json: remove despesa de cartão existente
       await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`,[id,cid]).catch(()=>{});
     }
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
@@ -1871,14 +1901,25 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
       pool.query(
         `SELECT r.data,
            SUM(
-             CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]'
-               THEN r.pagamento::numeric
+             CASE
+               WHEN r.aluguel_id IS NOT NULL AND r.pagamento='Acerto' THEN 0
+               WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
                ELSE COALESCE(m.preco, 0)
                   + COALESCE(r.preco_bebida, 0)
                   + COALESCE(r.multa_valor, 0)
                   + COALESCE(al.valor, 0)
              END
-           ) AS valor
+           ) AS valor,
+           SUM(
+             CASE WHEN r.massagem_id IS NOT NULL THEN
+               CASE WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
+               ELSE COALESCE(m.preco,0)+COALESCE(r.preco_bebida,0)+COALESCE(r.multa_valor,0) END
+             ELSE 0 END
+           ) AS massagem_valor,
+           SUM(
+             CASE WHEN r.aluguel_id IS NOT NULL AND r.pagamento='Acerto'
+               THEN COALESCE(al.valor,0) ELSE 0 END
+           ) AS aluguel_acerto
          FROM reservas r
          LEFT JOIN massagens m  ON m.id = r.massagem_id
          LEFT JOIN alugueis  al ON al.id = r.aluguel_id
@@ -1900,9 +1941,12 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
 
     receitasRec.rows.forEach(r => {
       if (fluxo[r.data]) {
-        const rec = parseFloat(r.valor || 0);
+        const rec     = parseFloat(r.valor         || 0);
+        const massVal = parseFloat(r.massagem_valor || 0);
+        const acerto  = parseFloat(r.aluguel_acerto || 0);
         fluxo[r.data].receitas += rec;
-        fluxo[r.data].repasse  += rec * repassePct;
+        // repasse apenas sobre massagens; aluguel Acerto reduz o repasse a pagar
+        fluxo[r.data].repasse  += massVal * repassePct - acerto;
       }
     });
     ponRec.rows.forEach(d => {
@@ -1979,6 +2023,16 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         : (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
       let total = valorBase + parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
       if (r.pagamento && /^[0-9]/.test(r.pagamento)) total = parseFloat(r.pagamento);
+      let repasse = 0;
+      if (r.status !== 'cancelada') {
+        if (r.aluguel_valor && !r.massagem_preco) {
+          // Aluguel: Acerto deduz do repasse da profissional; outros métodos = 0 (pago separadamente)
+          if (r.pagamento === 'Acerto') repasse = -Math.round(parseFloat(r.aluguel_valor) * 100) / 100;
+        } else {
+          // Massagem: aplica percentual de repasse sobre o total
+          repasse = Math.round(total * repassePct * 100) / 100;
+        }
+      }
       return {
         hora_inicio: r.hora_inicio,
         hora_fim:    r.hora_fim,
@@ -1988,7 +2042,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         profissional:r.profissional_nome || r.profissional_externo || '—',
         quarto:      r.quarto_numero,
         total,
-        repasse: r.status !== 'cancelada' ? Math.round(total * repassePct * 100) / 100 : 0,
+        repasse,
         bebida:  r.bebida || null,
         preco_bebida: parseFloat(r.preco_bebida || 0)
       };
