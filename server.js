@@ -2039,6 +2039,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         status:      r.status,
         cliente:     r.cliente_nome,
         servico:     r.massagem_nome || r.aluguel_nome || '—',
+        tipo:        r.aluguel_valor ? 'aluguel' : 'massagem',
         profissional:r.profissional_nome || r.profissional_externo || '—',
         quarto:      r.quarto_numero,
         total,

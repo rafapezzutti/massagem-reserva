@@ -4183,24 +4183,28 @@ async function loadFluxoDiario(data){
       const porProf={};
       reservasAtivas.forEach(r=>{
         const p=r.profissional||'Sem profissional';
-        if(!porProf[p]) porProf[p]={reservas:[],total:0,repasse:0};
+        if(!porProf[p]) porProf[p]={reservas:[],massagem:0,aluguel:0,repasse:0};
         porProf[p].reservas.push(r);
-        porProf[p].total+=r.total||0;
+        // Massagem = receita do cliente; Aluguel = cobrado DA profissional (reduz o que ela recebe)
+        if(r.tipo==='aluguel') porProf[p].aluguel+=Math.abs(r.total||0);
+        else                   porProf[p].massagem+=r.total||0;
         porProf[p].repasse+=r.repasse||0;
       });
       html+=`<div style="margin-bottom:18px">
         <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--text)">👤 Receitas por Profissional</div>
         <div style="overflow-x:auto"><table class="dash-table"><thead><tr>
-          <th>Profissional</th><th>Atendimentos</th><th class="ctr">↑ Receita</th><th class="ctr">💸 Repasse</th><th class="ctr">Líquido Prof.</th>
+          <th>Profissional</th><th>Atendimentos</th><th class="ctr">↑ Receita Massagens</th><th class="ctr">🏷 Aluguel</th><th class="ctr">💸 Repasse</th><th class="ctr">Líquido Prof.</th>
         </tr></thead><tbody>`;
       Object.entries(porProf).forEach(([prof,pd])=>{
-        const liq=pd.total-pd.repasse;
+        // Líquido Prof. = o que a profissional recebe líquido (repasse - aluguel cobrado)
+        const liq=pd.repasse-pd.aluguel;
         html+=`<tr>
           <td style="font-weight:600">${prof}</td>
           <td>${pd.reservas.length}</td>
-          <td class="ctr" style="color:#2d7a56">${fmtMoeda(pd.total)}</td>
+          <td class="ctr" style="color:#2d7a56">${fmtMoeda(pd.massagem)}</td>
+          <td class="ctr" style="color:${pd.aluguel>0?'var(--danger)':'var(--text-lt)'}">${pd.aluguel>0?'-'+fmtMoeda(pd.aluguel):'—'}</td>
           <td class="ctr" style="color:#7a5c2d">${fmtMoeda(pd.repasse)}</td>
-          <td class="ctr" style="color:${liq>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(liq)}</td>
+          <td class="ctr" style="font-weight:700;color:${liq>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(liq)}</td>
         </tr>`;
       });
       html+=`</tbody></table></div></div>`;
