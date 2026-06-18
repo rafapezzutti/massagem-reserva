@@ -2290,6 +2290,12 @@ function onPaymentChange(i,val){
   } else if(!_payments[i].parcelas){
     _payments[i].parcelas=1;
   }
+  // Acerto: preenche valor default com o valor do aluguel selecionado
+  if(val==='Acerto' && (_payments[i].valor==null || _payments[i].valor==='')){
+    const aluguelId=parseInt(document.getElementById('rv-aluguel')?.value)||null;
+    const aluguel=aluguelId?(state.alugueis||[]).find(a=>a.id===aluguelId):null;
+    if(aluguel) _payments[i].valor=parseFloat(aluguel.valor)||null;
+  }
   const isAluguel=document.getElementById('rv-aluguel-row')?.style.display!=='none';
   renderPaymentsList(isAluguel);
 }
