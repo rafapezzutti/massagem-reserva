@@ -635,10 +635,15 @@ app.post('/api/admin/clinicas/:id/admins', requireAdmin, async (req, res) =>
     const { nome, email, senha } = req.body;
     if (!nome || !email || !senha) throw new Error('Nome, email e senha são obrigatórios');
     const hash = await bcrypt.hash(senha, 10);
-    return qOne(
-      'INSERT INTO clinica_admins (clinica_id,nome,email,senha_hash) VALUES ($1,$2,$3,$4) RETURNING id,nome,email,ativo,criado_em',
-      [req.params.id, nome.trim(), email.toLowerCase().trim(), hash]
-    );
+    try {
+      return await qOne(
+        'INSERT INTO clinica_admins (clinica_id,nome,email,senha_hash) VALUES ($1,$2,$3,$4) RETURNING id,nome,email,ativo,criado_em',
+        [req.params.id, nome.trim(), email.toLowerCase().trim(), hash]
+      );
+    } catch (e) {
+      if (e.code === '23505') throw new Error('Usuário já existente');
+      throw e;
+    }
   })
 );
 app.put('/api/admin/clinicas/:id/admins/:aid', requireAdmin, async (req, res) =>
@@ -2270,7 +2275,9 @@ app.delete('/api/maquinas-cartao/:id', requireAuth, (req, res) =>
 // ─── Start ────────────────────────────────────────────────────────────────────
 initDB().then(() => {
   app.listen(PORT, () =>
-    console.log(`\n💆 Massagem Reserva rodando em http://localhost:${PORT}\n`));
+    console.log(`
+💆 Massagem Reserva rodando em http://localhost:${PORT}
+`));
 }).catch(err => {
   console.error('Erro ao conectar ao banco:', err.message);
   process.exit(1);
