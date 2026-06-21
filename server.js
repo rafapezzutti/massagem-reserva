@@ -364,6 +364,17 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS parcelas          INTEGER DEFAULT 1`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS maquina_cartao_id INTEGER`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamentos_json TEXT`).catch(()=>{});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS clinica_admins (
+      id         SERIAL PRIMARY KEY,
+      clinica_id INTEGER NOT NULL REFERENCES clinicas(id) ON DELETE CASCADE,
+      nome       TEXT NOT NULL,
+      email      TEXT NOT NULL UNIQUE,
+      senha_hash TEXT NOT NULL,
+      ativo      INTEGER NOT NULL DEFAULT 1,
+      criado_em  TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(()=>{});
 
   // ── Seed: taxas Inter para Bali Spa ─────────────────────────────────────────
   await (async () => {
@@ -521,6 +532,20 @@ app.post('/api/auth/login', async (req, res) => {
           clinica_id: clinica.id } } });
     }
 
+    // Login via admin secundário de clínica
+    const cliAdmin = await qOne('SELECT ca.*, c.nome AS nome_clinica FROM clinica_admins ca JOIN clinicas c ON c.id=ca.clinica_id WHERE ca.email=$1 AND ca.ativo=1 AND c.ativo=1', [em]);
+    if (cliAdmin && await bcrypt.compare(senha, cliAdmin.senha_hash)) {
+      const token = jwt.sign(
+        { id: cliAdmin.id, email: cliAdmin.email, role: 'clinica',
+          clinica_id: cliAdmin.clinica_id, nome_clinica: cliAdmin.nome_clinica },
+        JWT_SECRET, { expiresIn: '10h' }
+      );
+      logLogin(req, cliAdmin.id, cliAdmin.nome, 'clinica_admin');
+      return res.json({ ok: true, data: { token,
+        user: { role: 'clinica', nome_clinica: cliAdmin.nome_clinica, email: cliAdmin.email,
+          clinica_id: cliAdmin.clinica_id } } });
+    }
+
     const gerente = await qOne('SELECT * FROM gerentes WHERE email=$1 AND ativo=1', [em]);
     if (gerente && await bcrypt.compare(senha, gerente.senha_hash)) {
       const token = jwt.sign(
@@ -597,6 +622,42 @@ app.put('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
     }
     return qOne('SELECT id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em FROM clinicas WHERE id=$1', [req.params.id]);
   }));
+
+// ── Admins secundários de clínica ─────────────────────────────────────────
+app.get('/api/admin/clinicas/:id/admins', requireAdmin, (req, res) =>
+  send(res, () => q(
+    'SELECT id,nome,email,ativo,criado_em FROM clinica_admins WHERE clinica_id=$1 ORDER BY nome',
+    [req.params.id]
+  ))
+);
+app.post('/api/admin/clinicas/:id/admins', requireAdmin, async (req, res) =>
+  send(res, async () => {
+    const { nome, email, senha } = req.body;
+    if (!nome || !email || !senha) throw new Error('Nome, email e senha são obrigatórios');
+    const hash = await bcrypt.hash(senha, 10);
+    return qOne(
+      'INSERT INTO clinica_admins (clinica_id,nome,email,senha_hash) VALUES ($1,$2,$3,$4) RETURNING id,nome,email,ativo,criado_em',
+      [req.params.id, nome.trim(), email.toLowerCase().trim(), hash]
+    );
+  })
+);
+app.put('/api/admin/clinicas/:id/admins/:aid', requireAdmin, async (req, res) =>
+  send(res, async () => {
+    const { nome, email, senha, ativo } = req.body;
+    if (senha) {
+      const hash = await bcrypt.hash(senha, 10);
+      await qRun('UPDATE clinica_admins SET nome=$1,email=$2,senha_hash=$3,ativo=$4 WHERE id=$5 AND clinica_id=$6',
+        [nome.trim(), email.toLowerCase().trim(), hash, ativo ?? 1, req.params.aid, req.params.id]);
+    } else {
+      await qRun('UPDATE clinica_admins SET nome=$1,email=$2,ativo=$3 WHERE id=$4 AND clinica_id=$5',
+        [nome.trim(), email.toLowerCase().trim(), ativo ?? 1, req.params.aid, req.params.id]);
+    }
+    return qOne('SELECT id,nome,email,ativo,criado_em FROM clinica_admins WHERE id=$1', [req.params.aid]);
+  })
+);
+app.delete('/api/admin/clinicas/:id/admins/:aid', requireAdmin, (req, res) =>
+  send(res, () => qRun('DELETE FROM clinica_admins WHERE id=$1 AND clinica_id=$2', [req.params.aid, req.params.id]))
+);
 
 app.delete('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
   send(res, async () => {

@@ -3019,30 +3019,62 @@ async function loadClinicasList(){
 }
 
 function openClinicaModal(id){
-  const body=`<div class="form-grid">
-    <div class="field full"><label>Nome da Clínica <span class="required">*</span></label>
-      <input id="cl-nome" type="text" placeholder="Ex: Spa Serene"/></div>
-    <div class="field"><label>Email de Login <span class="required">*</span></label>
-      <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
-    <div class="field"><label>${id?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/></div>
-    <div class="field"><label>${id?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
-      <input id="cl-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/>
-      <div id="cl-pwd-hint" class="pwd-hint"></div></div>
-    <div class="field"><label>Telefone</label>
-      <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
-    <div class="field full"><label>Endereço</label>
-      <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
-    <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
-      <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
+  const isEdit=!!id;
+  const tabStyle='display:inline-block;padding:7px 18px;cursor:pointer;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;font-size:.9rem;font-weight:600;background:var(--bg-card);color:var(--text-lt);transition:.15s';
+  const tabActiveStyle='display:inline-block;padding:7px 18px;cursor:pointer;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:2px solid var(--bg-card);font-size:.9rem;font-weight:700;background:var(--bg-card);color:var(--primary)';
+  const body=`
+  <div style="margin-bottom:0">
+    <span id="cl-tab-dados" style="${tabActiveStyle}" onclick="clSwitchTab('dados')">🏥 Dados</span>
+    ${isEdit?`<span id="cl-tab-admins" style="${tabStyle}" onclick="clSwitchTab('admins')">👥 Administradores</span>`:''}
   </div>
-  <div style="margin-top:20px">
-    <label style="display:block;font-size:.85rem;font-weight:600;color:var(--text-lt);margin-bottom:8px">📅 Horário de Funcionamento</label>
-    ${buildHorarioTable()}
+  <div style="border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:18px 16px;background:var(--bg-card)">
+    <!-- ABA DADOS -->
+    <div id="cl-pane-dados">
+      <div class="form-grid">
+        <div class="field full"><label>Nome da Clínica <span class="required">*</span></label>
+          <input id="cl-nome" type="text" placeholder="Ex: Spa Serene"/></div>
+        <div class="field"><label>Email de Login <span class="required">*</span></label>
+          <input id="cl-email" type="email" placeholder="clinica@email.com"/></div>
+        <div class="field"><label>${isEdit?'Nova Senha (vazio = manter)':'Senha <span class="required">*</span>'}</label>
+          <input id="cl-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/></div>
+        <div class="field"><label>${isEdit?'Confirmar Nova Senha':'Confirmar Senha <span class="required">*</span>'}</label>
+          <input id="cl-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-senha','cl-senha2','cl-pwd-hint')"/>
+          <div id="cl-pwd-hint" class="pwd-hint"></div></div>
+        <div class="field"><label>Telefone</label>
+          <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
+        <div class="field full"><label>Endereço</label>
+          <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
+        <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
+          <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
+      </div>
+      <div style="margin-top:20px">
+        <label style="display:block;font-size:.85rem;font-weight:600;color:var(--text-lt);margin-bottom:8px">📅 Horário de Funcionamento</label>
+        ${buildHorarioTable()}
+      </div>
+    </div>
+    <!-- ABA ADMINS (só em edição) -->
+    ${isEdit?`<div id="cl-pane-admins" style="display:none">
+      <div id="cl-admins-list" style="margin-bottom:14px"></div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 12px">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:10px;color:var(--text)">➕ Novo Administrador</div>
+        <div class="form-grid">
+          <div class="field"><label>Nome <span class="required">*</span></label>
+            <input id="cl-adm-nome" type="text" placeholder="Nome completo"/></div>
+          <div class="field"><label>Email <span class="required">*</span></label>
+            <input id="cl-adm-email" type="email" placeholder="admin@clinica.com"/></div>
+          <div class="field"><label>Senha <span class="required">*</span></label>
+            <input id="cl-adm-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-adm-senha','cl-adm-senha2','cl-adm-pwd-hint')"/></div>
+          <div class="field"><label>Confirmar Senha <span class="required">*</span></label>
+            <input id="cl-adm-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('cl-adm-senha','cl-adm-senha2','cl-adm-pwd-hint')"/>
+            <div id="cl-adm-pwd-hint" class="pwd-hint"></div></div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:4px" onclick="addClinicaAdmin(${id})">Adicionar Administrador</button>
+      </div>
+    </div>`:''}
   </div>`;
-  openModal(id?'Editar Clínica':'Nova Clínica', body,
+  openModal(isEdit?'Editar Clínica':'Nova Clínica', body,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveClinica(${id||'null'})">${id?'Salvar':'Cadastrar'}</button>`);
+     <button class="btn btn-primary" id="cl-save-btn" onclick="saveClinica(${id||'null'})">${isEdit?'Salvar':'Cadastrar'}</button>`);
   if(id){
     api('GET','/admin/clinicas').then(cs=>{
       const c=cs.find(x=>x.id===id);if(!c)return;
@@ -3050,15 +3082,108 @@ function openClinicaModal(id){
       document.getElementById('cl-email').value=c.email||'';
       document.getElementById('cl-tel').value=c.telefone||'';
       document.getElementById('cl-end').value=c.endereco||'';
-      // Converte ";" para quebras de linha
       const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
       document.getElementById('cl-emails-add').value=emails;
-      // Set horario
       if(c.horario_funcionamento){
         try{setHorarioInForm(JSON.parse(c.horario_funcionamento))}catch(e){}
       }
     });
+    loadClinicaAdmins(id);
   }
+}
+function clSwitchTab(tab){
+  const tabs=['dados','admins'];
+  const tabActiveStyle='display:inline-block;padding:7px 18px;cursor:pointer;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:2px solid var(--bg-card);font-size:.9rem;font-weight:700;background:var(--bg-card);color:var(--primary)';
+  const tabStyle='display:inline-block;padding:7px 18px;cursor:pointer;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;font-size:.9rem;font-weight:600;background:var(--bg-card);color:var(--text-lt);transition:.15s';
+  tabs.forEach(t=>{
+    const tabEl=document.getElementById('cl-tab-'+t);
+    const paneEl=document.getElementById('cl-pane-'+t);
+    const saveBtn=document.getElementById('cl-save-btn');
+    if(tabEl) tabEl.style.cssText=(t===tab?tabActiveStyle:tabStyle);
+    if(paneEl) paneEl.style.display=(t===tab?'':'none');
+    if(saveBtn) saveBtn.style.display=(tab==='dados'?'':'none');
+  });
+}
+async function loadClinicaAdmins(clinicaId){
+  const el=document.getElementById('cl-admins-list');
+  if(!el)return;
+  try{
+    const admins=await api('GET',`/admin/clinicas/${clinicaId}/admins`);
+    if(!admins||!admins.length){
+      el.innerHTML='<div style="color:var(--text-lt);font-size:.9rem;padding:8px 0">Nenhum administrador adicional cadastrado.</div>';
+      return;
+    }
+    el.innerHTML=admins.map(a=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:.92rem">${esc(a.nome)}</div>
+          <div style="font-size:.82rem;color:var(--text-lt)">${esc(a.email)}</div>
+        </div>
+        <span style="font-size:.75rem;padding:2px 8px;border-radius:12px;background:${a.ativo?'#d4f4e0':'#fde8e8'};color:${a.ativo?'#1a7a45':'#b91c1c'}">${a.ativo?'Ativo':'Inativo'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="editClinicaAdmin(${clinicaId},${a.id},'${esc(a.nome)}','${esc(a.email)}',${a.ativo})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteClinicaAdmin(${clinicaId},${a.id},'${esc(a.nome)}')">🗑</button>
+      </div>`).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--danger)">Erro ao carregar administradores.</div>';}
+}
+async function addClinicaAdmin(clinicaId){
+  const nome=document.getElementById('cl-adm-nome')?.value.trim();
+  const email=document.getElementById('cl-adm-email')?.value.trim();
+  const senha=document.getElementById('cl-adm-senha')?.value;
+  const senha2=document.getElementById('cl-adm-senha2')?.value;
+  if(!nome||!email||!senha)return toast('Nome, email e senha são obrigatórios','err');
+  if(senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    await api('POST',`/admin/clinicas/${clinicaId}/admins`,{nome,email,senha});
+    toast('Administrador adicionado! ✅');
+    document.getElementById('cl-adm-nome').value='';
+    document.getElementById('cl-adm-email').value='';
+    document.getElementById('cl-adm-senha').value='';
+    document.getElementById('cl-adm-senha2').value='';
+    loadClinicaAdmins(clinicaId);
+  }catch(e){toast(e.message,'err');}
+}
+function editClinicaAdmin(clinicaId,adminId,nomeAtual,emailAtual,ativoAtual){
+  const body=`<div class="form-grid">
+    <div class="field full"><label>Nome <span class="required">*</span></label>
+      <input id="edadm-nome" type="text" value="${esc(nomeAtual)}"/></div>
+    <div class="field full"><label>Email <span class="required">*</span></label>
+      <input id="edadm-email" type="email" value="${esc(emailAtual)}"/></div>
+    <div class="field"><label>Nova Senha (vazio = manter)</label>
+      <input id="edadm-senha" type="password" placeholder="••••••••" oninput="checkPwdMatch('edadm-senha','edadm-senha2','edadm-pwd-hint')"/></div>
+    <div class="field"><label>Confirmar Senha</label>
+      <input id="edadm-senha2" type="password" placeholder="••••••••" oninput="checkPwdMatch('edadm-senha','edadm-senha2','edadm-pwd-hint')"/>
+      <div id="edadm-pwd-hint" class="pwd-hint"></div></div>
+    <div class="field full"><label>Status</label>
+      <select id="edadm-ativo"><option value="1"${ativoAtual?'selected':''}>Ativo</option><option value="0"${!ativoAtual?'selected':''}>Inativo</option></select></div>
+  </div>`;
+  openModal('Editar Administrador', body,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveClinicaAdmin(${clinicaId},${adminId})">Salvar</button>`);
+}
+async function saveClinicaAdmin(clinicaId,adminId){
+  const nome=document.getElementById('edadm-nome')?.value.trim();
+  const email=document.getElementById('edadm-email')?.value.trim();
+  const senha=document.getElementById('edadm-senha')?.value;
+  const senha2=document.getElementById('edadm-senha2')?.value;
+  const ativo=parseInt(document.getElementById('edadm-ativo')?.value)||1;
+  if(!nome||!email)return toast('Nome e email são obrigatórios','err');
+  if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
+  try{
+    const body={nome,email,ativo};if(senha)body.senha=senha;
+    await api('PUT',`/admin/clinicas/${clinicaId}/admins/${adminId}`,body);
+    toast('Administrador atualizado! ✅');closeModal();
+    // Reabre o modal da clínica na aba admins
+    openClinicaModal(clinicaId);
+    setTimeout(()=>clSwitchTab('admins'),100);
+  }catch(e){toast(e.message,'err');}
+}
+async function deleteClinicaAdmin(clinicaId,adminId,nome){
+  if(!confirm(`Remover o administrador "${nome}"?`))return;
+  try{
+    await api('DELETE',`/admin/clinicas/${clinicaId}/admins/${adminId}`);
+    toast('Administrador removido','info');
+    loadClinicaAdmins(clinicaId);
+  }catch(e){toast(e.message,'err');}
 }
 async function saveClinica(id){
   const nome=document.getElementById('cl-nome').value.trim();
