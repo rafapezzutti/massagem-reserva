@@ -2200,6 +2200,47 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   },30);
 }
 function toggleCartaoFields(){/* substituído por sistema de pagamentos múltiplos */}
+
+// ── Endereço estruturado + ViaCEP ────────────────────────────────────────────
+function fmtEndereco(raw){
+  if(!raw) return '';
+  try{
+    const a=JSON.parse(raw);
+    const parts=[];
+    if(a.logradouro) parts.push(esc(a.logradouro)+(a.numero?' '+esc(a.numero):''));
+    if(a.complemento) parts.push(esc(a.complemento));
+    if(a.bairro) parts.push(esc(a.bairro));
+    let loc='';
+    if(a.cidade) loc+=esc(a.cidade);
+    if(a.estado) loc+=(loc?' – ':'')+esc(a.estado);
+    if(loc) parts.push(loc);
+    if(a.cep) parts.push(esc(a.cep));
+    return parts.join(', ');
+  }catch(e){ return esc(raw); }
+}
+function fmtCep(el){
+  let v=el.value.replace(/\D/g,'');
+  if(v.length>5) v=v.slice(0,5)+'-'+v.slice(5,8);
+  el.value=v;
+}
+async function buscarCep(){
+  const raw=(document.getElementById('cl-cep')?.value||'').replace(/\D/g,'');
+  if(raw.length!==8) return;
+  const status=document.getElementById('cl-cep-status');
+  if(status) status.textContent='🔍 Buscando...';
+  try{
+    const r=await fetch('https://viacep.com.br/ws/'+raw+'/json/');
+    const d=await r.json();
+    if(d.erro){ if(status) status.textContent='❌ CEP não encontrado'; return; }
+    document.getElementById('cl-logradouro').value=d.logradouro||'';
+    document.getElementById('cl-bairro').value=d.bairro||'';
+    document.getElementById('cl-cidade').value=d.localidade||'';
+    document.getElementById('cl-estado').value=d.uf||'';
+    if(status) status.textContent='✅ Endereço encontrado';
+    setTimeout(()=>{ if(status) status.textContent=''; },3000);
+    document.getElementById('cl-numero')?.focus();
+  }catch(e){ if(status) status.textContent='⚠️ Erro ao buscar CEP'; }
+}
 function toggleMulta(){
   const chk=document.getElementById('rv-multa-chk');
   const wrap=document.getElementById('rv-multa-wrap');
@@ -3006,7 +3047,7 @@ async function loadClinicasList(){
         <div class="item-detail">🔑 ${esc(c.email)}</div>
         ${c.emails_adicionais?(c.emails_adicionais.split(';').filter(Boolean).map(e=>`<div class="item-detail" style="color:var(--text-lt)">📧 ${esc(e.trim())}</div>`).join('')):''}
         ${c.telefone?`<div class="item-detail">📱 ${esc(c.telefone)}</div>`:''}
-        ${c.endereco?`<div class="item-detail">📍 ${esc(c.endereco)}</div>`:''}
+        ${c.endereco?`<div class="item-detail">📍 ${fmtEndereco(c.endereco)}</div>`:''}
         <div class="item-actions">
           <button class="btn btn-secondary btn-sm" onclick="onClinicaSelect(${c.id});document.getElementById('clinica-selector').value=${c.id}" title="Gerenciar CRM desta clínica">🗂 Gerenciar</button>
           <button class="btn btn-primary btn-sm" onclick="openClinicaModal(${c.id})">✏️ Editar</button>
@@ -3042,8 +3083,47 @@ function openClinicaModal(id){
           <div id="cl-pwd-hint" class="pwd-hint"></div></div>
         <div class="field"><label>Telefone</label>
           <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
-        <div class="field full"><label>Endereço</label>
-          <input id="cl-end" type="text" placeholder="Rua, número, cidade"/></div>
+        <div class="field full">
+          <label>📍 Endereço</label>
+          <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">CEP</label>
+              <input id="cl-cep" type="text" placeholder="00000-000" maxlength="9"
+                style="width:100%"
+                oninput="fmtCep(this)"
+                onblur="buscarCep()"/>
+            </div>
+            <div id="cl-cep-status" style="display:flex;align-items:flex-end;padding-bottom:2px;font-size:.82rem;color:var(--text-lt)"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 80px 100px;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">Logradouro</label>
+              <input id="cl-logradouro" type="text" placeholder="Rua, Av, Travessa..." style="width:100%"/>
+            </div>
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">Número</label>
+              <input id="cl-numero" type="text" placeholder="123" style="width:100%"/>
+            </div>
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">Complemento</label>
+              <input id="cl-complemento" type="text" placeholder="Apto, Sala..." style="width:100%"/>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 60px;gap:8px">
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">Bairro</label>
+              <input id="cl-bairro" type="text" placeholder="Bairro" style="width:100%"/>
+            </div>
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">Cidade</label>
+              <input id="cl-cidade" type="text" placeholder="São Paulo" style="width:100%"/>
+            </div>
+            <div>
+              <label style="font-size:.8rem;color:var(--text-lt);margin-bottom:3px;display:block">UF</label>
+              <input id="cl-estado" type="text" placeholder="SP" maxlength="2" style="width:100%;text-transform:uppercase"/>
+            </div>
+          </div>
+        </div>
         <div class="field full"><label>Emails Adicionais de Contato <small style="font-weight:400">(um por linha)</small></label>
           <textarea id="cl-emails-add" placeholder="contato@email.com&#10;financeiro@email.com" style="min-height:80px"></textarea></div>
       </div>
@@ -3081,7 +3161,22 @@ function openClinicaModal(id){
       document.getElementById('cl-nome').value=c.nome||'';
       document.getElementById('cl-email').value=c.email||'';
       document.getElementById('cl-tel').value=c.telefone||'';
-      document.getElementById('cl-end').value=c.endereco||'';
+      // Carrega endereço: JSON estruturado ou string legado
+      if(c.endereco){
+        try{
+          const a=JSON.parse(c.endereco);
+          document.getElementById('cl-cep').value=a.cep||'';
+          document.getElementById('cl-logradouro').value=a.logradouro||'';
+          document.getElementById('cl-numero').value=a.numero||'';
+          document.getElementById('cl-complemento').value=a.complemento||'';
+          document.getElementById('cl-bairro').value=a.bairro||'';
+          document.getElementById('cl-cidade').value=a.cidade||'';
+          document.getElementById('cl-estado').value=a.estado||'';
+        }catch(e){
+          // Legado: endereço em texto puro → coloca no logradouro
+          document.getElementById('cl-logradouro').value=c.endereco;
+        }
+      }
       const emails=(c.emails_adicionais||'').split(';').map(e=>e.trim()).filter(Boolean).join('\n');
       document.getElementById('cl-emails-add').value=emails;
       if(c.horario_funcionamento){
@@ -3191,7 +3286,18 @@ async function saveClinica(id){
   const senha=document.getElementById('cl-senha').value;
   const senha2=document.getElementById('cl-senha2').value;
   const telefone=document.getElementById('cl-tel').value.trim();
-  const endereco=document.getElementById('cl-end').value.trim();
+  // Monta endereço estruturado como JSON
+  const _addrObj={
+    cep:(document.getElementById('cl-cep')?.value||'').trim(),
+    logradouro:(document.getElementById('cl-logradouro')?.value||'').trim(),
+    numero:(document.getElementById('cl-numero')?.value||'').trim(),
+    complemento:(document.getElementById('cl-complemento')?.value||'').trim(),
+    bairro:(document.getElementById('cl-bairro')?.value||'').trim(),
+    cidade:(document.getElementById('cl-cidade')?.value||'').trim(),
+    estado:(document.getElementById('cl-estado')?.value||'').trim().toUpperCase(),
+  };
+  const _hasAddr=Object.values(_addrObj).some(v=>v);
+  const endereco=_hasAddr?JSON.stringify(_addrObj):null;
   const emailsRaw=document.getElementById('cl-emails-add').value;
   // Normaliza emails adicionais: uma por linha ou separadas por vírgula, armazena com ";"
   const emails_adicionais=emailsRaw.split(/[\n,]+/).map(e=>e.trim()).filter(Boolean).join(';')||null;
