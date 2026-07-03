@@ -4165,10 +4165,12 @@ function renderDespesas(data){
           <div style="font-size:1.05rem;font-weight:700;color:${pago?'var(--text-lt)':'var(--danger)'}">${fmtMoeda(d.valor)}</div>
           <span style="font-size:.72rem;padding:2px 7px;border-radius:8px;background:${pago?'var(--green-lt)':'#fde8e8'};color:${pago?'#2d7a56':'var(--danger)'}">${pago?'✅ Pago':'⏳ Pendente'}</span>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
           ${!pago?'<button class="btn btn-sm" style="background:var(--green);color:#fff;padding:4px 10px" onclick="marcarDespesaPago('+d.id+')">✓ Pago</button>':''}
-          <button class="btn btn-secondary btn-sm" onclick="openDespesaModal(${d.id})">✏️</button>
-          <button class="btn btn-sm" style="background:var(--danger);color:#fff;padding:4px 8px" onclick="deleteDespesa(${d.id})">🗑</button>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-secondary btn-sm" onclick="openDespesaModal(${d.id})" title="Editar">✏️</button>
+            <button class="btn btn-sm" style="background:var(--danger);color:#fff;padding:4px 9px;font-size:1rem;line-height:1" onclick="deleteDespesa(${d.id})" title="Excluir despesa">🗑</button>
+          </div>
         </div>
       </div>
     </div>`;
