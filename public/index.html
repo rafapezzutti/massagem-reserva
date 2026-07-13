@@ -338,6 +338,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .horario-table select{border:1.5px solid var(--border);border-radius:6px;padding:3px 6px;font-size:.82rem;background:#fff}
 .horario-table input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--cel)}
 </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -588,6 +589,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                   <select id="dash-mm-mes"></select>
                   <select id="dash-mm-ano"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-mm-body','Mensal_Massagista')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-mm-body"><div class="spinner"></div></div>
@@ -601,6 +603,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                 <div class="dash-controls">
                   <input type="date" id="dash-dm-data"/>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagista()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-dm-body','Diario_Massagista')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-dm-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
@@ -615,6 +618,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                   <select id="dash-mt-mes"></select>
                   <select id="dash-mt-ano"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagem()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-mt-body','Mensal_Massagem')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-mt-body"><div class="spinner"></div></div>
@@ -628,6 +632,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                 <div class="dash-controls">
                   <input type="date" id="dash-dt-data"/>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagem()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-dt-body','Diario_Massagem')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-dt-body"><div class="dash-empty">Selecione uma data e clique em Carregar.</div></div>
@@ -642,6 +647,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                   <select id="dash-rc-mes"></select>
                   <select id="dash-rc-ano"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashRecepcionista()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-rc-body','Recepcionistas')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-rc-body"><div class="dash-empty">Selecione mês/ano e clique em Carregar.</div></div>
@@ -656,6 +662,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                   <select id="dash-pg-mes"></select>
                   <select id="dash-pg-ano"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashPagamentos()">Carregar</button>
+                  <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-pg-body','Pagamentos')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
               <div class="card-body" id="dash-pg-body"><div class="dash-empty">Selecione mês/ano e clique em Carregar.</div></div>
@@ -2537,6 +2544,58 @@ function initDashboard(){
   if(dmEl)dmEl.value=today;
   if(dtEl)dtEl.value=today;
 }
+function exportDashExcel(bodyId, titulo){
+  const body = document.getElementById(bodyId);
+  if(!body){ toast('Nenhum dado para exportar','err'); return; }
+
+  const tables = body.querySelectorAll('table.dash-table');
+  if(!tables.length){ toast('Carregue os dados antes de exportar','err'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  tables.forEach((tbl, ti) => {
+    const aoa = []; // array of arrays
+
+    // Cabeçalhos
+    const ths = tbl.querySelectorAll('thead th');
+    if(ths.length){
+      aoa.push(Array.from(ths).map(th => th.innerText.trim()));
+    }
+
+    // Linhas de dados
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      const row = Array.from(tr.querySelectorAll('td')).map(td => {
+        const raw = td.innerText.trim();
+        // Tenta converter valores monetários para número
+        if(/^R\$/.test(raw)){
+          const num = parseFloat(raw.replace('R$','').replace(/\./g,'').replace(',','.').trim());
+          return isNaN(num) ? raw : num;
+        }
+        // Tenta converter números puros
+        const n = parseFloat(raw.replace(',','.'));
+        if(!isNaN(n) && raw !== '' && raw === String(raw).trim()) return n;
+        return raw;
+      });
+      aoa.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Largura automática das colunas
+    const colWidths = aoa[0]?.map((_, ci) =>
+      Math.min(40, Math.max(10, ...aoa.map(row => String(row[ci]||'').length)))
+    ) || [];
+    ws['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    const sheetName = tables.length > 1 ? `${titulo}_${ti+1}` : titulo;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0,31));
+  });
+
+  const hoje = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `${titulo}_${hoje}.xlsx`);
+  toast('Excel exportado! ✅');
+}
+
 function showDashPanel(id){
   document.querySelectorAll('.dash-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.dash-menu-btn').forEach(b=>b.classList.remove('active'));
