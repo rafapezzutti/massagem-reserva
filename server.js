@@ -364,6 +364,8 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS parcelas          INTEGER DEFAULT 1`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS maquina_cartao_id INTEGER`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamentos_json TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE quartos  ADD COLUMN IF NOT EXISTS is_externa   INTEGER NOT NULL DEFAULT 0`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS preco_custom NUMERIC`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clinica_admins (
       id         SERIAL PRIMARY KEY,
@@ -783,8 +785,8 @@ app.post('/api/quartos', requireAuth, (req, res) =>
     const last = await qOne('SELECT COALESCE(MAX(numero),0) AS n FROM quartos WHERE clinica_id=$1', [cid]);
     const numero = (parseInt(last.n)||0) + 1;
     return qOne(
-      'INSERT INTO quartos (nome,numero,tem_hidromassagem,clinica_id) VALUES ($1,$2,$3,$4) RETURNING *',
-      [nome.trim(), numero, tem_hidromassagem?1:0, cid]
+      'INSERT INTO quartos (nome,numero,tem_hidromassagem,clinica_id,is_externa) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [nome.trim(), numero, tem_hidromassagem?1:0, cid, req.body.is_externa?1:0]
     );
   }));
 
@@ -794,8 +796,8 @@ app.put('/api/quartos/:id', requireAuth, (req, res) =>
     const cid = getClinicaId(req);
     if (!nome) throw new Error('Nome é obrigatório');
     return qOne(
-      'UPDATE quartos SET nome=$1,tem_hidromassagem=$2 WHERE id=$3 AND clinica_id=$4 RETURNING *',
-      [nome.trim(), tem_hidromassagem?1:0, req.params.id, cid]
+      'UPDATE quartos SET nome=$1,tem_hidromassagem=$2,is_externa=$3 WHERE id=$4 AND clinica_id=$5 RETURNING *',
+      [nome.trim(), tem_hidromassagem?1:0, req.body.is_externa?1:0, req.params.id, cid]
     );
   }));
 
@@ -975,13 +977,13 @@ async function gerarDespesasCartao(cid, reservaId, data, clienteNome, pagamentos
 // ═══════════════════════════════════════════════════════════════════════════════
 const RJ = `
   SELECT r.*,
-    q.nome AS quarto_nome, q.numero AS quarto_numero, q.tem_hidromassagem,
+    q.nome AS quarto_nome, q.numero AS quarto_numero, q.tem_hidromassagem, q.is_externa AS quarto_externa,
     p.nome AS profissional_nome, p.nome_fantasia,
     COALESCE(p.nome_fantasia, p.nome, r.profissional_externo) AS prof_display,
     m.nome AS massagem_nome, m.duracao AS massagem_duracao, m.preco AS massagem_preco,
     al.nome AS aluguel_nome, al.valor AS aluguel_valor,
     COALESCE(m.nome, al.nome) AS servico_nome,
-    r.bebida, r.preco_bebida, r.multa_valor,
+    r.bebida, r.preco_bebida, r.multa_valor, r.preco_custom,
     rc.nome AS recepcionista_nome
   FROM reservas r
   JOIN quartos q ON r.quarto_id=q.id
@@ -1050,10 +1052,14 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     if (!data||!hora_inicio||!hora_fim||!quarto_id||(!massagem_id&&!aluguel_id)||!cliente_nome)
       throw new Error('Preencha todos os campos obrigatórios');
     if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
-    const cQ = await qOne(
-      `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
-      [cid, quarto_id, data, hora_fim, hora_inicio]);
-    if (cQ) throw new Error('Sala já reservada neste horário');
+    // Sala EXTERNA: sem trava de conflito de quarto
+    const _quartoInfo = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
+    if (!_quartoInfo?.is_externa) {
+      const cQ = await qOne(
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        [cid, quarto_id, data, hora_fim, hora_inicio]);
+      if (cQ) throw new Error('Sala já reservada neste horário');
+    }
     if (pid) {
       const cP = await qOne(
         `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
@@ -1061,12 +1067,13 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id',
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null,
-       parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null, pagamentos_json||null]);
+       parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null, pagamentos_json||null,
+       req.body.preco_custom!=null?parseFloat(req.body.preco_custom)||null:null]);
     // gerar despesas de taxa cartão automaticamente
     if (pagamentos_json) {
       const svcVal = massagem_id
@@ -1103,10 +1110,13 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     if (!data||!hora_inicio||!hora_fim||!cliente_nome) throw new Error('Preencha os campos obrigatórios');
     if (!isExterno && !pid) throw new Error('Selecione uma massagista ou informe o nome do profissional externo');
     if (status !== 'cancelada') {
-      const cQ = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
-        [cid, quarto_id, data, id, hora_fim, hora_inicio]);
-      if (cQ) throw new Error('Sala já reservada neste horário');
+      const _quartoInfoPut = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
+      if (!_quartoInfoPut?.is_externa) {
+        const cQ = await qOne(
+          `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+          [cid, quarto_id, data, id, hora_fim, hora_inicio]);
+        if (cQ) throw new Error('Sala já reservada neste horário');
+      }
       if (pid) {
         const cP = await qOne(
           `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
@@ -1115,13 +1125,14 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       }
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20 WHERE id=$21 AND clinica_id=$22',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21 WHERE id=$22 AND clinica_id=$23',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
        parseFloat(multa_valor)||0, parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null,
-       pagamentos_json||null, id, cid]);
+       pagamentos_json||null, req.body.preco_custom!=null?parseFloat(req.body.preco_custom)||null:null,
+       id, cid]);
     // atualizar despesas de taxa cartão (apaga e recria)
     if (pagamentos_json) {
       const svcVal = massagem_id
