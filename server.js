@@ -366,6 +366,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamentos_json TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE quartos  ADD COLUMN IF NOT EXISTS is_externa   INTEGER NOT NULL DEFAULT 0`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS preco_custom NUMERIC`).catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS profissional_id_2 INTEGER`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clinica_admins (
       id         SERIAL PRIMARY KEY,
@@ -980,6 +981,7 @@ const RJ = `
     q.nome AS quarto_nome, q.numero AS quarto_numero, q.tem_hidromassagem, q.is_externa AS quarto_externa,
     p.nome AS profissional_nome, p.nome_fantasia,
     COALESCE(p.nome_fantasia, p.nome, r.profissional_externo) AS prof_display,
+    COALESCE(p2.nome_fantasia, p2.nome) AS prof_display_2,
     m.nome AS massagem_nome, m.duracao AS massagem_duracao, m.preco AS massagem_preco,
     al.nome AS aluguel_nome, al.valor AS aluguel_valor,
     COALESCE(m.nome, al.nome) AS servico_nome,
@@ -987,7 +989,8 @@ const RJ = `
     rc.nome AS recepcionista_nome
   FROM reservas r
   JOIN quartos q ON r.quarto_id=q.id
-  LEFT JOIN profissionais p ON r.profissional_id=p.id
+  LEFT JOIN profissionais p  ON r.profissional_id=p.id
+  LEFT JOIN profissionais p2 ON r.profissional_id_2=p2.id
   LEFT JOIN massagens m ON r.massagem_id=m.id
   LEFT JOIN alugueis al ON r.aluguel_id=al.id
   LEFT JOIN recepcionistas rc ON r.recepcionista_id=rc.id
@@ -1029,7 +1032,7 @@ app.get('/api/reservas', requireAuth, (req, res) =>
 
 app.post('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
-    const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
+    const { data, hora_inicio, hora_fim, quarto_id, profissional_id, profissional_id_2,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, observacoes,
             bebida, preco_bebida, multa_valor, recepcionista_id,
@@ -1066,14 +1069,23 @@ app.post('/api/reservas', requireAuth, (req, res) =>
         [cid, pid, data, hora_fim, hora_inicio]);
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
+    // Verifica conflito da 2ª massagista
+    const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
+    if (pid2) {
+      const cP2 = await qOne(
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        [cid, pid2, data, hora_fim, hora_inicio]);
+      if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
+    }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id',
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, parseFloat(multa_valor)||0, recepcionista_id||null, pagamento||null,
        parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null, pagamentos_json||null,
-       req.body.preco_custom!=null?parseFloat(req.body.preco_custom)||null:null]);
+       req.body.preco_custom!=null?parseFloat(req.body.preco_custom)||null:null,
+       pid2||null]);
     // gerar despesas de taxa cartão automaticamente
     if (pagamentos_json) {
       const svcVal = massagem_id
@@ -1088,7 +1100,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
   send(res, async () => {
     const id  = parseInt(req.params.id);
     const cid = getClinicaId(req);
-    const { data, hora_inicio, hora_fim, quarto_id, profissional_id,
+    const { data, hora_inicio, hora_fim, quarto_id, profissional_id, profissional_id_2,
             massagem_id, aluguel_id, profissional_externo,
             cliente_nome, cliente_telefone, status, observacoes,
             bebida, preco_bebida, multa_valor, recepcionista_id,
@@ -1124,15 +1136,23 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
         if (cP) throw new Error('Massagista já tem atendimento neste horário');
       }
     }
+    // Verifica conflito da 2ª massagista
+    const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
+    if (pid2 && status !== 'cancelada') {
+      const cP2 = await qOne(
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+        [cid, pid2, data, id, hora_fim, hora_inicio]);
+      if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
+    }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21 WHERE id=$22 AND clinica_id=$23',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,profissional_id_2=$22 WHERE id=$23 AND clinica_id=$24',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
        bebida||null, parseFloat(preco_bebida)||0, recepcionista_id||null, pagamento||null,
        parseFloat(multa_valor)||0, parseInt(parcelas)||1, maquina_cartao_id?parseInt(maquina_cartao_id):null,
        pagamentos_json||null, req.body.preco_custom!=null?parseFloat(req.body.preco_custom)||null:null,
-       id, cid]);
+       pid2||null, id, cid]);
     // atualizar despesas de taxa cartão (apaga e recria)
     if (pagamentos_json) {
       const svcVal = massagem_id
@@ -2064,15 +2084,18 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       pool.query(
         `SELECT r.hora_inicio, r.hora_fim, r.status, r.cliente_nome,
                 r.pagamento, r.preco_bebida, r.multa_valor, r.bebida,
+                r.preco_custom, r.profissional_id_2,
                 m.nome AS massagem_nome, m.preco AS massagem_preco,
                 al.nome AS aluguel_nome, al.valor AS aluguel_valor,
                 p.nome AS profissional_nome,
+                COALESCE(p2.nome_fantasia, p2.nome) AS profissional_nome_2,
                 q.numero AS quarto_numero
          FROM reservas r
-         LEFT JOIN massagens   m  ON m.id  = r.massagem_id
-         LEFT JOIN alugueis    al ON al.id = r.aluguel_id
-         LEFT JOIN profissionais p ON p.id = r.profissional_id
-         LEFT JOIN quartos      q ON q.id  = r.quarto_id
+         LEFT JOIN massagens      m  ON m.id  = r.massagem_id
+         LEFT JOIN alugueis       al ON al.id = r.aluguel_id
+         LEFT JOIN profissionais  p  ON p.id  = r.profissional_id
+         LEFT JOIN profissionais  p2 ON p2.id = r.profissional_id_2
+         LEFT JOIN quartos        q  ON q.id  = r.quarto_id
          WHERE r.clinica_id=$1 AND r.data=$2
          ORDER BY r.hora_inicio`,
         [cid, data]
@@ -2095,19 +2118,20 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
     const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
 
     const reservasFormatadas = reservas.rows.map(r => {
-      const valorBase = r.massagem_preco
-        ? parseFloat(r.massagem_preco)
-        : (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
+      const massPrecoBase = r.preco_custom != null ? parseFloat(r.preco_custom) : parseFloat(r.massagem_preco || 0);
+      const valorBase = massPrecoBase || (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
       let total = valorBase + parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
       if (r.pagamento && /^[0-9]/.test(r.pagamento)) total = parseFloat(r.pagamento);
+      const isDuo = !!r.profissional_id_2;
       let repasse = 0;
       if (r.status !== 'cancelada') {
-        if (r.aluguel_valor && !r.massagem_preco) {
+        if (r.aluguel_valor && !r.massagem_preco && !r.preco_custom) {
           // Aluguel: Acerto deduz do repasse da profissional; outros métodos = 0 (pago separadamente)
           if (r.pagamento === 'Acerto') repasse = -Math.round(parseFloat(r.aluguel_valor) * 100) / 100;
         } else {
-          // Massagem: aplica percentual de repasse sobre o total
-          repasse = Math.round(total * repassePct * 100) / 100;
+          // Massagem: duo = 25% cada; simples = % configurado
+          const pct = isDuo ? 0.25 : repassePct;
+          repasse = Math.round(total * pct * 100) / 100;
         }
       }
       return {
@@ -2118,6 +2142,8 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         servico:     r.massagem_nome || r.aluguel_nome || '—',
         tipo:        r.aluguel_valor ? 'aluguel' : 'massagem',
         profissional:r.profissional_nome || r.profissional_externo || '—',
+        profissional2: r.profissional_nome_2 || null,
+        isDuo: !!r.profissional_id_2,
         quarto:      r.quarto_numero,
         total,
         repasse,

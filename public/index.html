@@ -2124,6 +2124,18 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
       </div>
       <div class="field full"><label>Quarto / Sala <span class="required">*</span></label>
         <select id="rv-quarto">${optQ}</select></div>
+      <div class="field full" style="margin-bottom:0">
+        <button type="button" id="rv-duo-btn" onclick="toggleDuo()" class="btn btn-secondary btn-sm" style="border:1px dashed var(--border)">${r?.profissional_id_2?'👥 2ª Massagista ▲':'＋ 2ª Massagista (duo)'}</button>
+        ${r?.profissional_id_2?'<span style="font-size:.78rem;color:#9b59b6;margin-left:8px">⚠️ Repasse 25% cada</span>':'<span style="font-size:.78rem;color:var(--text-lt);margin-left:8px">Opcional — repasse 25%/25%</span>'}
+      </div>
+      <div class="field full" id="rv-prof2-section" style="display:${r?.profissional_id_2?'':' none'}">
+        <label>👤 2ª Massagista / Terapeuta</label>
+        <select id="rv-prof2">
+          <option value="">— Nenhuma (sessão individual) —</option>
+          ${optP}
+        </select>
+        <small style="color:#9b59b6;font-size:.78rem">Sessão duo: 50% clínica · 25% 1ª massagista · 25% 2ª massagista</small>
+      </div>
       <div class="field full" style="margin-bottom:2px">
         <label>Tipo de Serviço <span class="required">*</span></label>
         <div style="display:flex;gap:8px;margin-top:4px">
@@ -2132,7 +2144,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         </div>
       </div>
       <div id="rv-massagem-row" class="field full"><label>Tipo de Massagem <span class="required">*</span></label>
-        <select id="rv-massagem" onchange="autoFillHoraFim()">${optM}</select></div>
+        <select id="rv-massagem" onchange="autoFillHoraFim();autoFillPreco()">${optM}</select></div>
       <div id="rv-aluguel-row" class="field full" style="display:none"><label>Tipo de Aluguel <span class="required">*</span></label>
         <select id="rv-aluguel">${optA||'<option value="">Nenhum aluguel cadastrado</option>'}</select></div>
       <div id="rv-prof-aluguel-section" style="display:none">
@@ -2172,9 +2184,10 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
           <div id="rv-drinks-total" class="drinks-total" style="display:none"></div>
         </div>
       </div>
-      <div class="field" id="rv-preco-custom-row" style="display:none">
-        <label>💰 Preço da Sessão <small style="color:var(--text-lt)">(Sala Externa — definido caso a caso)</small></label>
+      <div class="field" id="rv-preco-custom-row">
+        <label>💰 Preço da Sessão</label>
         <input id="rv-preco-custom" type="number" min="0" step="0.01" placeholder="0,00"/>
+        <small id="rv-preco-info" style="color:var(--text-lt);font-size:.78rem"></small>
       </div>
       <div class="field full">
         <label>💳 Formas de Pagamento</label>
@@ -2214,8 +2227,8 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
   const _toggleExterna=()=>{
     const qid=parseInt(document.getElementById('rv-quarto')?.value)||0;
     const q=(state.quartos||[]).find(x=>x.id===qid);
-    const row=document.getElementById('rv-preco-custom-row');
-    if(row) row.style.display=q?.is_externa?'':'none';
+    const info=document.getElementById('rv-preco-info');
+    if(info) info.textContent=q?.is_externa?'Sala Externa — preço definido caso a caso':'Deixe em branco para usar o preço cadastrado da massagem';
   };
   document.getElementById('rv-quarto')?.addEventListener('change',_toggleExterna);
   setTimeout(()=>{
@@ -2227,7 +2240,12 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     document.getElementById('rv-bebida-nome')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     document.getElementById('rv-bebida-preco')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDrink();}});
     _toggleExterna();
+    // Carrega preco_custom
     if(r?.preco_custom!=null) { const pc=document.getElementById('rv-preco-custom'); if(pc) pc.value=r.preco_custom; }
+    // Carrega 2ª massagista ao editar
+    if(r?.profissional_id_2) { const s=document.getElementById('rv-prof2'); if(s) s.value=r.profissional_id_2; }
+    // Atualiza info de preço
+    updatePrecoInfo();
   },30);
 }
 function toggleCartaoFields(){/* substituído por sistema de pagamentos múltiplos */}
@@ -2412,6 +2430,36 @@ function removeDrink(i){
   _drinks.splice(i,1);
   renderDrinksList();
 }
+function toggleDuo(){
+  const sec=document.getElementById('rv-prof2-section');
+  const btn=document.getElementById('rv-duo-btn');
+  if(!sec) return;
+  const open=sec.style.display!=='none';
+  sec.style.display=open?'none':'';
+  if(btn) btn.textContent=open?'＋ 2ª Massagista (duo)':'👥 2ª Massagista ▲';
+  if(open){ const s=document.getElementById('rv-prof2'); if(s) s.value=''; }
+  updatePrecoInfo();
+}
+function autoFillPreco(){
+  const mid=parseInt(document.getElementById('rv-massagem')?.value)||0;
+  const m=(state.massagens||[]).find(x=>x.id===mid);
+  if(!m) return;
+  const pcEl=document.getElementById('rv-preco-custom');
+  // só preenche automaticamente se o campo estiver vazio
+  if(pcEl && !pcEl.value) pcEl.value=parseFloat(m.preco||0).toFixed(2);
+  updatePrecoInfo();
+}
+function updatePrecoInfo(){
+  const isDuo=document.getElementById('rv-prof2-section')?.style.display!=='none' && document.getElementById('rv-prof2')?.value;
+  const qid=parseInt(document.getElementById('rv-quarto')?.value)||0;
+  const q=(state.quartos||[]).find(x=>x.id===qid);
+  const info=document.getElementById('rv-preco-info');
+  if(!info) return;
+  if(isDuo) info.innerHTML='<span style="color:#9b59b6">👥 Duo: 25% para cada massagista, 50% clínica</span>';
+  else if(q?.is_externa) info.textContent='Sala Externa — preço definido caso a caso';
+  else info.textContent='Deixe em branco para usar o preço cadastrado da massagem';
+}
+
 async function saveReserva(id){
   const data=document.getElementById('rv-data').value;
   const hora_inicio=document.getElementById('rv-inicio').value;
@@ -2473,10 +2521,13 @@ async function saveReserva(id){
   }
   try{
     const _pcEl=document.getElementById('rv-preco-custom');
-    const _pcRow=document.getElementById('rv-preco-custom-row');
-    const preco_custom=(_pcRow?.style.display!=='none'&&_pcEl?.value!=='')?parseFloat(_pcEl.value)||null:null;
+    const preco_custom=_pcEl?.value!==''?parseFloat(_pcEl.value)||null:null;
+    // 2ª massagista
+    const _prof2Sec=document.getElementById('rv-prof2-section');
+    const _prof2Val=document.getElementById('rv-prof2')?.value;
+    const profissional_id_2=(_prof2Sec?.style.display!=='none'&&_prof2Val)?parseInt(_prof2Val)||null:null;
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
