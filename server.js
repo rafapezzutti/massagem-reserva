@@ -1080,7 +1080,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
     }
     const nova = await qOne(
-      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
+      'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,tem_brinde,valor_brinde,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cid, cliente_nome.trim(), cliente_telefone||null, observacoes||null,
@@ -1149,7 +1149,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
     }
     await qRun(
-      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,profissional_id_2=$22,tem_brinde=$23,valor_brinde=$24 WHERE id=$25 AND clinica_id=$26',
+      'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,tem_brinde=$22,valor_brinde=$23,profissional_id_2=$24 WHERE id=$25 AND clinica_id=$26',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
        isExterno ? profissional_externo.trim() : null,
        cliente_nome.trim(), cliente_telefone||null, status||'confirmada', observacoes||null,
