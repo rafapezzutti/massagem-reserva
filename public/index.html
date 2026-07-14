@@ -1654,7 +1654,7 @@ function renderQuartos(){
   el.innerHTML=`<div class="item-grid">${state.quartos.map(q=>`
     <div class="item-card">
       <div class="item-title">Quarto ${q.numero} — ${esc(q.nome)}</div>
-      <div class="item-sub">${q.tem_hidromassagem?'<span class="hydro-tag">💧 Hidromassagem</span>':'<span style="font-size:.75rem;color:var(--text-lt)">Sem hidromassagem</span>'}${q.is_externa?'<span style="font-size:.75rem;background:#ead5f5;color:#6b21a8;padding:2px 8px;border-radius:10px;margin-left:4px">🌐 Externa</span>':''}</div>
+      <div class="item-sub">${q.tem_hidromassagem?'<span class="hydro-tag">💧 Hidromassagem</span>':'<span style="font-size:.75rem;color:var(--text-lt)">Sem hidromassagem</span>'}${q.is_externa?'<span style="font-size:.75rem;background:#ead5f5;color:#6b21a8;padding:2px 8px;border-radius:10px;margin-left:4px">🚗 Local do cliente</span>':''}</div>
       <div class="item-actions">
         <button class="btn btn-secondary btn-sm" onclick="openQuartoModal(${q.id})">✏️ Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteQuarto(${q.id},'${esc(q.nome)}')">🗑 Excluir</button>
@@ -1670,10 +1670,10 @@ function openQuartoModal(id){
       <div class="field full"><label>Hidromassagem</label>
         <select id="q-hidro"><option value="0"${!q?.tem_hidromassagem?' selected':''}>Não</option>
         <option value="1"${q?.tem_hidromassagem?' selected':''}>Sim</option></select></div>
-      <div class="field full"><label>🌐 Sala EXTERNA (múltiplas massagistas simultâneas)</label>
-        <select id="q-externa"><option value="0"${!q?.is_externa?' selected':''}>Não — reserva exclusiva</option>
-        <option value="1"${q?.is_externa?' selected':''}>Sim — permite múltiplas ao mesmo tempo</option></select>
-        <small style="color:var(--text-lt);font-size:.78rem">Salas externas não travam conflito de horário e aparecem em roxo na timeline</small></div>
+      <div class="field full"><label>🚗 Atendimento no local do cliente</label>
+        <select id="q-externa"><option value="0"${!q?.is_externa?' selected':''}>Não — atendimento na clínica</option>
+        <option value="1"${q?.is_externa?' selected':''}>Sim — massagista vai ao local do cliente</option></select>
+        <small style="color:var(--text-lt);font-size:.78rem">Atendimentos externos não bloqueiam salas da clínica — múltiplas massagistas podem ser agendadas ao mesmo tempo</small></div>
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="saveQuarto(${id||'null'})">${q?'Salvar':'Cadastrar'}</button>`);
@@ -2087,7 +2087,7 @@ async function ensureData(){
 async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalIdPre){
   try{ await ensureData(); }catch(e){ toast(e.message,'erro'); return; }
   const r=id?state.reservasDia.find(x=>x.id===id):null;
-  const optQ=state.quartos.map(q=>`<option value="${q.id}"${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}${q.is_externa?' 🌐':''}</option>`).join('');
+  const optQ=state.quartos.map(q=>`<option value="${q.id}"${(r?.quarto_id===q.id||quartoIdPre===q.id)?'selected':''}>Nº${q.numero} — ${esc(q.nome)}${q.tem_hidromassagem?' 💧':''}${q.is_externa?' 🚗':''}</option>`).join('');
   const optP=state.profissionais.filter(p=>p.ativo||r?.profissional_id===p.id).map(p=>`<option value="${p.id}"${(r?.profissional_id===p.id||profissionalIdPre===p.id)?'selected':''}>${esc(p.nome_fantasia||p.nome)}</option>`).join('');
   const optM=state.massagens.map(m=>`<option value="${m.id}"${r?.massagem_id===m.id?'selected':''}>${esc(m.nome)} (${m.duracao}min · ${fmtMoeda(m.preco)})</option>`).join('');
   const optA=(state.alugueis||[]).map(a=>`<option value="${a.id}"${r?.aluguel_id===a.id?'selected':''}>${esc(a.nome)} (-${fmtMoeda(a.valor)})</option>`).join('');
@@ -2238,12 +2238,12 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     _maquinasCartao=[];
     initPayments(r, tipoInicial==='aluguel');
   });
-  // Toggle campo preco_custom para sala EXTERNA
+  // Toggle campo preco_custom para atendimento externo (local do cliente)
   const _toggleExterna=()=>{
     const qid=parseInt(document.getElementById('rv-quarto')?.value)||0;
     const q=(state.quartos||[]).find(x=>x.id===qid);
     const info=document.getElementById('rv-preco-info');
-    if(info) info.textContent=q?.is_externa?'Sala Externa — preço definido caso a caso':'Deixe em branco para usar o preço cadastrado da massagem';
+    if(info) info.textContent=q?.is_externa?'Atendimento externo — preço definido caso a caso':'Deixe em branco para usar o preço cadastrado da massagem';
   };
   document.getElementById('rv-quarto')?.addEventListener('change',_toggleExterna);
   setTimeout(()=>{
@@ -2503,7 +2503,7 @@ function updatePrecoInfo(){
   const info=document.getElementById('rv-preco-info');
   if(!info) return;
   if(isDuo) info.innerHTML='<span style="color:#9b59b6">👥 Duo: 25% para cada massagista, 50% clínica</span>';
-  else if(q?.is_externa) info.textContent='Sala Externa — preço definido caso a caso';
+  else if(q?.is_externa) info.textContent='Atendimento externo — preço definido caso a caso';
   else info.textContent='Deixe em branco para usar o preço cadastrado da massagem';
 }
 
