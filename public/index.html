@@ -2210,6 +2210,21 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
             value="${parseFloat(r?.multa_valor||0)>0?r.multa_valor:''}" style="width:120px"/>
         </div>
       </div>
+      <div class="field full" style="padding:10px 12px;background:${r?.tem_brinde?'#f0fdf4':'var(--bg)'};border-radius:8px;border:1.5px solid ${r?.tem_brinde?'#86efac':'var(--border)'}">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+          <input type="checkbox" id="rv-brinde-chk" onchange="toggleBrinde()" style="width:16px;height:16px;accent-color:#16a34a"${r?.tem_brinde?' checked':''}>
+          <span style="font-weight:600;color:#16a34a">🎁 Inclui brinde</span>
+        </label>
+        <div id="rv-brinde-wrap" style="margin-top:10px;display:${r?.tem_brinde?'flex':'none'};flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="margin:0;font-weight:400;color:var(--text-lt);font-size:.9rem">Valor do brinde:</label>
+            <span style="color:var(--text-lt)">R$</span>
+            <input id="rv-brinde-val" type="number" min="0" step="0.01" placeholder="0,00"
+              value="${parseFloat(r?.valor_brinde||0)>0?r.valor_brinde:''}" style="width:120px" oninput="updateBrindeInfo()"/>
+          </div>
+          <div id="rv-brinde-info" style="font-size:.82rem;color:#15803d;background:#dcfce7;padding:6px 10px;border-radius:6px;display:none"></div>
+        </div>
+      </div>
     </div>`,
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
@@ -2247,6 +2262,38 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     // Atualiza info de preço
     updatePrecoInfo();
   },30);
+}
+function toggleBrinde(){
+  const chk=document.getElementById('rv-brinde-chk');
+  const wrap=document.getElementById('rv-brinde-wrap');
+  if(!wrap)return;
+  wrap.style.display=chk.checked?'flex':'none';
+  if(chk.checked) setTimeout(()=>document.getElementById('rv-brinde-val')?.focus(),50);
+  updateBrindeInfo();
+}
+function updateBrindeInfo(){
+  const chk=document.getElementById('rv-brinde-chk');
+  const info=document.getElementById('rv-brinde-info');
+  if(!info)return;
+  if(!chk?.checked){ info.style.display='none'; return; }
+  const vb=parseFloat(document.getElementById('rv-brinde-val')?.value)||0;
+  if(vb<=0){ info.style.display='none'; return; }
+  // Tentar calcular o valor net para exibir
+  const pcEl=document.getElementById('rv-preco-custom');
+  const massEl=document.getElementById('rv-massagem');
+  const multaChk=document.getElementById('rv-multa-chk')?.checked;
+  const multa=multaChk?(parseFloat(document.getElementById('rv-multa-val')?.value)||0):0;
+  let base=pcEl?.value!==''?parseFloat(pcEl.value)||0:0;
+  if(!base && massEl?.value){
+    const m=(state.massagens||[]).find(x=>x.id===parseInt(massEl.value));
+    if(m) base=parseFloat(m.preco)||0;
+  }
+  const bebs=(_drinks||[]).reduce((s,d)=>s+d.preco,0);
+  const total=base+bebs+multa;
+  const net=Math.max(0,total-vb);
+  const fmt=v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  info.style.display='block';
+  info.innerHTML=`Total cliente: ${fmt(total)} &nbsp;|&nbsp; <strong>Valor net (repasse): ${fmt(net)}</strong>`;
 }
 function toggleCartaoFields(){/* substituído por sistema de pagamentos múltiplos */}
 
@@ -2487,6 +2534,9 @@ async function saveReserva(id){
   const observacoes=document.getElementById('rv-obs')?.value.trim();
   const multaChk=document.getElementById('rv-multa-chk')?.checked;
   const multa_valor=multaChk?(parseFloat(document.getElementById('rv-multa-val')?.value)||0):0;
+  const brindeChk=document.getElementById('rv-brinde-chk')?.checked;
+  const tem_brinde=!!brindeChk;
+  const valor_brinde=brindeChk?(parseFloat(document.getElementById('rv-brinde-val')?.value)||0):0;
   const bebida=_drinks.length>0?JSON.stringify(_drinks):null;
   const preco_bebida=_drinks.reduce((s,d)=>s+d.preco,0);
   const recepcionista_id=parseInt(document.getElementById('rv-recep')?.value)||null;
@@ -2527,7 +2577,7 @@ async function saveReserva(id){
     const _prof2Val=document.getElementById('rv-prof2')?.value;
     const profissional_id_2=(_prof2Sec?.style.display!=='none'&&_prof2Val)?parseInt(_prof2Val)||null:null;
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
