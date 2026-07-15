@@ -1418,7 +1418,8 @@ function renderTimeline(){
       ${prof.nome_fantasia?`<div class="room-num">${esc(prof.nome)}</div>`:''}
       ${!prof.ativo?'<div class="room-hydro" style="color:var(--red)">Inativa</div>':''}
     </div>`;
-    const res=state.reservasDia.filter(r=>r.profissional_id===prof.id);
+    // Inclui reservas onde esta prof é a 1ª OU a 2ª massagista (duo)
+    const res=state.reservasDia.filter(r=>r.profissional_id===prof.id||r.profissional_id_2===prof.id);
     const startMap={};
     res.forEach(r=>{
       const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-startMin)/30));
@@ -1436,10 +1437,11 @@ function renderTimeline(){
         const motTxt=ausSlot.motivo?esc(ausSlot.motivo):'Ausente';
         html+=`<div class="tl-cell tl-cell-bloq${isH?' half-border':''}"><div class="bloq-block">🚫 ${motTxt}</div></div>`;
       }else if(rb){
+        const _isDuoSecond=rb.profissional_id_2===prof.id;
         const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':(rb.quarto_externa?'res-externa':'res-conf');
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
-          <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px)" onclick="event.stopPropagation();viewReserva(${rb.id})">
-            <div class="rb-client">${esc(rb.cliente_nome)}</div>
+          <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px);${_isDuoSecond?'opacity:.85;border-left-style:dashed':''}" onclick="event.stopPropagation();viewReserva(${rb.id})">
+            <div class="rb-client">${_isDuoSecond?'👥 2ª — ':''}${esc(rb.cliente_nome)}</div>
             <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
