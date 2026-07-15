@@ -2229,6 +2229,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
       </div>
     </div>`,
     `${r?`<button class="btn btn-danger" onclick="cancelarReserva(${r.id})">Cancelar Reserva</button>`:''}
+     ${r?`<button class="btn btn-sm" style="background:#b04040;color:#fff" onclick="excluirReserva(${r.id})" title="Excluir permanentemente">🗑 Excluir</button>`:''}
      <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
      <button class="btn btn-primary" onclick="saveReserva(${id||'null'})">${r?'Atualizar':'Confirmar'}</button>`);
   // Carrega máquinas de cartão e inicializa lista de pagamentos
@@ -2583,6 +2584,15 @@ async function saveReserva(id){
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
+    if(state.currentView==='daily') loadDaily();
+  }catch(e){toast(e.message,'err')}
+}
+async function excluirReserva(id){
+  if(!confirm('⚠️ Excluir permanentemente esta reserva? Esta ação não pode ser desfeita.'))return;
+  const cid=cidParam();
+  try{
+    await api('DELETE',`/reservas/${id}/excluir`+(cid?'?'+cid:''));
+    toast('Reserva excluída');closeModal();
     if(state.currentView==='daily') loadDaily();
   }catch(e){toast(e.message,'err')}
 }

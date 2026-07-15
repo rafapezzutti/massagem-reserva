@@ -1179,6 +1179,14 @@ app.delete('/api/reservas/:id', requireAuth, (req, res) =>
     return { id: parseInt(req.params.id) };
   }));
 
+app.delete('/api/reservas/:id/excluir', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2', [req.params.id, cid]).catch(()=>{});
+    await qRun('DELETE FROM reservas WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
 // ─── Dashboard pagamentos ────────────────────────────────────────────────────
 app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
   send(res, async () => {
