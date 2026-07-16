@@ -2237,7 +2237,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
     ];
 
     const totReceita  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.total,0);
-    const totRepasse  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.repasse,0);
+    const totRepasse  = reservasFormatadas.filter(r=>r.status!=='cancelada').reduce((s,r)=>s+r.repasse+(r.isDuo?r.repasse:0),0);
     const totDespesas = despesasFormatadas.reduce((s,d)=>s+parseFloat(d.valor||0),0);
 
     return {

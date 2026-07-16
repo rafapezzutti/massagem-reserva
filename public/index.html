@@ -4624,8 +4624,16 @@ async function loadFluxoDiario(data){
         porProf[p].reservas.push(r);
         // Massagem = receita do cliente; Aluguel = cobrado DA profissional (reduz o que ela recebe)
         if(r.tipo==='aluguel') porProf[p].aluguel+=Math.abs(r.total||0);
-        else                   porProf[p].massagem+=r.total||0;
+        else                   porProf[p].massagem+=(r.isDuo?(r.total||0)*0.25:(r.total||0));
         porProf[p].repasse+=r.repasse||0;
+        // Duo: 2a massagista também aparece no agrupamento com seu repasse (25%)
+        if(r.isDuo && r.profissional2){
+          const p2=r.profissional2;
+          if(!porProf[p2]) porProf[p2]={reservas:[],massagem:0,aluguel:0,repasse:0};
+          porProf[p2].reservas.push(r);
+          porProf[p2].massagem+=(r.total||0)*0.25;
+          porProf[p2].repasse+=r.repasse||0;
+        }
       });
       html+=`<div style="margin-bottom:18px">
         <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--text)">👤 Receitas por Profissional</div>
@@ -4653,14 +4661,26 @@ async function loadFluxoDiario(data){
           <th>Horário</th><th>Cliente</th><th>Serviço</th><th>Profissional</th><th class="ctr">Valor</th><th class="ctr">Repasse</th>
         </tr></thead><tbody>`;
       reservasAtivas.forEach(r=>{
+        const duoLabel=r.isDuo?' 👥':'';
+        const valorExib=r.isDuo?(r.total||0)*0.25:(r.total||0);
         html+=`<tr>
           <td style="white-space:nowrap">${r.hora_inicio||''}${r.hora_fim?' – '+r.hora_fim:''}</td>
           <td>${r.cliente||'—'}</td>
-          <td>${r.servico||'—'}${r.bebida?' + '+r.bebida:''}</td>
+          <td>${r.servico||'—'}${r.bebida?' + '+r.bebida:''}${duoLabel}</td>
           <td>${r.profissional||'—'}</td>
-          <td class="ctr" style="color:#2d7a56">${fmtMoeda(r.total||0)}</td>
+          <td class="ctr" style="color:#2d7a56">${fmtMoeda(valorExib)}</td>
           <td class="ctr" style="color:#7a5c2d">${fmtMoeda(r.repasse||0)}</td>
         </tr>`;
+        if(r.isDuo && r.profissional2){
+          html+=`<tr style="background:rgba(155,89,182,.07)">
+            <td style="white-space:nowrap">${r.hora_inicio||''}${r.hora_fim?' – '+r.hora_fim:''}</td>
+            <td>${r.cliente||'—'}</td>
+            <td>${r.servico||'—'} 👥 2ª</td>
+            <td>${r.profissional2}</td>
+            <td class="ctr" style="color:#2d7a56">${fmtMoeda(valorExib)}</td>
+            <td class="ctr" style="color:#7a5c2d">${fmtMoeda(r.repasse||0)}</td>
+          </tr>`;
+        }
       });
       html+=`</tbody></table></div></div>`;
     } else {
