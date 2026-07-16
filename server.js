@@ -1240,19 +1240,31 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         p.id,
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
-        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)
+          + COALESCE(MAX(duo.qtd_ativas),0)                                              AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
-        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)                             AS confirmadas,
-        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)                             AS concluidas,
+        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)
+          + COALESCE(MAX(duo.qtd_confirmadas),0)                                         AS confirmadas,
+        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)
+          + COALESCE(MAX(duo.qtd_concluidas),0)                                          AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END)                             AS canceladas
       FROM profissionais p
       LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       LEFT JOIN massagens m ON m.id = r.massagem_id
       LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      LEFT JOIN (
+        SELECT profissional_id_2                                         AS prof_id,
+               COUNT(CASE WHEN status != 'cancelada' THEN 1 END)        AS qtd_ativas,
+               COUNT(CASE WHEN status = 'confirmada' THEN 1 END)         AS qtd_confirmadas,
+               COUNT(CASE WHEN status = 'concluida'  THEN 1 END)         AS qtd_concluidas
+        FROM reservas
+        WHERE clinica_id = $1 AND data >= $2 AND data < $3 AND profissional_id_2 IS NOT NULL
+        GROUP BY profissional_id_2
+      ) duo ON duo.prof_id = p.id
       WHERE p.clinica_id = $1 AND p.ativo = 1
       GROUP BY p.id, p.nome, p.nome_fantasia
       ORDER BY total DESC NULLS LAST, p.nome
@@ -1313,19 +1325,31 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         p.id,
         COALESCE(p.nome_fantasia, p.nome) AS nome_display,
         p.nome                            AS nome_completo,
-        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)                              AS atendimentos,
+        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END)
+          + COALESCE(MAX(duo.qtd_ativas),0)                                              AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(m.preco,0) ELSE 0 END), 0) AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
-        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)                             AS confirmadas,
-        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)                             AS concluidas,
+        COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)
+          + COALESCE(MAX(duo.qtd_confirmadas),0)                                         AS confirmadas,
+        COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)
+          + COALESCE(MAX(duo.qtd_concluidas),0)                                          AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END)                             AS canceladas
       FROM profissionais p
       LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data = $2
       LEFT JOIN massagens m ON m.id = r.massagem_id
       LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      LEFT JOIN (
+        SELECT profissional_id_2                                         AS prof_id,
+               COUNT(CASE WHEN status != 'cancelada' THEN 1 END)        AS qtd_ativas,
+               COUNT(CASE WHEN status = 'confirmada' THEN 1 END)         AS qtd_confirmadas,
+               COUNT(CASE WHEN status = 'concluida'  THEN 1 END)         AS qtd_concluidas
+        FROM reservas
+        WHERE clinica_id = $1 AND data = $2 AND profissional_id_2 IS NOT NULL
+        GROUP BY profissional_id_2
+      ) duo ON duo.prof_id = p.id
       WHERE p.clinica_id = $1 AND p.ativo = 1
       GROUP BY p.id, p.nome, p.nome_fantasia
       ORDER BY total DESC NULLS LAST, p.nome
