@@ -1259,6 +1259,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL AND r.pagamento = 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis_acerto,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)
           + COALESCE(MAX(duo.qtd_confirmadas),0)                                         AS confirmadas,
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)
@@ -1365,6 +1366,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
+        -- alugueis pagos como Acerto = descontar do repasse; dinheiro/pix ja foram cobrados diretamente
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL AND r.pagamento = 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis_acerto,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END)
           + COALESCE(MAX(duo.qtd_confirmadas),0)                                         AS confirmadas,
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END)

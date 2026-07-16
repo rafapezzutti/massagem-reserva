@@ -2761,7 +2761,8 @@ function renderDashTable(resp,containerId,type){
   const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
   const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas-sumMultas-sumAlugueis);
-  const sumRepasse=showRepasse?((sumMassagens+sumMultas)*(pct/100)-sumAlugueis):0;
+  const sumAlugueis_acerto=data.reduce((s,r)=>s+(r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):parseFloat(r.total_alugueis||0)),0);
+  const sumRepasse=showRepasse?((sumMassagens+sumMultas)*(pct/100)-sumAlugueis_acerto):0;
   // External rentals totals
   const sumExtAtend=externas.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumExtAlug=externas.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0);
@@ -2783,7 +2784,9 @@ function renderDashTable(resp,containerId,type){
     const multasRow=parseFloat(r.total_multas||0);
     const alugPerRow=parseFloat(r.total_alugueis||0);
     const massagens=parseFloat(r.total_massagens_bruto||0)||(valor-bebidas-multasRow-alugPerRow);
-    const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugPerRow):0;
+    // so desconta do repasse o aluguel pago como Acerto (dinheiro/pix ja foram cobrados diretamente)
+    const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
+    const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugAcertoRow):0;
     const media=atend>0?valor/atend:null;
     const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
     const nomeCompleto=!isMassagem&&r.nome_display&&r.nome_display!==r.nome_completo?r.nome_completo:null;
