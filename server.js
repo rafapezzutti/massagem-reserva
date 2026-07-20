@@ -1061,13 +1061,13 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     const _quartoInfo = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
     if (!_quartoInfo?.is_externa) {
       const cQ = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
         [cid, quarto_id, data, hora_fim, hora_inicio]);
       if (cQ) throw new Error('Sala já reservada neste horário');
     }
     if (pid) {
       const cP = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
         [cid, pid, data, hora_fim, hora_inicio]);
       if (cP) throw new Error('Massagista já tem atendimento neste horário');
     }
@@ -1075,7 +1075,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
     if (pid2) {
       const cP2 = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status!='cancelada' AND hora_inicio<$4 AND hora_fim>$5`,
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
         [cid, pid2, data, hora_fim, hora_inicio]);
       if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
     }
@@ -1129,13 +1129,13 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       const _quartoInfoPut = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
       if (!_quartoInfoPut?.is_externa) {
         const cQ = await qOne(
-          `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+          `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
           [cid, quarto_id, data, id, hora_fim, hora_inicio]);
         if (cQ) throw new Error('Sala já reservada neste horário');
       }
       if (pid) {
         const cP = await qOne(
-          `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+          `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
           [cid, pid, data, id, hora_fim, hora_inicio]);
         if (cP) throw new Error('Massagista já tem atendimento neste horário');
       }
@@ -1144,7 +1144,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
     if (pid2 && status !== 'cancelada') {
       const cP2 = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status!='cancelada' AND hora_inicio<$5 AND hora_fim>$6`,
+        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
         [cid, pid2, data, id, hora_fim, hora_inicio]);
       if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
     }
