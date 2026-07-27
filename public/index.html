@@ -3284,6 +3284,9 @@ function openClinicaModal(id){
           <div id="cl-pwd-hint" class="pwd-hint"></div></div>
         <div class="field"><label>Telefone</label>
           <input id="cl-tel" type="tel" placeholder="(11) 99999-9999"/></div>
+        <div class="field"><label>CNPJ <span style="font-weight:400;color:var(--text-lt)">(opcional)</span></label>
+          <input id="cl-cnpj" type="text" placeholder="00.000.000/0001-00" maxlength="18"
+            oninput="this.value=this.value.replace(/\D/g,'').replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2}).*/,'$1.$2.$3/$4-$5')"/></div>
         <div class="field full">
           <label>📍 Endereço</label>
           <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px">
@@ -3362,6 +3365,7 @@ function openClinicaModal(id){
       document.getElementById('cl-nome').value=c.nome||'';
       document.getElementById('cl-email').value=c.email||'';
       document.getElementById('cl-tel').value=c.telefone||'';
+      document.getElementById('cl-cnpj').value=c.cnpj||'';
       // Carrega endereço: JSON estruturado ou string legado
       if(c.endereco){
         try{
@@ -3487,6 +3491,7 @@ async function saveClinica(id){
   const senha=document.getElementById('cl-senha').value;
   const senha2=document.getElementById('cl-senha2').value;
   const telefone=document.getElementById('cl-tel').value.trim();
+  const cnpj=document.getElementById('cl-cnpj').value.trim()||null;
   // Monta endereço estruturado como JSON
   const _addrObj={
     cep:(document.getElementById('cl-cep')?.value||'').trim(),
@@ -3507,7 +3512,7 @@ async function saveClinica(id){
   if(!id&&!senha)return toast('Senha é obrigatória para nova clínica','err');
   if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
   try{
-    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,horario_funcionamento,ativo:1};
+    const body={nome,email,telefone:telefone||null,endereco:endereco||null,emails_adicionais,horario_funcionamento,cnpj,ativo:1};
     if(senha) body.senha=senha;
     if(id) await api('PUT',`/admin/clinicas/${id}`,body);
     else   await api('POST','/admin/clinicas',body);

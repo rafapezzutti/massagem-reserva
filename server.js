@@ -153,6 +153,7 @@ async function initDB() {
   // 3e-b. Horário de funcionamento por clinica
   await pool.query(`
     ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS horario_funcionamento TEXT;
+    ALTER TABLE clinicas ADD COLUMN IF NOT EXISTS cnpj TEXT;
   `);
 
   // 3e-c. Seed horario Bali Spa (10h-24h seg-sab, fechado dom)
@@ -590,42 +591,42 @@ app.get('/api/auth/me', requireAuth, (req, res) =>
 // ADMIN — Clínicas
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/admin/clinicas', requireAdmin, (req, res) =>
-  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,ativo,horario_funcionamento,criado_em FROM clinicas ORDER BY nome')));
+  send(res, () => q('SELECT id,nome,email,telefone,endereco,emails_adicionais,cnpj,ativo,horario_funcionamento,criado_em FROM clinicas ORDER BY nome')));
 
 app.post('/api/admin/clinicas', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento } = req.body;
+    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento, cnpj } = req.body;
     if (!nome)  throw new Error('Nome é obrigatório');
     if (!email) throw new Error('Email é obrigatório');
     if (!senha) throw new Error('Senha é obrigatória');
     const hash = await bcrypt.hash(senha, 10);
     return qOne(
-      `INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais,horario_funcionamento)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em`,
+      `INSERT INTO clinicas (nome,email,senha_hash,telefone,endereco,emails_adicionais,horario_funcionamento,cnpj)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id,nome,email,telefone,endereco,emails_adicionais,cnpj,horario_funcionamento,ativo,criado_em`,
       [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null,
-       emails_adicionais||null, horario_funcionamento||null]
+       emails_adicionais||null, horario_funcionamento||null, cnpj||null]
     );
   }));
 
 app.put('/api/admin/clinicas/:id', requireAdmin, (req, res) =>
   send(res, async () => {
-    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento, ativo } = req.body;
+    const { nome, email, senha, telefone, endereco, emails_adicionais, horario_funcionamento, cnpj, ativo } = req.body;
     if (!nome)  throw new Error('Nome é obrigatório');
     if (!email) throw new Error('Email é obrigatório');
     if (senha) {
       const hash = await bcrypt.hash(senha, 10);
       await qRun(
-        'UPDATE clinicas SET nome=$1,email=$2,senha_hash=$3,telefone=$4,endereco=$5,emails_adicionais=$6,ativo=$7,horario_funcionamento=$8 WHERE id=$9',
-        [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, req.params.id]
+        'UPDATE clinicas SET nome=$1,email=$2,senha_hash=$3,telefone=$4,endereco=$5,emails_adicionais=$6,ativo=$7,horario_funcionamento=$8,cnpj=$9 WHERE id=$10',
+        [nome.trim(), email.toLowerCase().trim(), hash, telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, cnpj||null, req.params.id]
       );
     } else {
       await qRun(
-        'UPDATE clinicas SET nome=$1,email=$2,telefone=$3,endereco=$4,emails_adicionais=$5,ativo=$6,horario_funcionamento=$7 WHERE id=$8',
-        [nome.trim(), email.toLowerCase().trim(), telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, req.params.id]
+        'UPDATE clinicas SET nome=$1,email=$2,telefone=$3,endereco=$4,emails_adicionais=$5,ativo=$6,horario_funcionamento=$7,cnpj=$8 WHERE id=$9',
+        [nome.trim(), email.toLowerCase().trim(), telefone||null, endereco||null, emails_adicionais||null, ativo??1, horario_funcionamento||null, cnpj||null, req.params.id]
       );
     }
-    return qOne('SELECT id,nome,email,telefone,endereco,emails_adicionais,horario_funcionamento,ativo,criado_em FROM clinicas WHERE id=$1', [req.params.id]);
+    return qOne('SELECT id,nome,email,telefone,endereco,emails_adicionais,cnpj,horario_funcionamento,ativo,criado_em FROM clinicas WHERE id=$1', [req.params.id]);
   }));
 
 // ── Admins secundários de clínica ─────────────────────────────────────────
