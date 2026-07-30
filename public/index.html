@@ -903,6 +903,8 @@ function fmtBebidasTimeline(bebida){
   }catch(e){return '<div class="rb-prof">🍹 '+esc(bebida)+'</div>';}
 }
 function timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m}
+// Duração em minutos, suportando cross-midnight (fim < inicio → +1440)
+function calcDuracao(hi,hf){const d=timeToMin(hf)-timeToMin(hi);return d>0?d:d+1440;}
 function minToTime(m){return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
@@ -2108,7 +2110,9 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
       <div class="field"><label>Hora Início <span class="required">*</span></label>
         <input id="rv-inicio" type="time" value="${r?.hora_inicio||horaPre||'09:00'}" step="1800" onchange="autoFillHoraFim()"/></div>
       <div class="field"><label>Hora Fim <span class="required">*</span></label>
-        <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"/></div>
+        <input id="rv-fim" type="time" value="${r?.hora_fim||horaFimPre||'10:00'}" step="1800"
+          onchange="document.getElementById('rv-fim-label').style.display=this.value<document.getElementById('rv-inicio').value?'inline':'none'"/>
+        <span id="rv-fim-label" style="display:none;font-size:.8rem;color:#e67e22;margin-left:6px">+1 dia</span></div>
       <div id="rv-prof-mass-section">
         <div class="field full" style="margin-bottom:6px">
           <label style="margin-bottom:4px">Massagista / Terapeuta <span class="required">*</span></label>
@@ -2551,7 +2555,9 @@ async function saveReserva(id){
   if(!profissional_id&&!profissional_externo) return toast('Selecione ou informe o nome da profissional','err');
   if(isExterna&&!profissional_externo) return toast('Informe o nome do profissional externo','err');
   if(!recepcionista_id) return toast('Selecione uma recepcionista','err');
-  if(timeToMin(hora_fim)<=timeToMin(hora_inicio))return toast('Hora fim deve ser maior que hora início','err');
+  // Cross-midnight: hora_fim < hora_inicio é válido (sessão passa da meia-noite)
+  const _durMin=calcDuracao(hora_inicio,hora_fim);
+  if(_durMin<=0||_durMin>1440)return toast('Horário inválido (máx 24h)','err');
   // Verificar se o horario está dentro do cadastrado para a profissional
   const profSel=state.profissionais.find(x=>x.id===profissional_id);
   if(profSel&&profSel.horario){
@@ -2566,7 +2572,8 @@ async function saveReserva(id){
         const fimMin=timeToMin(hora_fim);
         const abMin=timeToMin(dInfo.abertura);
         const feMin=timeToMin(dInfo.fechamento);
-        if(inicioMin<abMin||fimMin>feMin){
+        const _crossMid=fimMin<inicioMin; // cross-midnight: não checar fimMin>feMin
+        if(inicioMin<abMin||(!_crossMid&&fimMin>feMin)){
           if(!confirm(`⚠️ Atenção: ${profSel.nome_fantasia||profSel.nome} costuma atender das ${dInfo.abertura} às ${dInfo.fechamento} neste dia.\n\nA reserva está fora do horário cadastrado. Deseja confirmar mesmo assim?`))return;
         }
       }

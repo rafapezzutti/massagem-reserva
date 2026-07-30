@@ -1018,6 +1018,44 @@ app.get('/api/reservas/resumo-mensal', requireAuth, (req, res) =>
     `, [cid, inicio, fim]);
   }));
 
+
+// ── Helpers para conflito de horário cross-midnight ───────────────────────
+function t2m(t){ const[h,m]=(t||'00:00').split(':').map(Number); return h*60+(m||0); }
+function addOneDay(d){ const x=new Date(d+'T12:00:00Z'); x.setUTCDate(x.getUTCDate()+1); return x.toISOString().slice(0,10); }
+
+// Retorna a reserva conflitante ou null
+// field: 'quarto_id' | 'profissional_id'  — val: id numérico
+// Se cross-midnight (hfNew < hiNew) verifica tb o próximo dia
+async function checkConflito(cid, field, val, dataNew, hiNew, hfNew, excludeId){
+  if(!val) return null;
+  const sN = t2m(hiNew);
+  let   eN = t2m(hfNew);
+  const cross = eN <= sN;
+  if(cross) eN += 1440;
+
+  const datas = cross ? [dataNew, addOneDay(dataNew)] : [dataNew];
+  for(const d of datas){
+    const dayOff = d !== dataNew ? 1440 : 0;
+    const excl   = excludeId ? ' AND id!=$4' : '';
+    const params = [cid, val, d, ...(excludeId?[excludeId]:[])];
+    const rows   = await pool.query(
+      `SELECT id,hora_inicio,hora_fim FROM reservas
+       WHERE clinica_id=$1 AND ${field}=$2 AND data=$3
+       AND status NOT IN ('cancelada','concluida')${excl}`,
+      params
+    ).then(r=>r.rows);
+
+    for(const r of rows){
+      let s2 = t2m(r.hora_inicio) + dayOff;
+      let e2 = t2m(r.hora_fim)    + dayOff;
+      if(t2m(r.hora_fim) <= t2m(r.hora_inicio)) e2 += 1440; // existing cross-midnight
+      if(Math.max(sN,s2) < Math.min(eN,e2)) return r;      // overlap!
+    }
+  }
+  return null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.get('/api/reservas', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
@@ -1061,24 +1099,18 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     // Sala EXTERNA: sem trava de conflito de quarto
     const _quartoInfo = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
     if (!_quartoInfo?.is_externa) {
-      const cQ = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
-        [cid, quarto_id, data, hora_fim, hora_inicio]);
-      if (cQ) throw new Error('Sala já reservada neste horário');
+      if(await checkConflito(cid,'quarto_id',quarto_id,data,hora_inicio,hora_fim,null))
+        throw new Error('Sala já reservada neste horário');
     }
     if (pid) {
-      const cP = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
-        [cid, pid, data, hora_fim, hora_inicio]);
-      if (cP) throw new Error('Massagista já tem atendimento neste horário');
+      if(await checkConflito(cid,'profissional_id',pid,data,hora_inicio,hora_fim,null))
+        throw new Error('Massagista já tem atendimento neste horário');
     }
     // Verifica conflito da 2ª massagista
     const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
     if (pid2) {
-      const cP2 = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$4 AND hora_fim>$5`,
-        [cid, pid2, data, hora_fim, hora_inicio]);
-      if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
+      if(await checkConflito(cid,'profissional_id',pid2,data,hora_inicio,hora_fim,null))
+        throw new Error('2ª Massagista já tem atendimento neste horário');
     }
     const nova = await qOne(
       'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,tem_brinde,valor_brinde,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
@@ -1129,25 +1161,19 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     if (status !== 'cancelada') {
       const _quartoInfoPut = await qOne('SELECT is_externa FROM quartos WHERE id=$1', [quarto_id]);
       if (!_quartoInfoPut?.is_externa) {
-        const cQ = await qOne(
-          `SELECT id FROM reservas WHERE clinica_id=$1 AND quarto_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
-          [cid, quarto_id, data, id, hora_fim, hora_inicio]);
-        if (cQ) throw new Error('Sala já reservada neste horário');
+        if(await checkConflito(cid,'quarto_id',quarto_id,data,hora_inicio,hora_fim,id))
+          throw new Error('Sala já reservada neste horário');
       }
       if (pid) {
-        const cP = await qOne(
-          `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
-          [cid, pid, data, id, hora_fim, hora_inicio]);
-        if (cP) throw new Error('Massagista já tem atendimento neste horário');
+        if(await checkConflito(cid,'profissional_id',pid,data,hora_inicio,hora_fim,id))
+          throw new Error('Massagista já tem atendimento neste horário');
       }
     }
     // Verifica conflito da 2ª massagista
     const pid2 = profissional_id_2 ? parseInt(profissional_id_2) : null;
     if (pid2 && status !== 'cancelada') {
-      const cP2 = await qOne(
-        `SELECT id FROM reservas WHERE clinica_id=$1 AND profissional_id=$2 AND data=$3 AND id!=$4 AND status NOT IN ('cancelada','concluida') AND hora_inicio<$5 AND hora_fim>$6`,
-        [cid, pid2, data, id, hora_fim, hora_inicio]);
-      if (cP2) throw new Error('2ª Massagista já tem atendimento neste horário');
+      if(await checkConflito(cid,'profissional_id',pid2,data,hora_inicio,hora_fim,id))
+        throw new Error('2ª Massagista já tem atendimento neste horário');
     }
     await qRun(
       'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,tem_brinde=$22,valor_brinde=$23,profissional_id_2=$24 WHERE id=$25 AND clinica_id=$26',
