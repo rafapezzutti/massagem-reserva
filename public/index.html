@@ -234,7 +234,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .reservation-block .rb-prof{color:rgba(0,0,0,.55)}
 .reservation-block .rb-time{color:rgba(0,0,0,.45);font-size:.68rem}
 .res-conf{background:linear-gradient(135deg,#b8e0f5,#9acde8);border-left:3px solid var(--cel);color:var(--text)}
-.res-conc{background:linear-gradient(135deg,#b8e8d0,#9dd6b6);border-left:3px solid var(--green);color:#1d5a40}
+.res-conc{background:linear-gradient(135deg,#27ae60,#1e8449);border-left:4px solid #145a32;color:#fff;font-weight:600}
 .res-canc{background:linear-gradient(135deg,#f5d0d0,#e8b8b8);border-left:3px solid var(--red);color:#7a2020;opacity:.65;text-decoration:line-through}
 .res-externa{background:linear-gradient(135deg,#ead5f5,#d4a8e8);border-left:3px solid #9b59b6;color:#4a1a6b}
 .empty-day{text-align:center;padding:48px;color:var(--text-lt);font-size:.95rem}
@@ -790,6 +790,14 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
           <option value="">Todos</option>
           <option value="pendente">Pendente</option>
           <option value="pago">Pago</option>
+        </select>
+        <select id="desp-fil-sort" class="field-input" style="width:180px" onchange="loadDespesas()">
+          <option value="criado_desc">⬇ Inserção (mais recente)</option>
+          <option value="criado_asc">⬆ Inserção (mais antiga)</option>
+          <option value="venc_asc">⬆ Vencimento (mais próximo)</option>
+          <option value="venc_desc">⬇ Vencimento (mais distante)</option>
+          <option value="valor_desc">⬇ Valor (maior)</option>
+          <option value="valor_asc">⬆ Valor (menor)</option>
         </select>
       </div>
       <div id="despesas-list"><div class="spinner"></div></div>
@@ -4347,6 +4355,18 @@ async function loadDespesas(){
 function renderDespesas(data){
   const el=document.getElementById('despesas-list');
   if(!data.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">🧾</div><div>Nenhuma despesa encontrada.</div></div>';return;}
+  // Ordenação client-side
+  const sort=document.getElementById('desp-fil-sort')?.value||'criado_desc';
+  const d2ts=v=>v?new Date(v).getTime():0;
+  data=[...data].sort((a,b)=>{
+    if(sort==='criado_desc') return d2ts(b.criado_em)-d2ts(a.criado_em);
+    if(sort==='criado_asc')  return d2ts(a.criado_em)-d2ts(b.criado_em);
+    if(sort==='venc_asc')    return d2ts(a.data_vencimento)-d2ts(b.data_vencimento);
+    if(sort==='venc_desc')   return d2ts(b.data_vencimento)-d2ts(a.data_vencimento);
+    if(sort==='valor_desc')  return parseFloat(b.valor||0)-parseFloat(a.valor||0);
+    if(sort==='valor_asc')   return parseFloat(a.valor||0)-parseFloat(b.valor||0);
+    return 0;
+  });
   const totalPend=data.filter(d=>d.status==='pendente').reduce((s,d)=>s+parseFloat(d.valor||0),0);
   const totalPago=data.filter(d=>d.status==='pago').reduce((s,d)=>s+parseFloat(d.valor||0),0);
   let html=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
