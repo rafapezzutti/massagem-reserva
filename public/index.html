@@ -2788,7 +2788,7 @@ function renderDashTable(resp,containerId,type){
   html+=`<th>${isMassagem?'Tipo de Massagem':'Massagista'}</th>`;
   if(isMassagem) html+='<th class="ctr">Duração</th><th class="num">Preço Unit.</th>';
   html+='<th class="ctr">Atend.</th><th class="num">💆 Massagens</th><th class="num">🍹 Bebidas</th>'+(showMultas?'<th class="num" style="color:var(--red)">⚠️ Multas</th>':'')+(showAlugueis?'<th class="num" style="color:#a05c10">🏷 Aluguéis</th>':'')+'<th class="num">Total Geral</th>';
-  if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th>`;
+  if(showRepasse) html+=`<th class="num" style="color:#2d7a56">Repasse (${pct}%)</th><th class="num" style="color:#2d7a56">💸 Valor Repasse</th><th class="num" style="color:#7c3aed">🏢 Líquido Empresa</th>`;
   html+='<th class="ctr">✅ Conc.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
 
@@ -2815,7 +2815,7 @@ function renderDashTable(resp,containerId,type){
       ${showMultas?`<td class="num" style="${parseFloat(r.total_multas||0)>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${parseFloat(r.total_multas||0)>0?fmtMoeda(r.total_multas):'—'}</td>`:''}
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?fmtMoeda(alugPerRow):'—'}</td>`:''}
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
-      ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td>`:''}
+      ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700">${fmtMoeda(valor-valRepasse)}</td>`:''}
       <td class="ctr">${r.concluidas||0}</td>
       <td class="ctr" style="color:var(--red)">${r.canceladas||0}</td>
     </tr>`;
@@ -2830,16 +2830,16 @@ function renderDashTable(resp,containerId,type){
     ${showMultas?`<td class="num" style="color:var(--red);font-weight:700">${fmtMoeda(sumMultas)}</td>`:''}
     ${showAlugueis?`<td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumAlugueis)}</td>`:''}
     <td class="num" style="color:#2d7a56;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal)}</td>
-    ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td>`:''}
+    ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal-sumRepasse)}</td>`:''}
     <td class="ctr"><strong>${sumConc}</strong></td>
     <td class="ctr" style="color:var(--red)"><strong>${sumCanc}</strong></td>
   </tr>`;
   // External rentals rows after SUBTOTAL
   if(!isMassagem&&externas.length>0){
     const colSpanName=1;
-    const totalCols=2+(showMultas?1:0)+(showAlugueis?1:0)+(showRepasse?2:0);
+    const totalCols=2+(showMultas?1:0)+(showAlugueis?1:0)+(showRepasse?3:0);
     html+=`<tr style="background:var(--bg-lt,#f7f3ff);border-top:2px solid #8b5cf6">
-      <td colspan="${1+(showRepasse?2:0)+(showMultas?1:0)+(showAlugueis?1:0)+3}" style="padding:6px 12px;font-weight:700;color:#8b5cf6;font-size:.82rem;letter-spacing:.04em">
+      <td colspan="${1+(showRepasse?3:0)+(showMultas?1:0)+(showAlugueis?1:0)+3}" style="padding:6px 12px;font-weight:700;color:#8b5cf6;font-size:.82rem;letter-spacing:.04em">
         🔤 ALUGUÉIS EXTERNOS
       </td>
       <td class="ctr" style="color:var(--text-lt);font-size:.8rem">${sumExtConc}</td>
@@ -2855,7 +2855,7 @@ function renderDashTable(resp,containerId,type){
         ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
         ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:600">${fmtMoeda(alug)}</td>`:''}
         <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(alug)}</td>
-        ${showRepasse?'<td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td>':''}
+        ${showRepasse?'<td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td>':''}
         <td class="ctr">${e.concluidas||0}</td>
         <td class="ctr" style="color:var(--red)">${e.canceladas||0}</td>
       </tr>`;
@@ -2869,7 +2869,7 @@ function renderDashTable(resp,containerId,type){
         ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
         ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>`:''}
         <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>
-        ${showRepasse?'<td class="num">—</td><td class="num">—</td>':''}
+        ${showRepasse?'<td class="num">—</td><td class="num">—</td><td class="num">—</td>':''}
         <td class="ctr"><strong>${sumExtConc}</strong></td>
         <td class="ctr" style="color:var(--red)"><strong>${sumExtCanc}</strong></td>
       </tr>`;
@@ -2887,7 +2887,7 @@ function renderDashTable(resp,containerId,type){
       ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
       {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
       {label:'💰 Total Geral',val:totalComExt,fmt:fmtMoeda,color:'#2d7a56',big:true},
-      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'}]:[]),
+      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'},{label:'🏢 Líquido Empresa',val:totalComExt-sumRepasse,fmt:fmtMoeda,color:'#7c3aed',big:true}]:[]),
     ];
     html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
       kpis.map(k=>`<div style="background:${k.big?'var(--green-lt)':'var(--bg-card,#fff)'};border:1.5px solid ${k.color};border-radius:10px;padding:10px 16px;min-width:120px;text-align:center">
