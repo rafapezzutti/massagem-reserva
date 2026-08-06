@@ -1596,7 +1596,7 @@ function renderDisponiveis(){
       .sort((a,b)=>timeToMin(a.hora_inicio)-timeToMin(b.hora_inicio))[0];
     const proxTxt=proxRes?`Próxima reserva às ${proxRes.hora_inicio}`:'Livre o resto do dia';
     return `<div class="disp-card" onclick="openReservaModal(null,null,'${horaStr}',null,${p.id})" style="cursor:pointer">
-      <div class="disp-avatar">${esc(inicial)}</div>
+      ${p.foto_url?`<img src="${esc(p.foto_url)}" class="disp-avatar" style="object-fit:cover;padding:0" onerror="this.outerHTML='<div class=disp-avatar>'+esc(inicial)+'</div>'"/>`:`<div class="disp-avatar">${esc(inicial)}</div>`}
       <div class="disp-info">
         <div class="disp-nome">${esc(nome)}</div>
         <div class="disp-sub">${nomeReal?esc(nomeReal)+' · ':''}<span style="color:${proxRes?'#a05c10':'#1d6040'}">${proxTxt}</span></div>
@@ -1723,9 +1723,10 @@ function renderProfissionais(){
   const arr=state.profissionais.filter(p=>p.nome.toLowerCase().includes(q)||(p.nome_fantasia||'').toLowerCase().includes(q));
   const el=document.getElementById('profissionais-list');
   if(!arr.length){el.innerHTML=`<div class="empty-day"><div class="empty-icon">👤</div><div>Nenhum profissional encontrado.</div></div>`;return}
-  el.innerHTML=`<div class="item-grid">${arr.map(p=>`
-    <div class="item-card" style="${!p.ativo?'opacity:.7':''}">
+  el.innerHTML=`<div class="item-grid">${arr.map(p=>{
+    return `<div class="item-card" style="${!p.ativo?'opacity:.7':''};text-align:center">
       ${!p.ativo?'<div class="inactive-overlay">Inativa</div>':''}
+      <div style="display:flex;justify-content:center;margin-bottom:8px">${p.foto_url?`<img src="${esc(p.foto_url)}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--cel)" onerror="this.style.display='none'"/>`:`<div style="width:56px;height:56px;border-radius:50%;background:var(--cel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700">${esc((p.nome_fantasia||p.nome).charAt(0).toUpperCase())}</div>`}</div>
       <div class="item-title">${esc(p.nome)}</div>
       ${p.nome_fantasia?`<div class="item-sub" style="color:var(--pec)">✨ ${esc(p.nome_fantasia)}</div>`:''}
       <div class="item-detail">📋 ${fmtCPF(p.cpf)}</div>
@@ -1761,6 +1762,12 @@ function openProfModal(id){
            <input id="p-tel" type="tel" value="${p?.telefone?esc(p.telefone):''}" placeholder="(11) 99999-9999"/></div>
          <div class="field"><label>E-mail</label>
            <input id="p-email" type="email" value="${p?.email?esc(p.email):''}" placeholder="email@exemplo.com"/></div>
+         <div class="field full"><label>Foto <span style="font-weight:400;color:var(--text-lt)">(URL da imagem — opcional)</span></label>
+           <div style="display:flex;gap:10px;align-items:center">
+             <input id="p-foto" type="url" value="${p?.foto_url?esc(p.foto_url):''}" placeholder="https://..." style="flex:1"
+               oninput="const pv=document.getElementById('p-foto-prev');pv.src=this.value;pv.style.display=this.value?'':'none'"/>
+             <img id="p-foto-prev" src="${p?.foto_url||''}" alt="foto" style="width:48px;height:48px;border-radius:50%;object-fit:cover;display:${p?.foto_url?'':'none'};border:2px solid var(--cel)"/>
+           </div></div>
          <div class="field full" style="margin-top:8px">
            <label>&#x23F0; Hor&aacute;rio de Atendimento</label>
            <div style="font-size:.8rem;color:var(--text-lt);margin-bottom:6px">Dias e hor&aacute;rios em que esta profissional atende</div>
@@ -1888,7 +1895,8 @@ async function saveProf(id){
   if(!nome||!telefone)return toast('Nome e telefone são obrigatórios','err');
   try{
     const horario=JSON.stringify(getHorarioFromForm());
-    const body={nome,nome_fantasia:nome_fantasia||null,cpf,data_nascimento,telefone,email:email||null,ativo:1,horario,...cidBody()};
+    const foto_url=document.getElementById('p-foto')?.value.trim()||null;
+    const body={nome,nome_fantasia:nome_fantasia||null,cpf,data_nascimento,telefone,email:email||null,ativo:1,horario,foto_url,...cidBody()};
     if(id) await api('PUT',`/profissionais/${id}`,body);
     else   await api('POST','/profissionais',body);
     toast(id?'Atualizado!':'Cadastrado!');closeModal();loadProfissionais();
@@ -2753,7 +2761,32 @@ function showDashPanel(id){
   document.getElementById('dmbtn-'+id)?.classList.add('active');
 }
 
-function renderDashTable(resp,containerId,type){
+async function showProfDetalheModal(profId,profNome,data){
+  const cid=cidParam();
+  openModal('Atendimentos — '+profNome+' ('+data+')','<div class="spinner" id="pdet-spin"></div>','<button class="btn btn-secondary" onclick="closeModal()">Fechar</button>');
+  try{
+    const all=await api('GET','/reservas?data='+data+(cid?'&'+cid:''));
+    const rows=all.filter(r=>(r.profissional_id===profId||r.profissional_id_2===profId)&&r.status!=='cancelada');
+    const el=document.getElementById('pdet-spin');
+    if(!rows.length){el.outerHTML='<div class="dash-empty">Nenhum atendimento neste dia.</div>';return;}
+    const fS=v=>v?'R$ '+parseFloat(v).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'—';
+    el.outerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Horário</th><th>Cliente</th><th>Serviço</th><th class="num">Valor</th><th>Pgto</th><th>Status</th></tr></thead><tbody>'
+      +rows.sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)).map(r=>{
+        const isDuo2=r.profissional_id_2===profId&&r.profissional_id!==profId;
+        const val=parseFloat(r.preco_custom||r.preco||0)+parseFloat(r.preco_bebida||0);
+        const svc=esc(r.massagem_nome||r.aluguel_nome||'—');
+        return '<tr>'
+          +'<td>'+r.hora_inicio+'–'+r.hora_fim+'</td>'
+          +'<td>'+esc(r.cliente_nome||'—')+(isDuo2?'<br><small style="color:var(--text-lt)">2ª massoterapeuta</small>':'')+'</td>'
+          +'<td>'+svc+'</td>'
+          +'<td class="num">'+fS(val)+'</td>'
+          +'<td>'+(r.pagamento||'—')+'</td>'
+          +'<td><span class="res-'+r.status+'" style="padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600">'+r.status+'</span></td>'
+          +'</tr>';
+      }).join('')+'</tbody></table></div>';
+  }catch(e){const el=document.getElementById('pdet-spin');if(el)el.outerHTML='<p style="color:var(--red)">'+e.message+'</p>';}
+}
+function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.date||null;
   const el=document.getElementById(containerId);
   // Accept both plain array (massagem type) and {rows, externas} object (massagista type)
   const data=Array.isArray(resp)?resp:(resp?.rows||[]);
@@ -2792,6 +2825,7 @@ function renderDashTable(resp,containerId,type){
   html+='<th class="ctr">✅ Conc.</th><th class="ctr">❌ Canc.</th>';
   html+='</tr></thead><tbody>';
 
+  let sumLiquido=0;
   data.forEach(r=>{
     const atend=parseInt(r.atendimentos||0);
     const valor=parseFloat(r.total||0);
@@ -2802,6 +2836,8 @@ function renderDashTable(resp,containerId,type){
     // so desconta do repasse o aluguel pago como Acerto (dinheiro/pix ja foram cobrados diretamente)
     const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
     const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugAcertoRow):0;
+    const valLiquido=showRepasse?(valor-Math.max(0,valRepasse)):0;
+    if(showRepasse) sumLiquido+=valLiquido;
     const media=atend>0?valor/atend:null;
     const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
     const nomeCompleto=!isMassagem&&r.nome_display&&r.nome_display!==r.nome_completo?r.nome_completo:null;
@@ -2809,13 +2845,13 @@ function renderDashTable(resp,containerId,type){
     html+=`<tr>
       <td><strong>${esc(nome)}</strong>${nomeCompleto?'<br><small style="color:var(--text-lt);font-weight:400">'+esc(nomeCompleto)+'</small>':''}</td>
       ${isMassagem?`<td class="ctr">${r.duracao}min</td><td class="num">${fmtMoeda(r.preco_unitario)}</td>`:''}
-      <td class="ctr">${atend}</td>
+      <td class="ctr" style="${_dashDate&&!isMassagem&&r.id?'cursor:pointer;color:var(--cel);font-weight:700;text-decoration:underline':''}" ${_dashDate&&!isMassagem&&r.id?`onclick="showProfDetalheModal(${r.id},'${esc(nome).replace(/'/g,"\'")}','${_dashDate}')"`:""}>${atend}</td>
       <td class="num">${fmtMoeda(massagens)}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
       ${showMultas?`<td class="num" style="${parseFloat(r.total_multas||0)>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${parseFloat(r.total_multas||0)>0?fmtMoeda(r.total_multas):'—'}</td>`:''}
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?fmtMoeda(alugPerRow):'—'}</td>`:''}
       <td class="num" style="${corValor}">${fmtMoeda(valor)}</td>
-      ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700">${fmtMoeda(valor-valRepasse)}</td>`:''}
+      ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(valRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700">${fmtMoeda(valLiquido)}</td>`:''}
       <td class="ctr">${r.concluidas||0}</td>
       <td class="ctr" style="color:var(--red)">${r.canceladas||0}</td>
     </tr>`;
@@ -2830,7 +2866,7 @@ function renderDashTable(resp,containerId,type){
     ${showMultas?`<td class="num" style="color:var(--red);font-weight:700">${fmtMoeda(sumMultas)}</td>`:''}
     ${showAlugueis?`<td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumAlugueis)}</td>`:''}
     <td class="num" style="color:#2d7a56;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal)}</td>
-    ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700;font-size:1rem">${fmtMoeda(sumTotal-sumRepasse)}</td>`:''}
+    ${showRepasse?`<td class="num" style="color:#2d7a56">${pct}%</td><td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumRepasse)}</td><td class="num" style="color:#7c3aed;font-weight:700;font-size:1rem">${fmtMoeda(sumLiquido)}</td>`:''}
     <td class="ctr"><strong>${sumConc}</strong></td>
     <td class="ctr" style="color:var(--red)"><strong>${sumCanc}</strong></td>
   </tr>`;
@@ -2887,7 +2923,7 @@ function renderDashTable(resp,containerId,type){
       ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
       {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
       {label:'💰 Total Geral',val:totalComExt,fmt:fmtMoeda,color:'#2d7a56',big:true},
-      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'},{label:'🏢 Líquido Empresa',val:totalComExt-sumRepasse,fmt:fmtMoeda,color:'#7c3aed',big:true}]:[]),
+      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'},{label:'🏢 Líquido Empresa',val:sumLiquido+sumExtAlug,fmt:fmtMoeda,color:'#7c3aed',big:true}]:[]),
     ];
     html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
       kpis.map(k=>`<div style="background:${k.big?'var(--green-lt)':'var(--bg-card,#fff)'};border:1.5px solid ${k.color};border-radius:10px;padding:10px 16px;min-width:120px;text-align:center">
@@ -2995,7 +3031,7 @@ async function loadDashDiarioMassagista(){
   const cid=cidParam();
   try{
     const result=await api('GET',`/dashboard/massagista-diario?data=${data}`+(cid?'&'+cid:''));
-    renderDashTable(result,'dash-dm-body','massagista');
+    renderDashTable(result,'dash-dm-body','massagista',{date:data});
   }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
 }
 
@@ -3271,7 +3307,7 @@ async function loadClinicasList(){
           <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
         </div>
-      </div>`).join('')}</div>`;
+      </div>`;}).join('')}</div>`;
   }catch(e){toast(e.message,'err')}
 }
 

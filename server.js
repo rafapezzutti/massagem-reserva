@@ -186,6 +186,7 @@ async function initDB() {
   // 3f-b. Horário de atendimento por profissional
   await pool.query(`
     ALTER TABLE profissionais ADD COLUMN IF NOT EXISTS horario TEXT;
+    ALTER TABLE profissionais ADD COLUMN IF NOT EXISTS foto_url TEXT;
   `);
 
   // 3f. Coluna de método de pagamento nas reservas
@@ -829,26 +830,26 @@ app.get('/api/profissionais', requireAuth, (req, res) =>
 
 app.post('/api/profissionais', requireAuth, (req, res) =>
   send(res, async () => {
-    const { nome, data_nascimento, cpf, email, telefone, nome_fantasia, horario } = req.body;
+    const { nome, data_nascimento, cpf, email, telefone, nome_fantasia, horario, foto_url } = req.body;
     const cid = getClinicaId(req);
     if (!nome)     throw new Error('Nome é obrigatório');
     if (!telefone) throw new Error('Telefone é obrigatório');
     const cpfLimpo = cpf ? cpf.replace(/\D/g,'') : null;
     return qOne(
-      'INSERT INTO profissionais (nome,data_nascimento,cpf,email,telefone,nome_fantasia,clinica_id,horario) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [nome.trim(), data_nascimento, cpfLimpo, email||null, telefone.trim(), nome_fantasia||null, cid, horario||null]
+      'INSERT INTO profissionais (nome,data_nascimento,cpf,email,telefone,nome_fantasia,clinica_id,horario,foto_url) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+      [nome.trim(), data_nascimento, cpfLimpo, email||null, telefone.trim(), nome_fantasia||null, cid, horario||null, foto_url||null]
     );
   }));
 
 app.put('/api/profissionais/:id', requireAuth, (req, res) =>
   send(res, async () => {
-    const { nome, data_nascimento, cpf, email, telefone, nome_fantasia, ativo, horario } = req.body;
+    const { nome, data_nascimento, cpf, email, telefone, nome_fantasia, ativo, horario, foto_url } = req.body;
     const cid = getClinicaId(req);
     if (!nome || !telefone) throw new Error('Preencha os campos obrigatórios');
     const cpfLimpo = cpf ? cpf.replace(/\D/g,'') : null;
     return qOne(
-      'UPDATE profissionais SET nome=$1,data_nascimento=$2,cpf=$3,email=$4,telefone=$5,nome_fantasia=$6,ativo=$7,horario=$8 WHERE id=$9 AND clinica_id=$10 RETURNING *',
-      [nome.trim(), data_nascimento, cpfLimpo, email||null, telefone.trim(), nome_fantasia||null, ativo??1, horario||null, req.params.id, cid]
+      'UPDATE profissionais SET nome=$1,data_nascimento=$2,cpf=$3,email=$4,telefone=$5,nome_fantasia=$6,ativo=$7,horario=$8,foto_url=$9 WHERE id=$10 AND clinica_id=$11 RETURNING *',
+      [nome.trim(), data_nascimento, cpfLimpo, email||null, telefone.trim(), nome_fantasia||null, ativo??1, horario||null, foto_url||null, req.params.id, cid]
     );
   }));
 
