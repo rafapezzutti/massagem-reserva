@@ -1747,6 +1747,7 @@ function openProfModal(id){
     `<div class="modal-tabs">
        <div class="modal-tab active" id="ptab-dados" onclick="switchProfTab('dados')">&#x1F4CB; Dados</div>
        ${id?'<div class="modal-tab" id="ptab-ausencias" onclick="switchProfTab(\'ausencias\')">&#x1F6AB; Aus&ecirc;ncias</div>':''}
+       ${id?'<div class="modal-tab" id="ptab-anotacoes" onclick="switchProfTab(\'anotacoes\')">&#x1F4DD; Anota&ccedil;&otilde;es</div>':''}
      </div>
      <div id="ptab-content-dados">
        <div class="form-grid">
@@ -1799,16 +1800,39 @@ function openProfModal(id){
          <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAusencia(${id})">&#x2795; Adicionar</button>
        </div>
        <div id="aus-list"><div class="spinner"></div></div>
+     </div>`:''}
+     ${id?`<div id="ptab-content-anotacoes" style="display:none">
+       <div style="background:var(--bg-lt,#fff9f0);border-radius:10px;padding:14px;margin-bottom:16px;border:1px solid #f0d9b5">
+         <div style="font-weight:700;margin-bottom:10px">&#x2795; Nova Anota&ccedil;&atilde;o</div>
+         <div class="form-grid">
+           <div class="field"><label>Tipo</label>
+             <select id="anot-tipo" style="width:100%">
+               <option value="observacao">&#x1F4AC; Observa&ccedil;&atilde;o</option>
+               <option value="falta">&#x274C; Falta</option>
+               <option value="hora_extra">&#x23F0; Hora Extra</option>
+               <option value="advertencia">&#x26A0;&#xFE0F; Advert&ecirc;ncia</option>
+               <option value="elogio">&#x2B50; Elogio</option>
+               <option value="outro">&#x1F4CB; Outro</option>
+             </select></div>
+           <div class="field"><label>Data</label>
+             <input id="anot-data" type="date" value="${new Date().toISOString().slice(0,10)}"/></div>
+           <div class="field full"><label>Texto <span class="required">*</span></label>
+             <textarea id="anot-texto" rows="3" placeholder="Descreva a anota&ccedil;&atilde;o..." style="width:100%;resize:vertical;border:1px solid var(--bdr);border-radius:8px;padding:8px;font-size:.95rem"></textarea></div>
+         </div>
+         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAnotacao(${id})">&#x2795; Adicionar</button>
+       </div>
+       <div id="anot-list"><div class="spinner"></div></div>
      </div>`:''}`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" id="ptab-save-btn" onclick="saveProf(${id||'null'})">${p?'Salvar':'Cadastrar'}</button>`);
   setTimeout(()=>{
     if(p&&p.horario){try{setHorarioInForm(JSON.parse(p.horario));}catch(e){}}
     if(id) loadAusencias(id);
+    if(id) loadAnotacoes(id);
   },30);
 }
 function switchProfTab(tab){
-  ['dados','ausencias'].forEach(t=>{
+  ['dados','ausencias','anotacoes'].forEach(t=>{
     const btn=document.getElementById('ptab-'+t);
     const cont=document.getElementById('ptab-content-'+t);
     if(btn) btn.classList.toggle('active',t===tab);
@@ -1867,6 +1891,52 @@ async function deleteAusencia(id,profId){
     await api('DELETE',`/ausencias/${id}`+(cidParam()?'?'+cidParam():''));
     toast('Removida','info');
     loadAusencias(profId);
+  }catch(e){toast(e.message,'err')}
+}
+// ── Anotações ──
+const _tipoAnotLabel={observacao:'💬 Observação',falta:'❌ Falta',hora_extra:'⏰ Hora Extra',advertencia:'⚠️ Advertência',elogio:'⭐ Elogio',outro:'📋 Outro'};
+const _tipoAnotColor={observacao:'#5b5ea6',falta:'var(--red)',hora_extra:'#a05c10',advertencia:'#e67e22',elogio:'#27ae60',outro:'var(--text-lt)'};
+async function loadAnotacoes(profId){
+  const el=document.getElementById('anot-list');
+  if(!el) return;
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const list=await api('GET',`/anotacoes?profissional_id=${profId}`+(cid?'&'+cid:''));
+    if(!list.length){el.innerHTML='<div style="color:var(--text-lt);font-size:.85rem;padding:8px">Nenhuma anota&ccedil;&atilde;o registrada.</div>';return;}
+    el.innerHTML=list.map(a=>{
+      const dFmt=a.data?new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'}):'';
+      const cor=_tipoAnotColor[a.tipo]||'var(--text-lt)';
+      const label=_tipoAnotLabel[a.tipo]||a.tipo;
+      return `<div class="aus-item" style="border-left:3px solid ${cor};padding-left:10px;margin-bottom:8px">
+        <div style="flex:1">
+          <div style="font-size:.8rem;font-weight:700;color:${cor};margin-bottom:2px">${label}${dFmt?' &middot; '+dFmt:''}</div>
+          <div style="font-size:.9rem;color:var(--text)">${esc(a.texto)}</div>
+          <div style="font-size:.75rem;color:var(--text-lt);margin-top:2px">${new Date(a.criado_em).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteAnotacao(${a.id},${profId})" title="Remover">&#x1F5D1;</button>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML=`<div style="color:var(--red)">${e.message}</div>`}
+}
+async function saveAnotacao(profId){
+  const tipo=document.getElementById('anot-tipo')?.value||'observacao';
+  const data=document.getElementById('anot-data')?.value||null;
+  const texto=document.getElementById('anot-texto')?.value?.trim();
+  if(!texto) return toast('Preencha o texto da anota&ccedil;&atilde;o','err');
+  try{
+    await api('POST','/anotacoes',{profissional_id:profId,tipo,texto,data,...cidBody()});
+    toast('Anota&ccedil;&atilde;o salva','info');
+    if(document.getElementById('anot-texto')) document.getElementById('anot-texto').value='';
+    loadAnotacoes(profId);
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteAnotacao(id,profId){
+  if(!confirm('Remover esta anota&ccedil;&atilde;o?')) return;
+  try{
+    await api('DELETE',`/anotacoes/${id}`+(cidParam()?'?'+cidParam():''));
+    toast('Removida','info');
+    loadAnotacoes(profId);
   }catch(e){toast(e.message,'err')}
 }
 function fmtHorarioProf(horarioJson){

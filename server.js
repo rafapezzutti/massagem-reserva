@@ -189,6 +189,19 @@ async function initDB() {
     ALTER TABLE profissionais ADD COLUMN IF NOT EXISTS foto_url TEXT;
   `);
 
+  // 3f-c. Anotações dos profissionais
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS anotacoes_profissional (
+      id             SERIAL PRIMARY KEY,
+      profissional_id INTEGER NOT NULL REFERENCES profissionais(id) ON DELETE CASCADE,
+      clinica_id      INTEGER NOT NULL REFERENCES clinicas(id) ON DELETE CASCADE,
+      tipo            TEXT NOT NULL DEFAULT 'observacao',
+      texto           TEXT NOT NULL,
+      data            TEXT,
+      criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(()=>{});
+
   // 3f. Coluna de método de pagamento nas reservas
   await pool.query(`
     ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pagamento TEXT;
@@ -1758,6 +1771,35 @@ app.delete('/api/ausencias/:id', requireAuth, (req, res) =>
     return { id: parseInt(req.params.id) };
   }));
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANOTAÇÕES DE PROFISSIONAIS
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/anotacoes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { profissional_id } = req.query;
+    if (!profissional_id) throw new Error('profissional_id obrigatório');
+    return q('SELECT * FROM anotacoes_profissional WHERE profissional_id=$1 AND clinica_id=$2 ORDER BY criado_em DESC', [profissional_id, cid]);
+  }));
+
+app.post('/api/anotacoes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { profissional_id, tipo, texto, data } = req.body;
+    if (!profissional_id || !texto) throw new Error('profissional_id e texto são obrigatórios');
+    return qOne(
+      'INSERT INTO anotacoes_profissional (profissional_id,clinica_id,tipo,texto,data) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [profissional_id, cid, tipo||'observacao', texto.trim(), data||null]
+    );
+  }));
+
+app.delete('/api/anotacoes/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM anotacoes_profissional WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { id: parseInt(req.params.id) };
+  }));
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Autônomas
