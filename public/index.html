@@ -1738,7 +1738,7 @@ function renderProfissionais(){
           ${p.ativo?'⛔ Desativar':'✅ Ativar'}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProf(${p.id},'${esc(p.nome_fantasia||p.nome)}')">🗑 Deletar</button>
       </div>
-    </div>`).join('')}</div>`;
+    </div>`;}).join('')}</div>`;
 }
 function openProfModal(id){
   const p=id?state.profissionais.find(x=>x.id===id):null;
