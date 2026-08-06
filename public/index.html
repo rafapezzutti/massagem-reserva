@@ -3377,7 +3377,7 @@ async function loadClinicasList(){
           <button class="btn ${c.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleClinica(${c.id},${c.ativo})">${c.ativo?'⛔ Desativar':'✅ Ativar'}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteClinica(${c.id},'${esc(c.nome)}')">🗑 Deletar</button>
         </div>
-      </div>`;}).join('')}</div>`;
+      </div>`).join('')}</div>`;
   }catch(e){toast(e.message,'err')}
 }
 
