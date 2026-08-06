@@ -189,7 +189,7 @@ async function initDB() {
     ALTER TABLE profissionais ADD COLUMN IF NOT EXISTS foto_url TEXT;
   `);
 
-  // 3f-c. Anotações dos profissionais
+  // 3f-c. Anotações dos profissionais e recepcionistas
   await pool.query(`
     CREATE TABLE IF NOT EXISTS anotacoes_profissional (
       id             SERIAL PRIMARY KEY,
@@ -199,6 +199,17 @@ async function initDB() {
       texto           TEXT NOT NULL,
       data            TEXT,
       criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(()=>{});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS anotacoes_recepcionista (
+      id                SERIAL PRIMARY KEY,
+      recepcionista_id  INTEGER NOT NULL REFERENCES recepcionistas(id) ON DELETE CASCADE,
+      clinica_id        INTEGER NOT NULL REFERENCES clinicas(id) ON DELETE CASCADE,
+      tipo              TEXT NOT NULL DEFAULT 'observacao',
+      texto             TEXT NOT NULL,
+      data              TEXT,
+      criado_em         TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `).catch(()=>{});
 
@@ -1798,6 +1809,35 @@ app.delete('/api/anotacoes/:id', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     await qRun('DELETE FROM anotacoes_profissional WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANOTAÇÕES DE RECEPCIONISTAS
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/anotacoes-recep', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { recepcionista_id } = req.query;
+    if (!recepcionista_id) throw new Error('recepcionista_id obrigatório');
+    return q('SELECT * FROM anotacoes_recepcionista WHERE recepcionista_id=$1 AND clinica_id=$2 ORDER BY criado_em DESC', [recepcionista_id, cid]);
+  }));
+
+app.post('/api/anotacoes-recep', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const { recepcionista_id, tipo, texto, data } = req.body;
+    if (!recepcionista_id || !texto) throw new Error('recepcionista_id e texto são obrigatórios');
+    return qOne(
+      'INSERT INTO anotacoes_recepcionista (recepcionista_id,clinica_id,tipo,texto,data) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [recepcionista_id, cid, tipo||'observacao', texto.trim(), data||null]
+    );
+  }));
+
+app.delete('/api/anotacoes-recep/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM anotacoes_recepcionista WHERE id=$1 AND clinica_id=$2', [req.params.id, cid]);
     return { id: parseInt(req.params.id) };
   }));
 

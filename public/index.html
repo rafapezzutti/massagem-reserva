@@ -3278,20 +3278,49 @@ function renderRecepcionistas(){
 function openRecepModal(id){
   const rc=id?state.recepcionistas.find(x=>x.id===id):null;
   openModal(rc?`Editar ${rc.nome}`:'Nova Recepcionista',
-    `<div class="form-grid">
-      <div class="field full"><label>Nome <span class="required">*</span></label>
-        <input id="rc-nome" type="text" value="${rc?esc(rc.nome):''}" placeholder="Nome completo"/></div>
-      <div class="field"><label>CPF</label>
-        <input id="rc-cpf" type="text" value="${rc?fmtCPF(rc.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
-      <div class="field"><label>Nascimento</label>
-        <input id="rc-nasc" type="date" value="${rc?.data_nascimento||''}"/></div>
-      <div class="field"><label>Telefone</label>
-        <input id="rc-tel" type="tel" value="${rc?.telefone?esc(rc.telefone):''}" placeholder="(11) 99999-9999"/></div>
-      <div class="field"><label>E-mail</label>
-        <input id="rc-email" type="email" value="${rc?.email?esc(rc.email):''}" placeholder="email@exemplo.com"/></div>
-    </div>`,
+    `<div class="modal-tabs">
+       <div class="modal-tab active" id="rctab-dados" onclick="switchRecepTab('dados')">&#x1F4CB; Dados</div>
+       ${id?'<div class="modal-tab" id="rctab-anotacoes" onclick="switchRecepTab(\'anotacoes\')">&#x1F4DD; Anota&ccedil;&otilde;es</div>':''}
+     </div>
+     <div id="rctab-content-dados">
+       <div class="form-grid">
+         <div class="field full"><label>Nome <span class="required">*</span></label>
+           <input id="rc-nome" type="text" value="${rc?esc(rc.nome):''}" placeholder="Nome completo"/></div>
+         <div class="field"><label>CPF</label>
+           <input id="rc-cpf" type="text" value="${rc?fmtCPF(rc.cpf):''}" placeholder="000.000.000-00" maxlength="14" oninput="maskCPF(this)"/></div>
+         <div class="field"><label>Nascimento</label>
+           <input id="rc-nasc" type="date" value="${rc?.data_nascimento||''}"/></div>
+         <div class="field"><label>Telefone</label>
+           <input id="rc-tel" type="tel" value="${rc?.telefone?esc(rc.telefone):''}" placeholder="(11) 99999-9999"/></div>
+         <div class="field"><label>E-mail</label>
+           <input id="rc-email" type="email" value="${rc?.email?esc(rc.email):''}" placeholder="email@exemplo.com"/></div>
+       </div>
+     </div>
+     ${id?`<div id="rctab-content-anotacoes" style="display:none">
+       <div style="background:var(--bg-lt,#fff9f0);border-radius:10px;padding:14px;margin-bottom:16px;border:1px solid #f0d9b5">
+         <div style="font-weight:700;margin-bottom:10px">&#x2795; Nova Anota&ccedil;&atilde;o</div>
+         <div class="form-grid">
+           <div class="field"><label>Tipo</label>
+             <select id="rcanot-tipo" style="width:100%">
+               <option value="observacao">&#x1F4AC; Observa&ccedil;&atilde;o</option>
+               <option value="falta">&#x274C; Falta</option>
+               <option value="hora_extra">&#x23F0; Hora Extra</option>
+               <option value="advertencia">&#x26A0;&#xFE0F; Advert&ecirc;ncia</option>
+               <option value="elogio">&#x2B50; Elogio</option>
+               <option value="outro">&#x1F4CB; Outro</option>
+             </select></div>
+           <div class="field"><label>Data</label>
+             <input id="rcanot-data" type="date" value="${new Date().toISOString().slice(0,10)}"/></div>
+           <div class="field full"><label>Texto <span class="required">*</span></label>
+             <textarea id="rcanot-texto" rows="3" placeholder="Descreva a anota&ccedil;&atilde;o..." style="width:100%;resize:vertical;border:1px solid var(--bdr);border-radius:8px;padding:8px;font-size:.95rem"></textarea></div>
+         </div>
+         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAnotacaoRecep(${id})">&#x2795; Adicionar</button>
+       </div>
+       <div id="rcanot-list"><div class="spinner"></div></div>
+     </div>`:''}`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-     <button class="btn btn-primary" onclick="saveRecep(${id||'null'})">${rc?'Salvar':'Cadastrar'}</button>`);
+     <button class="btn btn-primary" id="rctab-save-btn" onclick="saveRecep(${id||'null'})">${rc?'Salvar':'Cadastrar'}</button>`);
+  if(id) setTimeout(()=>loadAnotacoesRecep(id),30);
 }
 async function saveRecep(id){
   const nome=document.getElementById('rc-nome').value.trim();
@@ -3318,6 +3347,59 @@ async function deleteRecep(id,nome){
   const cid=cidParam();
   try{await api('DELETE',`/recepcionistas/${id}`+(cid?'?'+cid:''));toast('Deletada','info');loadRecepcionistas()}
   catch(e){toast(e.message,'err')}
+}
+function switchRecepTab(tab){
+  ['dados','anotacoes'].forEach(t=>{
+    const btn=document.getElementById('rctab-'+t);
+    const cont=document.getElementById('rctab-content-'+t);
+    if(btn) btn.classList.toggle('active',t===tab);
+    if(cont) cont.style.display=t===tab?'':'none';
+  });
+  const saveBtn=document.getElementById('rctab-save-btn');
+  if(saveBtn) saveBtn.style.display=tab==='dados'?'':'none';
+}
+async function loadAnotacoesRecep(recepId){
+  const el=document.getElementById('rcanot-list');
+  if(!el) return;
+  el.innerHTML='<div class="spinner"></div>';
+  const cid=cidParam();
+  try{
+    const list=await api('GET',`/anotacoes-recep?recepcionista_id=${recepId}`+(cid?'&'+cid:''));
+    if(!list.length){el.innerHTML='<div style="color:var(--text-lt);font-size:.85rem;padding:8px">Nenhuma anota&ccedil;&atilde;o registrada.</div>';return;}
+    el.innerHTML=list.map(a=>{
+      const dFmt=a.data?new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'}):'';
+      const cor=_tipoAnotColor[a.tipo]||'var(--text-lt)';
+      const label=_tipoAnotLabel[a.tipo]||a.tipo;
+      return `<div class="aus-item" style="border-left:3px solid ${cor};padding-left:10px;margin-bottom:8px">
+        <div style="flex:1">
+          <div style="font-size:.8rem;font-weight:700;color:${cor};margin-bottom:2px">${label}${dFmt?' &middot; '+dFmt:''}</div>
+          <div style="font-size:.9rem;color:var(--text)">${esc(a.texto)}</div>
+          <div style="font-size:.75rem;color:var(--text-lt);margin-top:2px">${new Date(a.criado_em).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteAnotacaoRecep(${a.id},${recepId})" title="Remover">&#x1F5D1;</button>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML=`<div style="color:var(--red)">${e.message}</div>`}
+}
+async function saveAnotacaoRecep(recepId){
+  const tipo=document.getElementById('rcanot-tipo')?.value||'observacao';
+  const data=document.getElementById('rcanot-data')?.value||null;
+  const texto=document.getElementById('rcanot-texto')?.value?.trim();
+  if(!texto) return toast('Preencha o texto','err');
+  try{
+    await api('POST','/anotacoes-recep',{recepcionista_id:recepId,tipo,texto,data,...cidBody()});
+    toast('Anota&ccedil;&atilde;o salva','info');
+    if(document.getElementById('rcanot-texto')) document.getElementById('rcanot-texto').value='';
+    loadAnotacoesRecep(recepId);
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteAnotacaoRecep(id,recepId){
+  if(!confirm('Remover esta anota&ccedil;&atilde;o?')) return;
+  try{
+    await api('DELETE',`/anotacoes-recep/${id}`+(cidParam()?'?'+cidParam():''));
+    toast('Removida','info');
+    loadAnotacoesRecep(recepId);
+  }catch(e){toast(e.message,'err')}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
