@@ -1296,8 +1296,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
           + COALESCE(MAX(duo.qtd_ativas),0)                                              AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN (COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)) / 2.0
-            ELSE  COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+            THEN (COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN r.pagamento != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN r.pagamento != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1331,7 +1331,7 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
                COUNT(CASE WHEN rd.status = 'confirmada' THEN 1 END)                              AS qtd_confirmadas,
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 (COALESCE(rd.preco_custom, md.preco, 0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + COALESCE(ald.valor,0)) / 2.0
+                 (COALESCE(rd.preco_custom, md.preco, 0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN rd.pagamento != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  COALESCE(rd.preco_custom, md.preco, 0) / 2.0
@@ -1409,8 +1409,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         -- Total exibição: regular=preço cheio, duo=price/2 por massagista
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN (COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)) / 2.0
-            ELSE  COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+            THEN (COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN r.pagamento != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  COALESCE(r.preco_custom,m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN r.pagamento != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1447,7 +1447,7 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                -- 2a massagista: total e massagens_bruto = price/2 + aluguel/2 para duo
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 (COALESCE(rd.preco_custom, md.preco, 0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + COALESCE(ald.valor,0)) / 2.0
+                 (COALESCE(rd.preco_custom, md.preco, 0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN rd.pagamento != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  COALESCE(rd.preco_custom, md.preco, 0) / 2.0
