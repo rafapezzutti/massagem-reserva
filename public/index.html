@@ -2840,10 +2840,12 @@ async function showProfDetalheModal(profId,profNome,data){
     const el=document.getElementById('pdet-spin');
     if(!rows.length){el.outerHTML='<div class="dash-empty">Nenhum atendimento neste dia.</div>';return;}
     const fS=v=>v?'R$ '+parseFloat(v).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'—';
-    el.outerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Horário</th><th>Cliente</th><th>Serviço</th><th class="num">Valor</th><th>Pgto</th><th>Status</th></tr></thead><tbody>'
-      +rows.sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)).map(r=>{
+    const renderRows=()=>{
+      const cur=all.filter(r=>(r.profissional_id===profId||r.profissional_id_2===profId)&&r.status!=='cancelada');
+      if(!cur.length){document.getElementById('pdet-body').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-lt)">Nenhum atendimento.</td></tr>';return;}
+      document.getElementById('pdet-body').innerHTML=cur.sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)).map(r=>{
         const isDuo2=r.profissional_id_2===profId&&r.profissional_id!==profId;
-        const val=parseFloat(r.preco_custom||r.preco||0)+parseFloat(r.preco_bebida||0);
+        const val=parseFloat(r.preco_custom||r.preco||0)+parseFloat(r.preco_bebida||0)+parseFloat(r.aluguel_valor||0);
         const svc=esc(r.massagem_nome||r.aluguel_nome||'—');
         return '<tr>'
           +'<td>'+r.hora_inicio+'–'+r.hora_fim+'</td>'
@@ -2852,9 +2854,26 @@ async function showProfDetalheModal(profId,profNome,data){
           +'<td class="num">'+fS(val)+'</td>'
           +'<td>'+(r.pagamento||'—')+'</td>'
           +'<td><span class="res-'+r.status+'" style="padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600">'+r.status+'</span></td>'
+          +'<td style="text-align:center"><button onclick="excluirDetalhe('+r.id+','+profId+',\''+esc(profNome)+'\',\''+data+'\''+(cid?',\''+cid+'\'':'')+',this)" title="Excluir permanentemente" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--red);padding:2px 6px" aria-label="Excluir">🗑</button></td>'
           +'</tr>';
-      }).join('')+'</tbody></table></div>';
+      }).join('');
+    };
+    el.outerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Horário</th><th>Cliente</th><th>Serviço</th><th class="num">Valor</th><th>Pgto</th><th>Status</th><th></th></tr></thead><tbody id="pdet-body"></tbody></table></div>';
+    renderRows();
+    window._pdetRenderRows=renderRows;
+    window._pdetAll=all;
   }catch(e){const el=document.getElementById('pdet-spin');if(el)el.outerHTML='<p style="color:var(--red)">'+e.message+'</p>';}
+}
+async function excluirDetalhe(id,profId,profNome,data,cid,btn){
+  if(!confirm('⚠️ Excluir permanentemente esta reserva? Esta ação não pode ser desfeita.'))return;
+  btn.disabled=true;btn.textContent='…';
+  try{
+    await api('DELETE','/reservas/'+id+'/excluir'+(cid?'?'+cid:''));
+    // remove do array local e re-renderiza sem fechar o modal
+    if(window._pdetAll){window._pdetAll=window._pdetAll.filter(r=>r.id!==id);}
+    if(window._pdetRenderRows) window._pdetRenderRows();
+    toast('Reserva excluída');
+  }catch(e){btn.disabled=false;btn.textContent='🗑';toast(e.message,'err');}
 }
 function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.date||null;
   const el=document.getElementById(containerId);
