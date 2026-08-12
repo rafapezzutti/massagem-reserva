@@ -395,8 +395,10 @@ async function initDB() {
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS tem_brinde   BOOLEAN NOT NULL DEFAULT false`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS valor_brinde NUMERIC(10,2) NOT NULL DEFAULT 0`).catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS profissional_id_2 INTEGER`).catch(()=>{});
-  // Fix dados: preco_custom não faz sentido em reservas de aluguel puro (sem massagem)
+  // Fix dados: preco_custom nulo em locações puras (sem massagem)
   await pool.query(`UPDATE reservas SET preco_custom = NULL WHERE aluguel_id IS NOT NULL AND massagem_id IS NULL AND preco_custom IS NOT NULL`).catch(()=>{});
+  // Fix dados: preco_custom negativo nunca é válido (ex: desconto digitado manualmente)
+  await pool.query(`UPDATE reservas SET preco_custom = NULL WHERE preco_custom IS NOT NULL AND preco_custom < 0`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clinica_admins (
       id         SERIAL PRIMARY KEY,
