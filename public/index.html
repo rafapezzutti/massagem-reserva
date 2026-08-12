@@ -2925,7 +2925,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     const bebidas=parseFloat(r.total_bebidas||0);
     const multasRow=parseFloat(r.total_multas||0);
     const alugPerRow=parseFloat(r.total_alugueis||0);
-    const massagens=parseFloat(r.total_massagens_bruto||0)||(valor-bebidas-multasRow-alugPerRow);
+    const massagens=Math.max(0, parseFloat(r.total_massagens_bruto||0)||Math.max(0,valor-bebidas-multasRow-alugPerRow));
     // so desconta do repasse o aluguel pago como Acerto (dinheiro/pix ja foram cobrados diretamente)
     const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
     const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugAcertoRow):0;
