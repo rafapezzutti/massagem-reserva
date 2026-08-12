@@ -2075,6 +2075,10 @@ function setTipoReserva(tipo){
   setProfTipo('cadastrada');
   // Re-renderiza pagamentos com/sem opção Acerto conforme tipo
   renderPaymentsList(!isMass);
+  // Preço da sessão só se aplica a massagens — esconde e limpa ao trocar para aluguel
+  const pcRow=document.getElementById('rv-preco-custom-row');
+  if(pcRow) pcRow.style.display=isMass?'':'none';
+  if(!isMass){ const pc=document.getElementById('rv-preco-custom'); if(pc) pc.value=''; }
 }
 function setProfMassTipo(tipo){
   const isCad=tipo==='cadastrada';
