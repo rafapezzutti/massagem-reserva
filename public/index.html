@@ -2907,6 +2907,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
   // External rentals totals
   const sumExtAtend=externas.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumExtAlug=externas.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0);
+  const sumExtBebidas=externas.reduce((s,r)=>s+parseFloat(r.total_bebidas||0),0);
   const sumExtConc=externas.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
   const sumExtCanc=externas.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
 
@@ -2976,14 +2977,16 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     </tr>`;
     externas.forEach(e=>{
       const alug=parseFloat(e.total_alugueis||0);
+      const eBeb=parseFloat(e.total_bebidas||0);
+      const eTotal=alug+eBeb;
       html+=`<tr style="background:var(--bg-lt,#f7f3ff)">
         <td><strong>${esc(e.nome_display||'—')}</strong><br><small style="color:#8b5cf6;font-size:.75rem">Externo</small></td>
         <td class="ctr">${parseInt(e.atendimentos||0)}</td>
         <td class="num" style="color:var(--text-lt)">—</td>
-        <td class="num" style="color:var(--text-lt)">—</td>
+        <td class="num">${eBeb>0?fmtMoeda(eBeb):'—'}</td>
         ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
         ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:600">${fmtMoeda(alug)}</td>`:''}
-        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(alug)}</td>
+        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(eTotal)}</td>
         ${showRepasse?'<td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td><td class="num" style="color:var(--text-lt)">—</td>':''}
         <td class="ctr">${e.concluidas||0}</td>
         <td class="ctr" style="color:var(--red)">${e.canceladas||0}</td>
@@ -2994,10 +2997,10 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
         <td><strong>Total Externos</strong></td>
         <td class="ctr"><strong>${sumExtAtend}</strong></td>
         <td class="num" style="color:var(--text-lt)">—</td>
-        <td class="num" style="color:var(--text-lt)">—</td>
+        <td class="num">${sumExtBebidas>0?fmtMoeda(sumExtBebidas):'—'}</td>
         ${showMultas?'<td class="num" style="color:var(--text-lt)">—</td>':''}
         ${showAlugueis?`<td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>`:''}
-        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug)}</td>
+        <td class="num" style="color:#8b5cf6;font-weight:700">${fmtMoeda(sumExtAlug+sumExtBebidas)}</td>
         ${showRepasse?'<td class="num">—</td><td class="num">—</td><td class="num">—</td>':''}
         <td class="ctr"><strong>${sumExtConc}</strong></td>
         <td class="ctr" style="color:var(--red)"><strong>${sumExtCanc}</strong></td>
@@ -3008,15 +3011,15 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
 
   // KPI cards below the table (only for massagista type)
   if(!isMassagem){
-    const totalComExt=sumTotal+sumExtAlug;
+    const totalComExt=sumTotal+sumExtAlug+sumExtBebidas;
     const kpis=[
       {label:'👤 Atendimentos',val:sumAtend+sumExtAtend,fmt:v=>v,color:'var(--cel)'},
       {label:'💆 Massagens',val:sumMassagens,fmt:fmtMoeda,color:'#2d7a56'},
-      {label:'🍹 Bebidas',val:sumBebidas,fmt:fmtMoeda,color:'#a05c10'},
+      {label:'🍹 Bebidas',val:sumBebidas+sumExtBebidas,fmt:fmtMoeda,color:'#a05c10'},
       ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
       {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
       {label:'💰 Total Geral',val:totalComExt,fmt:fmtMoeda,color:'#2d7a56',big:true},
-      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'},{label:'🏢 Líquido Empresa',val:sumLiquido+sumExtAlug,fmt:fmtMoeda,color:'#7c3aed',big:true}]:[]),
+      ...(showRepasse?[{label:`💸 Repasse (${pct}%)`,val:sumRepasse,fmt:fmtMoeda,color:'#2d7a56'},{label:'🏢 Líquido Empresa',val:sumLiquido+sumExtAlug+sumExtBebidas,fmt:fmtMoeda,color:'#7c3aed',big:true}]:[]),
     ];
     html+=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">${
       kpis.map(k=>`<div style="background:${k.big?'var(--green-lt)':'var(--bg-card,#fff)'};border:1.5px solid ${k.color};border-radius:10px;padding:10px 16px;min-width:120px;text-align:center">

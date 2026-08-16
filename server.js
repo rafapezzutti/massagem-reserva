@@ -1357,7 +1357,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         r.profissional_externo            AS nome_display,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) + COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END) AS confirmadas,
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END) AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END) AS canceladas
@@ -1473,7 +1474,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         r.profissional_externo            AS nome_display,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total_alugueis,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) ELSE 0 END), 0) AS total,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(al.valor,0) + COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total,
         COUNT(CASE WHEN r.status = 'confirmada' THEN 1 END) AS confirmadas,
         COUNT(CASE WHEN r.status = 'concluida'  THEN 1 END) AS concluidas,
         COUNT(CASE WHEN r.status = 'cancelada'  THEN 1 END) AS canceladas
