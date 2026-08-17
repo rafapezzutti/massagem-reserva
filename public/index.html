@@ -3228,13 +3228,14 @@ function renderDashRecepcionista(data,containerId){
       if(d.status==='cancelada')return;
       const duracaoMin=d.duracao_min||0;
       const p=pesoMassagem(d.massagem, d.tipo, duracaoMin);
-      pontos+=p;
+      pontos+=d.is_duo?p*2:p;
       // Massagens de 2h que sobem de peso ganham rótulo próprio na tabela
       const isDuracaoDouble=pesoBaseMassagem(d.massagem,d.tipo)===1 && duracaoMin>=120;
-      const mapKey=isDuracaoDouble ? d.massagem+' (2h)' : d.massagem;
-      tiposMap[mapKey]=(tiposMap[mapKey]||{count:0,pontos:0,tipo:d.tipo,pesoUnit:p});
+      const pReal=d.is_duo?p*2:p;
+      const mapKey=d.is_duo ? d.massagem+' (4 mãos)' : isDuracaoDouble ? d.massagem+' (2h)' : d.massagem;
+      tiposMap[mapKey]=(tiposMap[mapKey]||{count:0,pontos:0,tipo:d.tipo,pesoUnit:pReal});
       tiposMap[mapKey].count++;
-      tiposMap[mapKey].pontos+=p;
+      tiposMap[mapKey].pontos+=pReal;
     });
     const comissao=calcComissao(pontos);
     html+=`<div class="card" style="margin-bottom:20px">

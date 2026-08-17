@@ -1654,7 +1654,8 @@ app.get('/api/dashboard/recepcionista-mensal', requireDashboard, (req, res) =>
             'massagem', COALESCE(m.nome, '🏷 Aluguel' || CASE WHEN al.nome IS NOT NULL THEN ': ' || al.nome ELSE '' END),
             'status', r.status,
             'tipo', CASE WHEN r.aluguel_id IS NOT NULL THEN 'aluguel' ELSE 'massagem' END,
-            'duracao_min', ROUND(EXTRACT(EPOCH FROM (r.hora_fim::time - r.hora_inicio::time))/60)
+            'duracao_min', ROUND(EXTRACT(EPOCH FROM (r.hora_fim::time - r.hora_inicio::time))/60),
+            'is_duo', (r.profissional_id_2 IS NOT NULL)
           )
           ORDER BY COALESCE(m.nome, al.nome)
         ) FILTER (WHERE r.id IS NOT NULL) AS detalhes_massagens
