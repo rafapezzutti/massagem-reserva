@@ -799,6 +799,10 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
           <option value="valor_desc">⬇ Valor (maior)</option>
           <option value="valor_asc">⬆ Valor (menor)</option>
         </select>
+        <span style="font-size:.82rem;color:var(--text-lt);align-self:center">ou intervalo:</span>
+        <input type="date" id="desp-fil-inicio" class="field-input" style="width:auto" onchange="loadDespesas()" placeholder="De">
+        <input type="date" id="desp-fil-fim"    class="field-input" style="width:auto" onchange="loadDespesas()" placeholder="Até">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('desp-fil-inicio').value='';document.getElementById('desp-fil-fim').value='';loadDespesas()">✕ Limpar datas</button>
       </div>
       <div id="despesas-list"><div class="spinner"></div></div>
     </div>
@@ -833,6 +837,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     <div style="padding:10px 16px 0;display:flex;gap:8px">
       <button class="subtab-btn active" id="fluxo-tab-diario"  onclick="showFluxoTab('diario')">📅 Diário</button>
       <button class="subtab-btn"        id="fluxo-tab-mensal"  onclick="showFluxoTab('mensal')">📆 Mensal</button>
+      <button class="subtab-btn"        id="fluxo-tab-periodo" onclick="showFluxoTab('periodo')">🗓 Período</button>
     </div>
 
     <!-- ── PAINEL DIÁRIO ── -->
@@ -857,6 +862,19 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       </div>
       <div id="fluxo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
       <div id="fluxo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
+    </div>
+
+    <!-- ── PAINEL PERÍODO ── -->
+    <div id="fluxo-panel-periodo" style="display:none">
+      <div style="padding:8px 16px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:.85rem;color:var(--text-lt)">De</label>
+        <input type="date" id="fluxo-periodo-inicio" class="field-input" style="width:auto">
+        <label style="font-size:.85rem;color:var(--text-lt)">Até</label>
+        <input type="date" id="fluxo-periodo-fim" class="field-input" style="width:auto">
+        <button class="btn btn-primary btn-sm" onclick="aplicarFluxoPeriodo()">Aplicar</button>
+      </div>
+      <div id="fluxo-periodo-kpis" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px"></div>
+      <div id="fluxo-periodo-list" style="padding:0 16px 16px"><div class="spinner"></div></div>
     </div>
   </div>
 
@@ -4557,8 +4575,11 @@ async function loadDespesas(){
   const mes=document.getElementById('desp-fil-mes')?.value||'';
   const ano=document.getElementById('desp-fil-ano')?.value||'';
   const status=document.getElementById('desp-fil-status')?.value||'';
+  const dInicio=document.getElementById('desp-fil-inicio')?.value||'';
+  const dFim=document.getElementById('desp-fil-fim')?.value||'';
   let url='/despesas'; const p=[];
-  if(mes&&ano){p.push('mes='+mes,'ano='+ano);}
+  if(dInicio&&dFim){p.push('data_inicio='+dInicio,'data_fim='+dFim);}
+  else if(mes&&ano){p.push('mes='+mes,'ano='+ano);}
   if(status) p.push('status='+status);
   if(cid)    p.push(cid);
   if(p.length) url+='?'+p.join('&');
@@ -4822,7 +4843,12 @@ function showFluxoTab(tab){
   document.getElementById('fluxo-panel-mensal').style.display=tab==='mensal'?'':'none';
   document.getElementById('fluxo-tab-diario').classList.toggle('active',tab==='diario');
   document.getElementById('fluxo-tab-mensal').classList.toggle('active',tab==='mensal');
+  document.getElementById('fluxo-tab-periodo').classList.toggle('active',tab==='periodo');
+  document.getElementById('fluxo-panel-diario').style.display=tab==='diario'?'':'none';
+  document.getElementById('fluxo-panel-mensal').style.display=tab==='mensal'?'':'none';
+  document.getElementById('fluxo-panel-periodo').style.display=tab==='periodo'?'':'none';
   if(tab==='diario') loadFluxoDiario(null);
+  else if(tab==='periodo'){ /* usuário aplica manualmente */ }
   else { loadFluxoMes(new Date().toISOString().split('T')[0].substring(0,7)); }
 }
 
@@ -5017,6 +5043,56 @@ function loadFluxoMes(anoMes){
   loadFluxoCaixa(undefined,undefined,undefined);
 }
 
+async function aplicarFluxoPeriodo(){
+  const inicio=document.getElementById('fluxo-periodo-inicio')?.value;
+  const fim=document.getElementById('fluxo-periodo-fim')?.value;
+  if(!inicio||!fim){alert('Selecione as duas datas');return;}
+  if(inicio>fim){alert('A data inicial deve ser anterior à final');return;}
+  const cid=cidParam();
+  const kpis=document.getElementById('fluxo-periodo-kpis');
+  const el=document.getElementById('fluxo-periodo-list');
+  if(el) el.innerHTML='<div class="spinner"></div>';
+  const anchor=inicio;
+  const d1=new Date(inicio+'T00:00:00'), d2=new Date(fim+'T00:00:00');
+  const dias=Math.round((d2-d1)/86400000);
+  try{
+    const data=await api('GET',`/despesas/fluxo-caixa?passado=0&futuro=${dias}&data=${anchor}`+(cid?'&'+cid:''))||[];
+    const totRec=data.reduce((s,d)=>s+d.receitas,0);
+    const totDesp=data.reduce((s,d)=>s+d.despesas,0);
+    const totRep=data.reduce((s,d)=>s+d.repasse,0);
+    const saldoFinal=data.length?data[data.length-1].saldo_acum:0;
+    const label=`${fmtDate(inicio)} – ${fmtDate(fim)}`;
+    if(kpis) kpis.innerHTML=`
+      <div style="background:var(--green-lt);border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:1.1rem;font-weight:800;color:#2d7a56">${fmtMoeda(totRec)}</div>
+        <div style="font-size:.75rem;color:#2d7a56">↑ Receitas</div></div>
+      <div style="background:#fde8e8;border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:1.1rem;font-weight:800;color:var(--danger)">${fmtMoeda(totDesp)}</div>
+        <div style="font-size:.75rem;color:var(--danger)">↓ Despesas</div></div>
+      <div style="background:var(--cel-pale);border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:1.1rem;font-weight:800">${fmtMoeda(totRep)}</div>
+        <div style="font-size:.75rem;color:var(--text-lt)">💸 Repasse</div></div>
+      <div style="background:${saldoFinal>=0?'var(--green-lt)':'#fde8e8'};border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:1.1rem;font-weight:800;color:${saldoFinal>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(saldoFinal)}</div>
+        <div style="font-size:.75rem;color:var(--text-lt)">Saldo Final (${label})</div></div>`;
+    // Tabela igual ao mensal
+    let html='<div style="overflow-x:auto"><table class="dash-table"><thead><tr>'
+      +'<th>Data</th><th class="num">↑ Receitas</th><th class="num">↓ Despesas</th><th class="num">💸 Repasse</th><th class="num">Saldo dia</th><th class="num">Saldo acum.</th></tr></thead><tbody>';
+    data.forEach(d=>{
+      const sd=d.saldo_dia||0, sa=d.saldo_acum||0;
+      html+=`<tr${d.hoje?' style="font-weight:700;background:var(--cel-pale)"':''}>`
+        +`<td>${fmtDate(d.data)}</td>`
+        +`<td class="num" style="color:#2d7a56">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>`
+        +`<td class="num" style="color:var(--danger)">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>`
+        +`<td class="num" style="color:#2d7a56">${d.repasse>0?fmtMoeda(d.repasse):'—'}</td>`
+        +`<td class="num" style="color:${sd>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(sd)}</td>`
+        +`<td class="num" style="color:${sa>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(sa)}</td>`
+        +'</tr>';
+    });
+    html+='</tbody></table></div>';
+    if(el) el.innerHTML=html;
+  }catch(e){if(el) el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
+}
 // ─── Fluxo de Caixa ───────────────────────────────────────────────────────
 let _fluxoPassado=0, _fluxoFuturo=0, _fluxoData=null, _fluxoMesStr=null, _fluxoMesLabel=null;
 async function loadFluxoCaixa(passado, futuro, dataAncora){

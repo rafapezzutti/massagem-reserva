@@ -2130,10 +2130,13 @@ app.get('/api/autonoma/dashboard', requireAutonoma, (req, res) =>
 app.get('/api/despesas', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { mes, ano, status } = req.query;
+    const { mes, ano, status, data_inicio, data_fim } = req.query;
     let q2 = 'SELECT * FROM despesas WHERE clinica_id=$1';
     const p = [cid];
-    if (mes && ano) {
+    if (data_inicio && data_fim) {
+      q2 += ` AND data_vencimento >= $${p.length+1} AND data_vencimento <= $${p.length+2}`;
+      p.push(data_inicio, data_fim);
+    } else if (mes && ano) {
       q2 += ` AND (EXTRACT(MONTH FROM data_vencimento)=$${p.length+1} AND EXTRACT(YEAR FROM data_vencimento)=$${p.length+2})`;
       p.push(parseInt(mes), parseInt(ano));
     }
