@@ -5091,8 +5091,8 @@ async function aplicarFluxoPeriodo(){
       +'<th>Data</th><th class="num">↑ Receitas</th><th class="num">↓ Despesas</th><th class="num">💸 Repasse</th><th class="num">Saldo dia</th><th class="num">Saldo acum.</th></tr></thead><tbody>';
     data.forEach(d=>{
       const sd=d.saldo_dia||0, sa=d.saldo_acum||0;
-      html+=`<tr${d.hoje?' style="font-weight:700;background:var(--cel-pale)"':''}>`
-        +`<td>${fmtDate(d.data)}</td>`
+      html+=`<tr onclick="drillDownFluxoDia('${d.data}')" style="cursor:pointer;${d.hoje?'font-weight:700;background:var(--cel-pale)':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">`
+        +`<td><span style="color:var(--cel);text-decoration:underline dotted">${fmtDate(d.data)}</span> <span style="font-size:.72rem;color:var(--text-lt)">🔍</span></td>`
         +`<td class="num" style="color:#2d7a56">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>`
         +`<td class="num" style="color:var(--danger)">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>`
         +`<td class="num" style="color:#2d7a56">${d.repasse>0?fmtMoeda(d.repasse):'—'}</td>`
@@ -5166,8 +5166,8 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
       const sPos=d.saldo_acum>=0, dPos=d.saldo_dia>=0;
       const isHoje=d.hoje;
       const rowStyle=isHoje?'background:var(--cel-pale);font-weight:600':'';
-      html+=`<tr style="${rowStyle}">
-        <td>${isHoje?`<strong>📅 ${dataLabel}</strong> — `:''}${fmtDate(d.data)}</td>
+      html+=`<tr onclick="drillDownFluxoDia('${d.data}')" style="cursor:pointer;${rowStyle}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+        <td>${isHoje?`<strong>📅 ${dataLabel}</strong> — `:''}${fmtDate(d.data)} <span style="font-size:.72rem;color:var(--text-lt)">🔍</span></td>
         <td class="ctr" style="color:${d.receitas>0?'#2d7a56':'var(--text-lt)'}">${d.receitas>0?fmtMoeda(d.receitas):'—'}</td>
         <td class="ctr" style="color:${d.despesas>0?'var(--danger)':'var(--text-lt)'}">${d.despesas>0?fmtMoeda(d.despesas):'—'}</td>
         <td class="ctr" style="color:${(d.repasse||0)>0?'#7a5c2d':'var(--text-lt)'}">${(d.repasse||0)>0?fmtMoeda(d.repasse):'—'}</td>
@@ -5181,6 +5181,76 @@ async function loadFluxoCaixa(passado, futuro, dataAncora){
 }
 
 // ─── Agenda do Dia ────────────────────────────────────────────────────────────
+async function drillDownFluxoDia(data){
+  const label=fmtDate(data);
+  openModal(`📅 Detalhes — ${label}`,'<div class="spinner" id="drill-spin"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Fechar</button>');
+  const cid=cidParam();
+  try{
+    const r=await api('GET',`/fluxo-dia?data=${data}`+(cid?'&'+cid:''));
+    const {reservas=[],despesas=[],resumo={}}=r||{};
+    let html=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="background:var(--green-lt);border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:#2d7a56">${fmtMoeda(resumo.receita||0)}</div>
+        <div style="font-size:.72rem;color:#2d7a56">↑ Receita</div></div>
+      <div style="background:#fdf3e3;border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:#7a5c2d">${fmtMoeda(resumo.repasse||0)}</div>
+        <div style="font-size:.72rem;color:#7a5c2d">💸 Repasse</div></div>
+      <div style="background:#fde8e8;border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:var(--danger)">${fmtMoeda(resumo.despesas||0)}</div>
+        <div style="font-size:.72rem;color:var(--danger)">↓ Despesas</div></div>
+      <div style="background:${(resumo.liquido||0)>=0?'var(--green-lt)':'#fde8e8'};border-radius:8px;padding:8px 16px;text-align:center;min-width:110px">
+        <div style="font-size:1rem;font-weight:800;color:${(resumo.liquido||0)>=0?'#2d7a56':'var(--danger)'}">${fmtMoeda(resumo.liquido||0)}</div>
+        <div style="font-size:.72rem">💰 Líquido</div></div>
+    </div>`;
+    if(reservas.length){
+      html+='<div style="font-weight:700;margin-bottom:8px;font-size:.9rem">🗓 Atendimentos</div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+      reservas.forEach(rv=>{
+        const cancelada=rv.status==='cancelada';
+        const sc=rv.status==='concluida'?'#2d7a56':rv.status==='confirmada'?'var(--cel)':'var(--danger)';
+        const sl=rv.status==='concluida'?'Concluída':rv.status==='confirmada'?'Confirmada':'Cancelada';
+        html+=`<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 12px;${cancelada?'opacity:.55':''}">
+          <div style="min-width:90px;font-size:.85rem;font-weight:600">${rv.hora_inicio.slice(0,5)}–${rv.hora_fim.slice(0,5)}</div>
+          <div style="flex:1">
+            <div style="font-weight:600">${esc(rv.cliente)}</div>
+            <div style="font-size:.8rem;color:var(--text-lt)">${esc(rv.servico)}${rv.profissional&&rv.profissional!=='—'?' · '+esc(rv.profissional):''}${rv.quarto?' · Sala '+rv.quarto:''}</div>
+            ${rv.bebida?'<div style="font-size:.78rem;color:var(--text-lt)">🥤 '+esc(rv.bebida)+(rv.preco_bebida?' ('+fmtMoeda(rv.preco_bebida)+')':'')+' </div>':''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">${cancelada?'—':fmtMoeda(rv.total)}</div>
+            <span style="font-size:.72rem;color:${sc};font-weight:600">${sl}</span>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    } else {
+      html+='<div style="color:var(--text-lt);font-size:.88rem;margin-bottom:12px">Nenhum atendimento neste dia.</div>';
+    }
+    if(despesas.length){
+      html+='<div style="font-weight:700;margin-bottom:8px;font-size:.9rem">🧾 Despesas do dia</div><div style="display:flex;flex-direction:column;gap:6px">';
+      despesas.forEach(dp=>{
+        const pago=dp.status==='pago';
+        html+=`<div style="display:flex;align-items:center;gap:10px;background:var(--bg2);border-radius:8px;padding:10px 12px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:.88rem">${despTipoLabel(dp.tipo,dp.nome_custom)}${dp.recorrente?' <span style="font-size:.7rem;background:var(--cel-lt);color:var(--cel);padding:1px 5px;border-radius:6px">🔄</span>':''}</div>
+            ${dp.descricao?'<div style="font-size:.78rem;color:var(--text-lt)">'+esc(dp.descricao)+'</div>':''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700;color:var(--danger)">${fmtMoeda(dp.valor)}</div>
+            <span style="font-size:.7rem;color:${pago?'#2d7a56':'var(--danger)'}">${pago?'✅ Pago':'⏳ Pendente'}</span>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    }
+    const body=document.querySelector('#modal .modal-body');
+    if(body) body.innerHTML=html;
+  }catch(e){
+    const body=document.querySelector('#modal .modal-body');
+    if(body) body.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';
+  }
+}
+
 async function loadFluxoDia(data){
   const today=new Date().toISOString().split('T')[0];
   const d=data||today;
