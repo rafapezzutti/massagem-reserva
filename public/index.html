@@ -799,6 +799,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
           <option value="valor_desc">⬇ Valor (maior)</option>
           <option value="valor_asc">⬆ Valor (menor)</option>
         </select>
+        <input type="search" id="desp-busca" class="field-input" style="width:200px" placeholder="🔍 Buscar tipo / descrição..." oninput="filterDespesas()">
         <span style="font-size:.82rem;color:var(--text-lt);align-self:center">ou intervalo:</span>
         <input type="date" id="desp-fil-inicio" class="field-input" style="width:auto" onchange="loadDespesas()" placeholder="De">
         <input type="date" id="desp-fil-fim"    class="field-input" style="width:auto" onchange="loadDespesas()" placeholder="Até">
@@ -4585,8 +4586,18 @@ async function loadDespesas(){
   if(p.length) url+='?'+p.join('&');
   try{
     const data=await api('GET',url)||[];
-    renderDespesas(data);
+    window._despesasData=data;
+    filterDespesas();
   }catch(e){el.innerHTML='<div class="error-msg">'+esc(e.message)+'</div>';}
+}
+function filterDespesas(){
+  const q=(document.getElementById('desp-busca')?.value||'').toLowerCase().trim();
+  const data=window._despesasData||[];
+  const filtered=q?data.filter(d=>{
+    const campos=[d.tipo,d.subtipo,d.descricao,d.nome_custom].filter(Boolean).join(' ').toLowerCase();
+    return campos.includes(q);
+  }):data;
+  renderDespesas(filtered);
 }
 function renderDespesas(data){
   const el=document.getElementById('despesas-list');
