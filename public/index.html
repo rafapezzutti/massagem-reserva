@@ -2688,6 +2688,9 @@ async function saveReserva(id){
       }
     }catch(e){}
   }
+  const _saveBtn=document.getElementById('modal-footer')?.querySelector('button.btn-primary');
+  if(_saveBtn&&_saveBtn.dataset.saving==='1'){toast('Aguarde, salvando...','info');return;}
+  if(_saveBtn){_saveBtn.dataset.saving='1';_saveBtn.disabled=true;const _orig=_saveBtn.textContent;_saveBtn.textContent='Salvando...';setTimeout(()=>{_saveBtn.dataset.saving='';_saveBtn.disabled=false;_saveBtn.textContent=_orig;},4000);}
   try{
     const _pcEl=document.getElementById('rv-preco-custom');
     const preco_custom=_pcEl?.value!==''?parseFloat(_pcEl.value)||null:null;
@@ -2699,9 +2702,10 @@ async function saveReserva(id){
       cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
+    if(_saveBtn){_saveBtn.dataset.saving='';_saveBtn.disabled=false;}
     toast(id?'Reserva atualizada!':'Reserva confirmada! ✅');closeModal();
     if(state.currentView==='daily') loadDaily();
-  }catch(e){toast(e.message,'err')}
+  }catch(e){if(_saveBtn){_saveBtn.dataset.saving='';_saveBtn.disabled=false;_saveBtn.textContent=id?'Salvar':'Confirmar';} toast(e.message,'err')}
 }
 async function excluirReserva(id){
   if(!confirm('⚠️ Excluir permanentemente esta reserva? Esta ação não pode ser desfeita.'))return;
@@ -2877,7 +2881,7 @@ async function showProfDetalheModal(profId,profNome,data){
           +'<td class="num">'+fS(val)+'</td>'
           +'<td>'+(r.pagamento||'—')+'</td>'
           +'<td><span class="res-'+r.status+'" style="padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600">'+r.status+'</span></td>'
-          +'<td style="text-align:center"><button onclick="excluirDetalhe('+r.id+','+profId+',\''+esc(profNome)+'\',\''+data+'\''+(cid?',\''+cid+'\'':'')+',this)" title="Excluir permanentemente" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--red);padding:2px 6px" aria-label="Excluir">🗑</button></td>'
+          +'<td style="text-align:center"><button onclick="excluirDetalhe('+r.id+','+profId+',\''+esc(profNome)+'\',\''+data+'\''+','+(cid?'\''+cid+'\'':'null')+',this)" title="Excluir permanentemente" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--red);padding:2px 6px" aria-label="Excluir">🗑</button></td>'
           +'</tr>';
       }).join('');
     };
