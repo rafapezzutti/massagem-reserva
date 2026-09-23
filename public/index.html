@@ -2953,7 +2953,8 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     // so desconta do repasse o aluguel pago como Acerto (dinheiro/pix ja foram cobrados diretamente)
     const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
     const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugAcertoRow):0;
-    const valLiquido=showRepasse?(valor-Math.max(0,valRepasse)):0;
+    // repasse negativo = aluguel Acerto que a massagista deve a clinica -> soma no liquido
+    const valLiquido=showRepasse?(valor-valRepasse):0;
     if(showRepasse) sumLiquido+=valLiquido;
     const media=atend>0?valor/atend:null;
     const nome=isMassagem?r.nome:(r.nome_display||r.nome_completo);
