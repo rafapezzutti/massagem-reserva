@@ -1307,6 +1307,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
+        -- multas que entram na base do repasse: so de massagens (multa em locacao = receita da clinica)
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas_repasse,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
             THEN GREATEST(COALESCE(r.preco_custom,m.preco,0),0) / 2.0
@@ -1421,6 +1423,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.preco_bebida,0) ELSE 0 END), 0) AS total_bebidas,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas,
+        -- multas que entram na base do repasse: so de massagens (multa em locacao = receita da clinica)
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN COALESCE(r.multa_valor,0) ELSE 0 END), 0) AS total_multas_repasse,
         -- total_massagens_bruto: regular=preço cheio, duo=price/2 → frontend aplica pct% normalmente
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL

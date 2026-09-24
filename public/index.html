@@ -2926,7 +2926,9 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
   const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas-sumMultas-sumAlugueis);
   const sumAlugueis_acerto=data.reduce((s,r)=>s+(r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):parseFloat(r.total_alugueis||0)),0);
-  const sumRepasse=showRepasse?((sumMassagens+sumMultas)*(pct/100)-sumAlugueis_acerto):0;
+  // multa em locacao nao gera repasse (so multas de massagem entram na base)
+  const sumMultasRepasse=data.reduce((s,r)=>s+(r.total_multas_repasse!=null?parseFloat(r.total_multas_repasse):parseFloat(r.total_multas||0)),0);
+  const sumRepasse=showRepasse?((sumMassagens+sumMultasRepasse)*(pct/100)-sumAlugueis_acerto):0;
   // External rentals totals
   const sumExtAtend=externas.reduce((s,r)=>s+parseInt(r.atendimentos||0),0);
   const sumExtAlug=externas.reduce((s,r)=>s+parseFloat(r.total_alugueis||0),0);
@@ -2952,7 +2954,8 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     const massagens=Math.max(0, parseFloat(r.total_massagens_bruto||0)||Math.max(0,valor-bebidas-multasRow-alugPerRow));
     // so desconta do repasse o aluguel pago como Acerto (dinheiro/pix ja foram cobrados diretamente)
     const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
-    const valRepasse=showRepasse?((massagens+multasRow)*(pct/100)-alugAcertoRow):0;
+    const multasRepasseRow=r.total_multas_repasse!=null?parseFloat(r.total_multas_repasse):multasRow;
+    const valRepasse=showRepasse?((massagens+multasRepasseRow)*(pct/100)-alugAcertoRow):0;
     // repasse negativo = aluguel Acerto que a massagista deve a clinica -> soma no liquido
     const valLiquido=showRepasse?(valor-valRepasse):0;
     if(showRepasse) sumLiquido+=valLiquido;
