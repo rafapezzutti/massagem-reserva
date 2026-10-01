@@ -419,6 +419,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="nav-btn" id="nav-profissionais"         onclick="showView('profissionais')">👤 Profissionais</button>
       <button class="nav-btn" id="nav-massagens"         onclick="showView('massagens')">💆 Massagens</button>
       <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
+      <button class="nav-btn" id="nav-pacotes"       onclick="showView('pacotes')">🎟 Pacotes</button>
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
       <button class="nav-btn" id="nav-despesas"        onclick="showView('despesas')">🧾 Despesas</button>
@@ -529,6 +530,29 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       </div>
       <p style="margin-bottom:16px;font-size:.88rem;color:var(--text-lt)">Valores cobrados das massagistas pelo uso da sala/serviços da clínica. Aparecem como débito no dashboard de cada profissional.</p>
       <div id="alugueis-list"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Pacotes pré-pagos -->
+    <div id="view-pacotes" class="view">
+      <div class="list-header">
+        <h1>🎟 Pacotes</h1>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="openModeloPacoteModal()">＋ Novo Modelo</button>
+          <button class="btn btn-primary" onclick="openVenderPacoteModal()">💰 Vender Pacote</button>
+        </div>
+      </div>
+      <p style="margin-bottom:16px;font-size:.88rem;color:var(--text-lt)">Cliente paga X sessões e ganha Z de bônus. O valor entra no caixa no dia da venda; o repasse da massagista é calculado sobre o preço de tabela da massagem a cada sessão usada.</p>
+      <h3 style="margin:4px 0 10px">📋 Modelos de pacote</h3>
+      <div id="pacotes-modelos-list" style="margin-bottom:24px"><div class="spinner"></div></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px">
+        <h3 style="margin:0;flex:1">🧾 Pacotes vendidos</h3>
+        <input id="pac-busca" type="text" placeholder="Buscar cliente ou telefone…" oninput="renderPacotesVendidos()" style="max-width:240px"/>
+        <select id="pac-filtro" onchange="renderPacotesVendidos()" style="max-width:160px">
+          <option value="ativo">Ativos</option><option value="">Todos</option>
+          <option value="encerrado">Encerrados</option><option value="vencido">Vencidos</option><option value="cancelado">Cancelados</option>
+        </select>
+      </div>
+      <div id="pacotes-vendidos-list"><div class="spinner"></div></div>
     </div>
 
     <!-- Recepcionistas -->
@@ -1034,7 +1058,7 @@ async function start(){
 const GERENTE_PERMS=[
   {key:'daily',label:'📅 Hoje',group:'op'},{key:'monthly',label:'📆 Mês',group:'op'},
   {key:'quartos',label:'🛏 Quartos',group:'op'},{key:'profissionais',label:'👤 Profissionais',group:'op'},
-  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},
+  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},{key:'pacotes',label:'🎟 Pacotes',group:'op'},
   {key:'recepcionistas',label:'🗂 Recepcionistas',group:'op'},{key:'repasse',label:'💸 Repasse',group:'op'},
   {key:'dash_dm',label:'👤 Diário Massagista',group:'dash'},{key:'dash_mm',label:'👤 Mensal Massagista',group:'dash'},
   {key:'dash_dt',label:'💆 Diário Massagem',group:'dash'},{key:'dash_mt',label:'💆 Mensal Massagem',group:'dash'},
@@ -1042,7 +1066,7 @@ const GERENTE_PERMS=[
 {key:'despesas',label:'🧾 Despesas',group:'op'},{key:'fluxo',label:'📊 Fluxo de Caixa',group:'op'},{key:'estoque',label:'📦 Estoque',group:'op'},
 ];
 const GERENTE_PERM_DEFAULT={
-  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,
+  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,pacotes:true,
   recepcionistas:false,repasse:false,
   dash_dm:true,dash_mm:false,dash_dt:true,dash_mt:false,dash_rc:false,dash_pg:false,
 despesas:false,fluxo:false,estoque:false
@@ -1050,10 +1074,10 @@ despesas:false,fluxo:false,estoque:false
 function applyGerentePermissoes(permissoes){
   const p=permissoes||GERENTE_PERM_DEFAULT;
   const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
-    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',
+    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',pacotes:'nav-pacotes',
     recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',cartao:'nav-cartao',fluxo:'nav-fluxo',estoque:'nav-estoque'};
   Object.entries(navMap).forEach(([key,nid])=>{
-    const el=document.getElementById(nid);if(el)el.style.display=p[key]?'':'none';
+    const el=document.getElementById(nid);if(el)el.style.display=(p[key]??(key==='pacotes'?p.alugueis:false))?'':'none';
   });
   const hasDash=Object.keys(p).some(k=>k.startsWith('dash_')&&p[k]);
   const navDash=document.getElementById('nav-dashboard');
@@ -1153,7 +1177,7 @@ function showView(v){
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
-  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',alugueis:'alugué',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
+  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',alugueis:'alugué',pacotes:'pacotes',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
   document.querySelectorAll('.nav-btn').forEach(btn=>{
     const t=btn.textContent.toLowerCase();
     if(navMap[v]&&t.includes(navMap[v])) btn.classList.add('active');
@@ -1166,6 +1190,7 @@ function showView(v){
   else if(v==='profissionais') loadProfissionais();
   else if(v==='massagens') loadMassagens();
   else if(v==='alugueis') loadAlugueis();
+  else if(v==='pacotes') loadPacotes();
   else if(v==='recepcionistas') loadRecepcionistas();
   else if(v==='repasse') loadRepasse();
   else if(v==='dashboard') loadDashboard();
@@ -1215,7 +1240,7 @@ async function loadClinicaSelector(){
   }catch(e){}
 }
 
-const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','recepcionistas','repasse','dashboard','despesas','cartao','fluxo','estoque'];
+const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','pacotes','recepcionistas','repasse','dashboard','despesas','cartao','fluxo','estoque'];
 const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
 
 function onClinicaSelect(val){
@@ -2098,6 +2123,7 @@ function setTipoReserva(tipo){
   const pcRow=document.getElementById('rv-preco-custom-row');
   if(pcRow) pcRow.style.display=isMass?'':'none';
   if(!isMass){ const pc=document.getElementById('rv-preco-custom'); if(pc) pc.value=''; }
+  if(typeof refreshPacoteBox==='function') refreshPacoteBox();
 }
 function setProfMassTipo(tipo){
   const isCad=tipo==='cadastrada';
@@ -2121,6 +2147,216 @@ function setProfTipo(tipo){
   if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
   if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
+// ── Pacotes pré-pagos ─────────────────────────────────────────────────────────
+let _pacModelos=[], _pacVendidos=[];
+const _hojeLocal=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);};
+const _dBR=iso=>iso?iso.split('-').reverse().join('/'):'—';
+const PAC_STATUS={ativo:['✅ Ativo','#2d7a56','var(--green-lt)'],encerrado:['✔️ Encerrado','#555','#eee'],vencido:['⌛ Vencido','#a05c10','#fdf3e3'],cancelado:['❌ Cancelado','var(--red)','var(--red-lt)']};
+async function loadPacotes(){
+  const cid=cidParam();
+  try{
+    await ensureData();
+    [_pacModelos,_pacVendidos]=await Promise.all([
+      api('GET','/pacotes-modelo?todos=1'+(cid?'&'+cid:'')),
+      api('GET','/pacotes'+(cid?'?'+cid:''))
+    ]);
+    renderModelosPacote(); renderPacotesVendidos();
+  }catch(e){toast(e.message,'err')}
+}
+function renderModelosPacote(){
+  const el=document.getElementById('pacotes-modelos-list'); if(!el) return;
+  if(!_pacModelos.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">🎟</div><div>Nenhum modelo cadastrado. Crie um em “＋ Novo Modelo”.</div></div>';return;}
+  el.innerHTML='<div class="item-grid">'+_pacModelos.map(m=>{
+    const tot=m.qtd_pagas+m.qtd_bonus;
+    return `<div class="item-card" style="${!m.ativo?'opacity:.7':''}">
+      ${!m.ativo?'<div class="inactive-overlay">Inativo</div>':''}
+      <div class="item-title">${esc(m.nome)}</div>
+      <div class="item-sub">💆 ${esc(m.massagem_nome||'—')} (tabela ${fmtMoeda(m.massagem_preco||0)})</div>
+      <div class="item-detail"><strong>${m.qtd_pagas}</strong> pagas ${m.qtd_bonus>0?`+ <strong>${m.qtd_bonus}</strong> grátis`:''} = ${tot} sessões</div>
+      <div class="item-detail" style="color:#2d7a56;font-weight:700">💰 ${fmtMoeda(m.valor)} <span style="font-weight:400;color:var(--text-lt);font-size:.8rem">(${fmtMoeda(m.valor/tot)}/sessão)</span></div>
+      <div class="item-detail" style="font-size:.8rem;color:var(--text-lt)">⏳ Validade: ${m.validade_dias>0?m.validade_dias+' dias':'sem validade'}</div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModeloPacoteModal(${m.id})">✏️ Editar</button>
+        <button class="btn ${m.ativo?'btn-danger':'btn-success'} btn-sm" onclick="toggleModeloPacote(${m.id})">${m.ativo?'⛔ Desativar':'✅ Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteModeloPacote(${m.id})">🗑</button>
+      </div></div>`;}).join('')+'</div>';
+}
+function renderPacotesVendidos(){
+  const el=document.getElementById('pacotes-vendidos-list'); if(!el) return;
+  const busca=(document.getElementById('pac-busca')?.value||'').trim().toLowerCase();
+  const filtro=document.getElementById('pac-filtro')?.value||'';
+  const rows=_pacVendidos.filter(p=>(!filtro||p.status_atual===filtro)&&(!busca||(p.cliente_nome||'').toLowerCase().includes(busca)||(p.cliente_telefone||'').includes(busca)));
+  if(!rows.length){el.innerHTML='<div class="dash-empty">Nenhum pacote encontrado.</div>';return;}
+  el.innerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Cliente</th><th>Pacote</th><th class="ctr">Compra</th><th class="ctr">Validade</th><th class="ctr">Usadas</th><th class="ctr">Saldo</th><th class="num">Valor pago</th><th class="ctr">Status</th></tr></thead><tbody>'
+    +rows.map(p=>{const st=PAC_STATUS[p.status_atual]||PAC_STATUS.ativo;
+      return `<tr style="cursor:pointer" onclick="openPacoteDetalhe(${p.id})">
+        <td><strong>${esc(p.cliente_nome)}</strong>${p.cliente_telefone?'<br><small style="color:var(--text-lt)">'+esc(p.cliente_telefone)+'</small>':''}</td>
+        <td>${esc(p.nome_pacote)}<br><small style="color:var(--text-lt)">${esc(p.massagem_nome||'')}</small></td>
+        <td class="ctr">${_dBR(p.data_compra)}</td><td class="ctr">${_dBR(p.data_validade)}</td>
+        <td class="ctr">${p.qtd_usada}/${p.qtd_total}</td>
+        <td class="ctr" style="font-weight:700;color:${p.saldo>0?'#2d7a56':'var(--text-lt)'}">${p.saldo}</td>
+        <td class="num">${fmtMoeda(p.valor_pago)}</td>
+        <td class="ctr"><span class="badge" style="background:${st[2]};color:${st[1]}">${st[0]}</span></td></tr>`;}).join('')
+    +'</tbody></table></div>';
+}
+function openModeloPacoteModal(id){
+  const m=id?_pacModelos.find(x=>x.id===id):null;
+  const optM=(state.massagens||[]).filter(x=>x.ativa||x.id===m?.massagem_id).map(x=>`<option value="${x.id}"${m?.massagem_id===x.id?' selected':''}>${esc(x.nome)} (${x.duracao}min · ${fmtMoeda(x.preco)})</option>`).join('');
+  openModal(m?'Editar modelo':'Novo modelo de pacote',
+    `<div class="form-grid">
+      <div class="field full"><label>Nome <span class="required">*</span></label>
+        <input id="pm-nome" type="text" value="${m?esc(m.nome):''}" placeholder="Ex: Relaxante 60min — 4+1"/></div>
+      <div class="field full"><label>Massagem <span class="required">*</span></label><select id="pm-mass">${optM}</select></div>
+      <div class="field"><label>Sessões pagas (Y) <span class="required">*</span></label><input id="pm-pagas" type="number" min="1" value="${m?.qtd_pagas||4}"/></div>
+      <div class="field"><label>Sessões grátis (Z)</label><input id="pm-bonus" type="number" min="0" value="${m?.qtd_bonus??1}"/></div>
+      <div class="field"><label>Valor do pacote (X) <span class="required">*</span></label><input id="pm-valor" type="number" min="0" step="0.01" value="${m?.valor||''}" placeholder="0,00"/></div>
+      <div class="field"><label>Validade (dias)</label><input id="pm-validade" type="number" min="0" value="${m?.validade_dias??90}"/>
+        <small style="color:var(--text-lt);font-size:.78rem">0 = sem validade</small></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveModeloPacote(${id||'null'})">${m?'Salvar':'Cadastrar'}</button>`);
+}
+async function saveModeloPacote(id){
+  const m=id?_pacModelos.find(x=>x.id===id):null;
+  const body={nome:document.getElementById('pm-nome').value.trim(),massagem_id:parseInt(document.getElementById('pm-mass').value)||null,
+    qtd_pagas:parseInt(document.getElementById('pm-pagas').value)||0,qtd_bonus:parseInt(document.getElementById('pm-bonus').value)||0,
+    valor:parseFloat(document.getElementById('pm-valor').value),validade_dias:parseInt(document.getElementById('pm-validade').value)||0,
+    ativo:m?m.ativo:1,...cidBody()};
+  if(!body.nome||!body.massagem_id||body.qtd_pagas<1||isNaN(body.valor)) return toast('Preencha nome, massagem, sessões e valor','err');
+  try{ if(id) await api('PUT',`/pacotes-modelo/${id}`,body); else await api('POST','/pacotes-modelo',body);
+    toast(id?'Modelo atualizado!':'Modelo cadastrado!'); closeModal(); loadPacotes(); }catch(e){toast(e.message,'err')}
+}
+async function toggleModeloPacote(id){
+  const m=_pacModelos.find(x=>x.id===id); if(!m) return;
+  try{ await api('PUT',`/pacotes-modelo/${id}`,{...m,ativo:m.ativo?0:1,...cidBody()}); loadPacotes(); }catch(e){toast(e.message,'err')}
+}
+async function deleteModeloPacote(id){
+  const m=_pacModelos.find(x=>x.id===id); if(!m||!confirm(`Deletar o modelo "${m.nome}"?`)) return;
+  const cid=cidParam();
+  try{ await api('DELETE',`/pacotes-modelo/${id}`+(cid?'?'+cid:'')); toast('Modelo deletado','info'); loadPacotes(); }catch(e){toast(e.message,'err')}
+}
+async function openVenderPacoteModal(){
+  try{ await ensureData(); }catch(e){}
+  if(!_pacModelos.length){ const cid=cidParam(); try{_pacModelos=await api('GET','/pacotes-modelo?todos=1'+(cid?'&'+cid:''));}catch(e){} }
+  const ativos=_pacModelos.filter(m=>m.ativo);
+  if(!ativos.length) return toast('Cadastre um modelo de pacote antes de vender','err');
+  const optM=ativos.map(m=>`<option value="${m.id}">${esc(m.nome)} — ${fmtMoeda(m.valor)}</option>`).join('');
+  const optR=(state.recepcionistas||[]).filter(rc=>rc.ativo).map(rc=>`<option value="${rc.id}">${esc(rc.nome)}</option>`).join('');
+  openModal('💰 Vender pacote',
+    `<div class="form-grid">
+      <div class="field full"><label>Modelo <span class="required">*</span></label><select id="pv-modelo" onchange="pvModeloChange()">${optM}</select>
+        <small id="pv-info" style="color:var(--text-lt);font-size:.8rem"></small></div>
+      <div class="field full"><label>Nome do Cliente <span class="required">*</span></label><input id="pv-cliente" type="text"/></div>
+      <div class="field"><label>Telefone</label><input id="pv-tel" type="tel"/></div>
+      <div class="field"><label>Data da compra</label><input id="pv-data" type="date" value="${_hojeLocal()}"/></div>
+      <div class="field"><label>Valor pago (R$)</label><input id="pv-valor" type="number" min="0" step="0.01"/></div>
+      <div class="field"><label>Recepcionista</label><select id="pv-recep"><option value="">— Selecione —</option>${optR}</select></div>
+      <div class="field full"><label>💳 Formas de Pagamento</label>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div id="rv-payments-list"></div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addPayment()" style="margin-top:6px;width:100%">＋ Adicionar Forma de Pagamento</button>
+        </div></div>
+      <div class="field full"><label>Observações</label><textarea id="pv-obs"></textarea></div>
+    </div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="saveVendaPacote()">Confirmar venda</button>`);
+  const cid=cidParam();
+  api('GET','/maquinas-cartao'+(cid?'?'+cid:'')).then(m=>{_maquinasCartao=m||[];}).catch(()=>{_maquinasCartao=[];}).finally(()=>initPayments(null,false));
+  pvModeloChange();
+}
+function pvModeloChange(){
+  const m=_pacModelos.find(x=>x.id===parseInt(document.getElementById('pv-modelo')?.value)); if(!m) return;
+  document.getElementById('pv-valor').value=parseFloat(m.valor).toFixed(2);
+  document.getElementById('pv-info').textContent=`${m.massagem_nome} · ${m.qtd_pagas} pagas + ${m.qtd_bonus} grátis · validade ${m.validade_dias>0?m.validade_dias+' dias':'indeterminada'}`;
+}
+async function saveVendaPacote(){
+  const pays=_payments.filter(p=>p.metodo);
+  if(pays.some(p=>p.metodo==='Acerto')) return toast('Acerto não se aplica a pacote','err');
+  const body={modelo_id:parseInt(document.getElementById('pv-modelo').value),cliente_nome:document.getElementById('pv-cliente').value.trim(),
+    cliente_telefone:document.getElementById('pv-tel').value.trim(),data_compra:document.getElementById('pv-data').value,
+    valor_pago:document.getElementById('pv-valor').value,recepcionista_id:parseInt(document.getElementById('pv-recep').value)||null,
+    pagamentos_json:pays.length?JSON.stringify(pays):null,observacoes:document.getElementById('pv-obs').value.trim(),...cidBody()};
+  if(!body.cliente_nome) return toast('Informe o nome do cliente','err');
+  const btn=document.getElementById('modal-footer')?.querySelector('button.btn-primary');
+  if(btn){ if(btn.disabled) return; btn.disabled=true; }
+  try{ await api('POST','/pacotes',body); toast('Pacote vendido! ✅'); closeModal(); if(state.currentView==='pacotes') loadPacotes(); }
+  catch(e){ if(btn) btn.disabled=false; toast(e.message,'err'); }
+}
+async function openPacoteDetalhe(id){
+  const p=_pacVendidos.find(x=>x.id===id); if(!p) return;
+  const st=PAC_STATUS[p.status_atual]||PAC_STATUS.ativo;
+  openModal(`🎟 ${esc(p.nome_pacote)} — ${esc(p.cliente_nome)}`,
+    `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <span class="badge" style="background:${st[2]};color:${st[1]}">${st[0]}</span>
+      <span>Usadas <strong>${p.qtd_usada}/${p.qtd_total}</strong> (${p.qtd_pagas} pagas + ${p.qtd_bonus} grátis)</span>
+      <span>Pago <strong>${fmtMoeda(p.valor_pago)}</strong>${p.pagamento?' · '+esc(p.pagamento):''} em ${_dBR(p.data_compra)}</span>
+    </div>
+    <div class="form-grid">
+      <div class="field full"><label>Cliente</label><input id="pd-cliente" type="text" value="${esc(p.cliente_nome)}"/></div>
+      <div class="field"><label>Telefone</label><input id="pd-tel" type="tel" value="${esc(p.cliente_telefone||'')}"/></div>
+      <div class="field"><label>Validade</label><input id="pd-validade" type="date" value="${p.data_validade||''}"/></div>
+      <div class="field full"><label>Observações</label><textarea id="pd-obs">${esc(p.observacoes||'')}</textarea></div>
+    </div>
+    <div style="font-weight:700;margin:12px 0 6px">📅 Sessões</div><div id="pd-sessoes"><div class="spinner"></div></div>`,
+    `${p.status!=='cancelado'?`<button class="btn btn-danger" onclick="savePacoteDetalhe(${id},'cancelado')">Cancelar pacote</button>`:`<button class="btn btn-success" onclick="savePacoteDetalhe(${id},'ativo')">Reativar</button>`}
+     ${p.qtd_usada===0?`<button class="btn btn-sm" style="background:#b04040;color:#fff" onclick="excluirPacote(${id})">🗑 Excluir</button>`:''}
+     <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
+     <button class="btn btn-primary" onclick="savePacoteDetalhe(${id})">Salvar</button>`);
+  const cid=cidParam();
+  try{
+    const ss=await api('GET',`/pacotes/${id}/sessoes`+(cid?'?'+cid:''));
+    document.getElementById('pd-sessoes').innerHTML=ss.length?'<table class="dash-table"><thead><tr><th>Data</th><th>Horário</th><th>Massagista</th><th>Status</th></tr></thead><tbody>'
+      +ss.map(r=>`<tr style="${r.status==='cancelada'?'opacity:.5':''}"><td>${_dBR(r.data)}</td><td>${r.hora_inicio}–${r.hora_fim}</td><td>${esc(r.profissional||'—')}</td><td>${r.status}</td></tr>`).join('')
+      +'</tbody></table>':'<div class="dash-empty">Nenhuma sessão agendada ainda.</div>';
+  }catch(e){ document.getElementById('pd-sessoes').innerHTML='<p style="color:var(--red)">'+esc(e.message)+'</p>'; }
+}
+async function savePacoteDetalhe(id,status){
+  const p=_pacVendidos.find(x=>x.id===id); if(!p) return;
+  if(status==='cancelado'&&!confirm('Cancelar este pacote? O valor sai do caixa do dia da compra e as sessões restantes ficam bloqueadas.')) return;
+  const body={cliente_nome:document.getElementById('pd-cliente').value.trim()||p.cliente_nome,cliente_telefone:document.getElementById('pd-tel').value.trim(),
+    data_validade:document.getElementById('pd-validade').value,observacoes:document.getElementById('pd-obs').value.trim(),
+    status:status||(p.status==='cancelado'?'cancelado':'ativo'),...cidBody()};
+  try{ await api('PUT',`/pacotes/${id}`,body); toast('Pacote atualizado'); closeModal(); loadPacotes(); }catch(e){toast(e.message,'err')}
+}
+async function excluirPacote(id){
+  if(!confirm('Excluir permanentemente este pacote (venda lançada por engano)?')) return;
+  const cid=cidParam();
+  try{ await api('DELETE',`/pacotes/${id}`+(cid?'?'+cid:'')); toast('Pacote excluído','info'); closeModal(); loadPacotes(); }catch(e){toast(e.message,'err')}
+}
+// Reserva: lista pacotes ativos do cliente para a massagem selecionada
+let _pacoteAtualReserva=null, _pacTimer=null, _pacLista=[];
+function refreshPacoteBox(){ clearTimeout(_pacTimer); _pacTimer=setTimeout(_refreshPacoteBox,250); }
+async function _refreshPacoteBox(){
+  const box=document.getElementById('rv-pacote-box'); const sel=document.getElementById('rv-pacote'); if(!box||!sel) return;
+  const isMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
+  const nome=(document.getElementById('rv-cliente')?.value||'').trim();
+  const tel=(document.getElementById('rv-ctel')?.value||'').trim();
+  const busca=tel.replace(/\D/g,'').length>=8?tel:nome;
+  if(!isMass||(busca.length<3&&!_pacoteAtualReserva)){ box.style.display='none'; sel.innerHTML='<option value="">—</option>'; pacoteSelChange(); return; }
+  const cid=cidParam(); let lista=[];
+  try{ lista=await api('GET','/pacotes?busca='+encodeURIComponent(busca||'')+(cid?'&'+cid:'')); }catch(e){}
+  const mid=parseInt(document.getElementById('rv-massagem')?.value)||0;
+  const atual=sel.value?parseInt(sel.value):_pacoteAtualReserva;
+  // pacotes da massagem selecionada primeiro; os de outra massagem trocam a massagem ao escolher
+  const ok=lista.filter(p=>p.status_atual==='ativo'||p.id===_pacoteAtualReserva)
+    .sort((a,b)=>(b.massagem_id===mid)-(a.massagem_id===mid));
+  _pacLista=ok;
+  if(!ok.length){ box.style.display='none'; sel.innerHTML='<option value="">—</option>'; pacoteSelChange(); return; }
+  box.style.display='';
+  sel.innerHTML='<option value="">— Não usar pacote (cobrança normal) —</option>'+ok.map(p=>`<option value="${p.id}"${p.id===atual?' selected':''}>${esc(p.nome_pacote)} · ${esc(p.cliente_nome)} — restam ${p.saldo} de ${p.qtd_total}${p.data_validade?' · vence '+_dBR(p.data_validade):''}${p.massagem_id!==mid?' ('+esc(p.massagem_nome)+')':''}</option>`).join('');
+  document.getElementById('rv-pacote-outros').textContent=`${ok.length} pacote(s) ativo(s) encontrado(s) para este cliente`;
+  pacoteSelChange();
+}
+function pacoteSelChange(){
+  const pid=parseInt(document.getElementById('rv-pacote')?.value)||0;
+  const usa=!!pid;
+  const pk=_pacLista.find(p=>p.id===pid), ms=document.getElementById('rv-massagem');
+  if(pk&&ms&&parseInt(ms.value)!==pk.massagem_id){ ms.value=pk.massagem_id; if(typeof autoFillHoraFim==='function') autoFillHoraFim(); }
+  const info=document.getElementById('rv-pacote-info'); if(info) info.style.display=usa?'block':'none';
+  const pc=document.getElementById('rv-preco-custom');
+  if(pc){ pc.disabled=usa; if(usa) pc.value=''; }
+}
+
 async function loadAlugueis(){
   document.getElementById('alugueis-list').innerHTML='<div class="spinner"></div>';
   const cid=cidParam();
@@ -2210,6 +2446,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     <option value="concluida"${r.status==='concluida'?' selected':''}>Concluída</option>
     <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
   </select></div>`:'';
+  _pacoteAtualReserva=r?.pacote_cliente_id||null;
   // inicializa lista de bebidas
   try{ _drinks = r?.bebida ? JSON.parse(r.bebida) : []; }catch(e){ _drinks=[]; }
   openModal(r?`Reserva #${r.id}`:'Nova Reserva',
@@ -2281,6 +2518,12 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
         <input id="rv-ctel" type="tel" value="${r?.cliente_telefone?esc(r.cliente_telefone):''}"/></div>
+      <div class="field full" id="rv-pacote-box" style="display:none;padding:10px 12px;background:#f5f0ff;border:1.5px solid #c4b5fd;border-radius:8px">
+        <label style="color:#6d28d9">🎟 Usar pacote do cliente</label>
+        <select id="rv-pacote" onchange="pacoteSelChange()"><option value="">—</option></select>
+        <small id="rv-pacote-outros" style="color:var(--text-lt);font-size:.78rem;display:block"></small>
+        <small id="rv-pacote-info" style="display:none;color:#6d28d9;font-size:.8rem;margin-top:4px">Sessão já paga no pacote — lance pagamento só de bebidas/extras. Repasse calculado sobre o preço de tabela.</small>
+      </div>
       <div class="field full"><label>Recepcionista <span class="required">*</span></label>
         <select id="rv-recep">
           <option value="">— Selecione —</option>
@@ -2377,6 +2620,11 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     if(r?.profissional_id_2) { const s=document.getElementById('rv-prof2'); if(s) s.value=r.profissional_id_2; }
     // Atualiza info de preço
     updatePrecoInfo();
+    // Pacotes do cliente
+    ['rv-cliente','rv-ctel'].forEach(i=>document.getElementById(i)?.addEventListener('input',refreshPacoteBox));
+    document.getElementById('rv-massagem')?.addEventListener('change',refreshPacoteBox);
+    if(_pacoteAtualReserva){ const s=document.getElementById('rv-pacote'); if(s) s.innerHTML=`<option value="${_pacoteAtualReserva}" selected>Pacote #${_pacoteAtualReserva}</option>`; }
+    refreshPacoteBox();
   },30);
 }
 function toggleBrinde(){
@@ -2698,8 +2946,9 @@ async function saveReserva(id){
     const _prof2Sec=document.getElementById('rv-prof2-section');
     const _prof2Val=document.getElementById('rv-prof2')?.value;
     const profissional_id_2=(_prof2Sec?.style.display!=='none'&&_prof2Val)?parseInt(_prof2Val)||null:null;
+    const pacote_cliente_id=tipoMass?(parseInt(document.getElementById('rv-pacote')?.value)||null):null;
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,pacote_cliente_id,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     if(_saveBtn){_saveBtn.dataset.saving='';_saveBtn.disabled=false;}
@@ -2925,6 +3174,9 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
   const sumConc= data.reduce((s,r)=>s+parseInt(r.concluidas||0),0);
   const sumCanc= data.reduce((s,r)=>s+parseInt(r.canceladas||0),0);
   const sumMassagens=sumMassagensBruto||(sumTotal-sumBebidas-sumMultas-sumAlugueis);
+  // pacotes: base do repasse = tabela; receita real = cota paga
+  const sumPacDesc=data.reduce((s,r)=>s+parseFloat(r.total_pacote_desc||0),0);
+  const sumMassagensReal=Math.max(0,sumMassagens-sumPacDesc);
   const sumAlugueis_acerto=data.reduce((s,r)=>s+(r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):parseFloat(r.total_alugueis||0)),0);
   // multa em locacao nao gera repasse (so multas de massagem entram na base)
   const sumMultasRepasse=data.reduce((s,r)=>s+(r.total_multas_repasse!=null?parseFloat(r.total_multas_repasse):parseFloat(r.total_multas||0)),0);
@@ -2956,6 +3208,8 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     const alugAcertoRow=r.total_alugueis_acerto!=null?parseFloat(r.total_alugueis_acerto):alugPerRow;
     const multasRepasseRow=r.total_multas_repasse!=null?parseFloat(r.total_multas_repasse):multasRow;
     const valRepasse=showRepasse?((massagens+multasRepasseRow)*(pct/100)-alugAcertoRow):0;
+    const pacDescRow=parseFloat(r.total_pacote_desc||0);
+    const massagensReal=Math.max(0,massagens-pacDescRow);
     // repasse negativo = aluguel Acerto que a massagista deve a clinica -> soma no liquido
     const valLiquido=showRepasse?(valor-valRepasse):0;
     if(showRepasse) sumLiquido+=valLiquido;
@@ -2967,7 +3221,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
       <td><strong>${esc(nome)}</strong>${nomeCompleto?'<br><small style="color:var(--text-lt);font-weight:400">'+esc(nomeCompleto)+'</small>':''}</td>
       ${isMassagem?`<td class="ctr">${r.duracao}min</td><td class="num">${fmtMoeda(r.preco_unitario)}</td>`:''}
       <td class="ctr" style="${_dashDate&&!isMassagem&&r.id?'cursor:pointer;color:var(--cel);font-weight:700;text-decoration:underline':''}" ${_dashDate&&!isMassagem&&r.id?`onclick="showProfDetalheModal(${r.id},'${esc(nome).replace(/'/g,"\'")}','${_dashDate}')"`:""}>${atend}</td>
-      <td class="num">${fmtMoeda(massagens)}</td>
+      <td class="num"${pacDescRow>0?` title="Inclui sessões de pacote: tabela ${fmtMoeda(massagens)} (base do repasse)"`:''}>${fmtMoeda(massagensReal)}${pacDescRow>0?' 🎟':''}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
       ${showMultas?`<td class="num" style="${parseFloat(r.total_multas||0)>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${parseFloat(r.total_multas||0)>0?fmtMoeda(r.total_multas):'—'}</td>`:''}
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?fmtMoeda(alugPerRow):'—'}</td>`:''}
@@ -2982,7 +3236,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     <td><strong>SUBTOTAL</strong></td>
     ${isMassagem?'<td></td><td></td>':''}
     <td class="ctr"><strong>${sumAtend}</strong></td>
-    <td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumMassagens)}</td>
+    <td class="num" style="color:#2d7a56;font-weight:700">${fmtMoeda(sumMassagensReal)}</td>
     <td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumBebidas)}</td>
     ${showMultas?`<td class="num" style="color:var(--red);font-weight:700">${fmtMoeda(sumMultas)}</td>`:''}
     ${showAlugueis?`<td class="num" style="color:#a05c10;font-weight:700">${fmtMoeda(sumAlugueis)}</td>`:''}
@@ -3041,7 +3295,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
     const totalComExt=sumTotal+sumExtAlug+sumExtBebidas;
     const kpis=[
       {label:'👤 Atendimentos',val:sumAtend+sumExtAtend,fmt:v=>v,color:'var(--cel)'},
-      {label:'💆 Massagens',val:sumMassagens,fmt:fmtMoeda,color:'#2d7a56'},
+      {label:'💆 Massagens',val:sumMassagensReal,fmt:fmtMoeda,color:'#2d7a56'},
       {label:'🍹 Bebidas',val:sumBebidas+sumExtBebidas,fmt:fmtMoeda,color:'#a05c10'},
       ...(sumMultas>0?[{label:'⚠️ Multas',val:sumMultas,fmt:fmtMoeda,color:'var(--red)'}]:[]),
       {label:'🏷 Aluguéis',val:sumAlugueis+sumExtAlug,fmt:fmtMoeda,color:'#8b5cf6'},
@@ -5218,7 +5472,7 @@ async function drillDownFluxoDia(data){
         const sc=rv.status==='concluida'?'#2d7a56':rv.status==='confirmada'?'var(--cel)':'var(--danger)';
         const sl=rv.status==='concluida'?'Concluída':rv.status==='confirmada'?'Confirmada':'Cancelada';
         html+=`<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 12px;${cancelada?'opacity:.55':''}">
-          <div style="min-width:90px;font-size:.85rem;font-weight:600">${rv.hora_inicio.slice(0,5)}–${rv.hora_fim.slice(0,5)}</div>
+          <div style="min-width:90px;font-size:.85rem;font-weight:600">${rv.tipo==='pacote'?'🎟 Venda':rv.hora_inicio.slice(0,5)+'–'+rv.hora_fim.slice(0,5)}</div>
           <div style="flex:1">
             <div style="font-weight:600">${esc(rv.cliente)}</div>
             <div style="font-size:.8rem;color:var(--text-lt)">${esc(rv.servico)}${rv.profissional&&rv.profissional!=='—'?' · '+esc(rv.profissional):''}${rv.quarto?' · Sala '+rv.quarto:''}</div>
@@ -5302,7 +5556,7 @@ async function loadFluxoDia(data){
         const statusColor=r.status==='concluida'?'#2d7a56':r.status==='confirmada'?'var(--cel)':'var(--danger)';
         const statusLabel=r.status==='concluida'?'Concluída':r.status==='confirmada'?'Confirmada':'Cancelada';
         html+=`<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 12px;${cancelada?'opacity:.55':''}">
-          <div style="min-width:90px;font-size:.85rem;font-weight:600">${r.hora_inicio.slice(0,5)}–${r.hora_fim.slice(0,5)}</div>
+          <div style="min-width:90px;font-size:.85rem;font-weight:600">${r.tipo==='pacote'?'🎟 Venda':r.hora_inicio.slice(0,5)+'–'+r.hora_fim.slice(0,5)}</div>
           <div style="flex:1">
             <div style="font-weight:600">${esc(r.cliente)}</div>
             <div style="font-size:.8rem;color:var(--text-lt)">${esc(r.servico)}${r.profissional&&r.profissional!=='—'?' · '+esc(r.profissional):''}${r.quarto?' · Sala '+r.quarto:''}</div>

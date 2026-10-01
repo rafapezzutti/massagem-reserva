@@ -340,6 +340,48 @@ async function initDB() {
   `).catch(()=>{});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_despesas_clinica ON despesas(clinica_id)').catch(()=>{});
   await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS reserva_id INTEGER`).catch(()=>{});
+  await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS pacote_id INTEGER`).catch(()=>{});
+
+  // 3p. Pacotes pré-pagos (X pagas + Z bônus de um tipo de massagem)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pacotes_modelo (
+      id            SERIAL PRIMARY KEY,
+      clinica_id    INTEGER NOT NULL REFERENCES clinicas(id),
+      nome          TEXT NOT NULL,
+      massagem_id   INTEGER NOT NULL REFERENCES massagens(id),
+      qtd_pagas     INTEGER NOT NULL DEFAULT 1,
+      qtd_bonus     INTEGER NOT NULL DEFAULT 0,
+      valor         NUMERIC(10,2) NOT NULL DEFAULT 0,
+      validade_dias INTEGER NOT NULL DEFAULT 90,
+      ativo         INTEGER NOT NULL DEFAULT 1,
+      criado_em     TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(e=>console.error('pacotes_modelo',e.message));
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pacotes_cliente (
+      id               SERIAL PRIMARY KEY,
+      clinica_id       INTEGER NOT NULL REFERENCES clinicas(id),
+      modelo_id        INTEGER REFERENCES pacotes_modelo(id),
+      nome_pacote      TEXT NOT NULL,
+      massagem_id      INTEGER NOT NULL REFERENCES massagens(id),
+      cliente_nome     TEXT NOT NULL,
+      cliente_telefone TEXT,
+      data_compra      TEXT NOT NULL,
+      data_validade    TEXT,
+      qtd_pagas        INTEGER NOT NULL,
+      qtd_bonus        INTEGER NOT NULL DEFAULT 0,
+      qtd_total        INTEGER NOT NULL,
+      valor_pago       NUMERIC(10,2) NOT NULL DEFAULT 0,
+      pagamento        TEXT,
+      pagamentos_json  TEXT,
+      recepcionista_id INTEGER,
+      status           TEXT NOT NULL DEFAULT 'ativo',
+      observacoes      TEXT,
+      criado_em        TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(e=>console.error('pacotes_cliente',e.message));
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_pacotes_cliente_clinica ON pacotes_cliente(clinica_id)').catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pacote_cliente_id INTEGER`).catch(()=>{});
 
   // 3o. Estoque
   await pool.query(`
@@ -972,9 +1014,10 @@ app.delete('/api/alugueis/:id', requireAuth, (req, res) =>
 
 
 // ─── Helper: taxa cartão automática ──────────────────────────────────────────
-async function gerarDespesasCartao(cid, reservaId, data, clienteNome, pagamentosJson, valorServico) {
-  // Apaga despesas de cartão anteriores para esta reserva
-  await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [reservaId, cid]).catch(()=>{});
+async function gerarDespesasCartao(cid, reservaId, data, clienteNome, pagamentosJson, valorServico, pacoteId) {
+  // Apaga despesas de cartão anteriores para esta reserva (ou pacote)
+  if (pacoteId) await pool.query(`DELETE FROM despesas WHERE pacote_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [pacoteId, cid]).catch(()=>{});
+  else await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [reservaId, cid]).catch(()=>{});
   let pagamentos = [];
   if (pagamentosJson) { try { pagamentos = JSON.parse(pagamentosJson); } catch(e) {} }
   for (const pag of pagamentos) {
@@ -998,9 +1041,9 @@ async function gerarDespesasCartao(cid, reservaId, data, clienteNome, pagamentos
     const parcelaStr = pag.metodo === 'Crédito' ? ` ${p}x` : '';
     const descricao = `Taxa cartão ${m.bandeira} (${pag.metodo}${parcelaStr}) – ${clienteNome}`;
     await pool.query(
-      `INSERT INTO despesas (clinica_id,tipo,descricao,valor,status,data_pagamento,data_vencimento,reserva_id)
-       VALUES ($1,'tarifa_cartao',$2,$3,'pago',$4,$4,$5)`,
-      [cid, descricao, valor, data, reservaId]
+      `INSERT INTO despesas (clinica_id,tipo,descricao,valor,status,data_pagamento,data_vencimento,reserva_id,pacote_id)
+       VALUES ($1,'tarifa_cartao',$2,$3,'pago',$4,$4,$5,$6)`,
+      [cid, descricao, valor, data, pacoteId ? null : reservaId, pacoteId || null]
     ).catch(()=>{});
   }
 }
@@ -1141,6 +1184,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
       if(await checkConflito(cid,'profissional_id',pid2,data,hora_inicio,hora_fim,null))
         throw new Error('2ª Massagista já tem atendimento neste horário');
     }
+    const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, null, 'confirmada');
+    if (pacoteId) req.body.preco_custom = null; // sessão de pacote: base do repasse = preço de tabela
     const nova = await qOne(
       'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,tem_brinde,valor_brinde,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
@@ -1159,6 +1204,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
         : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
       await gerarDespesasCartao(cid, nova.id, data, cliente_nome.trim(), pagamentos_json, svcVal);
     }
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1 WHERE id=$2', [pacoteId, nova.id]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -1204,6 +1250,8 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       if(await checkConflito(cid,'profissional_id',pid2,data,hora_inicio,hora_fim,id))
         throw new Error('2ª Massagista já tem atendimento neste horário');
     }
+    const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, id, status);
+    if (pacoteId) req.body.preco_custom = null;
     await qRun(
       'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,tem_brinde=$22,valor_brinde=$23,profissional_id_2=$24 WHERE id=$25 AND clinica_id=$26',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
@@ -1225,6 +1273,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       // sem pagamentos_json: remove despesa de cartão existente
       await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`,[id,cid]).catch(()=>{});
     }
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1 WHERE id=$2 AND clinica_id=$3', [pacoteId, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -1300,8 +1349,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
           + COALESCE(MAX(duo.qtd_ativas),0)                                              AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
-            ELSE  GREATEST(COALESCE(r.preco_custom,m.preco,0),0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
+            THEN ((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1316,6 +1365,10 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
+        -- pacote: diferença entre preço de tabela (base do repasse) e a cota efetivamente paga
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND r.pacote_cliente_id IS NOT NULL THEN
+          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
+        ELSE 0 END), 0) + COALESCE(MAX(duo.total_pacote_desc_duo),0)                   AS total_pacote_desc,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL THEN COALESCE(al.valor,0)/2.0 ELSE COALESCE(al.valor,0) END
         ELSE 0 END),0) + COALESCE(MAX(duo.total_alugueis_duo),0) AS total_alugueis,
@@ -1331,22 +1384,27 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
       LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data >= $2 AND r.data < $3
       LEFT JOIN massagens m ON m.id = r.massagem_id
       LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      LEFT JOIN pacotes_cliente pc ON pc.id = r.pacote_cliente_id
       LEFT JOIN (
         SELECT rd.profissional_id_2                                                              AS prof_id,
                COUNT(CASE WHEN rd.status != 'cancelada' THEN 1 END)                             AS qtd_ativas,
                COUNT(CASE WHEN rd.status = 'confirmada' THEN 1 END)                              AS qtd_confirmadas,
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
+                 ((CASE WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) / 2.0
                ELSE 0 END), 0)                                                                   AS total_massagens_duo,
+               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND rd.pacote_cliente_id IS NOT NULL THEN
+                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0)) / 2.0
+               ELSE 0 END), 0)                                                                   AS total_pacote_desc_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL AND rd.pagamento='Acerto' THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_acerto_duo
         FROM reservas rd
         LEFT JOIN massagens md ON md.id = rd.massagem_id
         LEFT JOIN alugueis ald ON ald.id = rd.aluguel_id
+        LEFT JOIN pacotes_cliente pcd ON pcd.id = rd.pacote_cliente_id
         WHERE rd.clinica_id = $1 AND rd.data >= $2 AND rd.data < $3 AND rd.profissional_id_2 IS NOT NULL
         GROUP BY rd.profissional_id_2
       ) duo ON duo.prof_id = p.id
@@ -1373,10 +1431,10 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     `, [cid, inicio, fim]);
     const pagByMethod = await q(`
       SELECT
-        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+          (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
         ELSE 0 END), 0) AS total
       FROM reservas r
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1387,9 +1445,9 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     const pagByProf = await q(`
       SELECT
         COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(*) AS qtd,
-        COALESCE(SUM(COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
       FROM reservas r
       LEFT JOIN profissionais p ON p.id = r.profissional_id
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1416,8 +1474,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         -- Total exibição: regular=preço cheio, duo=price/2 por massagista
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
-            ELSE  GREATEST(COALESCE(r.preco_custom,m.preco,0),0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
+            THEN ((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1433,6 +1491,10 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
+        -- pacote: diferença entre preço de tabela (base do repasse) e a cota efetivamente paga
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND r.pacote_cliente_id IS NOT NULL THEN
+          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
+        ELSE 0 END), 0) + COALESCE(MAX(duo.total_pacote_desc_duo),0)                   AS total_pacote_desc,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL THEN COALESCE(al.valor,0)/2.0 ELSE COALESCE(al.valor,0) END
         ELSE 0 END),0) + COALESCE(MAX(duo.total_alugueis_duo),0) AS total_alugueis,
@@ -1449,6 +1511,7 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
       LEFT JOIN reservas  r ON r.profissional_id = p.id AND r.clinica_id = $1 AND r.data = $2
       LEFT JOIN massagens m ON m.id = r.massagem_id
       LEFT JOIN alugueis al ON al.id = r.aluguel_id
+      LEFT JOIN pacotes_cliente pc ON pc.id = r.pacote_cliente_id
       LEFT JOIN (
         SELECT rd.profissional_id_2                                                              AS prof_id,
                COUNT(CASE WHEN rd.status != 'cancelada' THEN 1 END)                             AS qtd_ativas,
@@ -1456,16 +1519,20 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                -- 2a massagista: total e massagens_bruto = price/2 + aluguel/2 para duo
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
+                 ((CASE WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) / 2.0
                ELSE 0 END), 0)                                                                   AS total_massagens_duo,
+               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND rd.pacote_cliente_id IS NOT NULL THEN
+                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0)) / 2.0
+               ELSE 0 END), 0)                                                                   AS total_pacote_desc_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL AND rd.pagamento='Acerto' THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_acerto_duo
         FROM reservas rd
         LEFT JOIN massagens md ON md.id = rd.massagem_id
         LEFT JOIN alugueis ald ON ald.id = rd.aluguel_id
+        LEFT JOIN pacotes_cliente pcd ON pcd.id = rd.pacote_cliente_id
         WHERE rd.clinica_id = $1 AND rd.data = $2 AND rd.profissional_id_2 IS NOT NULL
         GROUP BY rd.profissional_id_2
       ) duo ON duo.prof_id = p.id
@@ -1492,10 +1559,10 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
     `, [cid, data]);
     const pagByMethod = await q(`
       SELECT
-        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+          (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
         ELSE 0 END), 0) AS total
       FROM reservas r
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1506,9 +1573,9 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
     const pagByProf = await q(`
       SELECT
         COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        COALESCE(r.pagamento, 'Não informado') AS metodo,
+        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(*) AS qtd,
-        COALESCE(SUM(COALESCE(m.preco,0) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
       FROM reservas r
       LEFT JOIN profissionais p ON p.id = r.profissional_id
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -2208,6 +2275,10 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
     const fim    = fimDate.toISOString().split('T')[0];
     const totalDias = passado + futuro + 1;
 
+    const pacotesRec = await pool.query(
+      `SELECT data_compra AS data, SUM(valor_pago) AS valor FROM pacotes_cliente
+       WHERE clinica_id=$1 AND status != 'cancelado' AND data_compra >= $2 AND data_compra <= $3
+       GROUP BY data_compra`, [cid, inicio, fim]).catch(()=>({rows:[]}));
     const [recRec, ponRec, receitasRec, repasseCfg] = await Promise.all([
       pool.query('SELECT * FROM despesas WHERE clinica_id=$1 AND recorrente=1', [cid]),
       pool.query(
@@ -2221,7 +2292,7 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
              CASE
                WHEN r.aluguel_id IS NOT NULL AND r.pagamento='Acerto' THEN 0
                WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
-               ELSE COALESCE(m.preco, 0)
+               ELSE (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco, 0) END)
                   + COALESCE(r.preco_bebida, 0)
                   + COALESCE(r.multa_valor, 0)
                   + COALESCE(al.valor, 0)
@@ -2266,6 +2337,10 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
         fluxo[r.data].repasse  += massVal * repassePct - acerto;
       }
     });
+    // vendas de pacotes = receita no dia da compra
+    pacotesRec.rows.forEach(p => {
+      if (fluxo[p.data]) fluxo[p.data].receitas += parseFloat(p.valor || 0);
+    });
     ponRec.rows.forEach(d => {
       const k = d.data_vencimento instanceof Date
         ? d.data_vencimento.toISOString().split('T')[0]
@@ -2304,7 +2379,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       pool.query(
         `SELECT r.hora_inicio, r.hora_fim, r.status, r.cliente_nome,
                 r.pagamento, r.preco_bebida, r.multa_valor, r.bebida,
-                r.preco_custom, r.profissional_id_2,
+                r.preco_custom, r.profissional_id_2, r.pacote_cliente_id,
                 m.nome AS massagem_nome, m.preco AS massagem_preco,
                 al.nome AS aluguel_nome, al.valor AS aluguel_valor,
                 p.nome AS profissional_nome,
@@ -2337,7 +2412,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
 
     const repassePct = repasseCfg.rows.length ? parseFloat(repasseCfg.rows[0].percentual) / 100 : 0;
 
-    const reservasFormatadas = reservas.rows.map(r => {
+    let reservasFormatadas = reservas.rows.map(r => {
       const massPrecoBase = r.preco_custom != null ? parseFloat(r.preco_custom) : parseFloat(r.massagem_preco || 0);
       const valorBase = massPrecoBase || (r.aluguel_valor ? parseFloat(r.aluguel_valor) : 0);
       let total = valorBase + parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
@@ -2347,7 +2422,11 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       const totalNetRepasse = Math.max(0, total - valorBrinde);
       const isDuo = !!r.profissional_id_2;
       let repasse = 0;
-      if (r.status !== 'cancelada') {
+      if (r.pacote_cliente_id) {
+        // Sessão de pacote: massagem já paga na venda do pacote; repasse sobre preço de tabela
+        total = parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
+        if (r.status !== 'cancelada') repasse = Math.round(parseFloat(r.massagem_preco || 0) * (isDuo ? 0.25 : repassePct) * 100) / 100;
+      } else if (r.status !== 'cancelada') {
         if (r.aluguel_valor && !r.massagem_preco && !r.preco_custom) {
           // Aluguel: Acerto deduz do repasse da profissional; outros métodos = 0 (pago separadamente)
           if (r.pagamento === 'Acerto') repasse = -Math.round(parseFloat(r.aluguel_valor) * 100) / 100;
@@ -2362,7 +2441,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         hora_fim:    r.hora_fim,
         status:      r.status,
         cliente:     r.cliente_nome,
-        servico:     r.massagem_nome || r.aluguel_nome || '—',
+        servico:     (r.massagem_nome || r.aluguel_nome || '—') + (r.pacote_cliente_id ? ' (📦 pacote)' : ''),
         tipo:        r.aluguel_valor ? 'aluguel' : 'massagem',
         profissional:r.profissional_nome || r.profissional_externo || '—',
         profissional2: r.profissional_nome_2 || null,
@@ -2375,6 +2454,16 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       };
     });
 
+    // vendas de pacotes no dia entram como receita
+    const pacotesDia = await pool.query(
+      `SELECT * FROM pacotes_cliente WHERE clinica_id=$1 AND data_compra=$2 AND status != 'cancelado' ORDER BY id`,
+      [cid, data]).catch(()=>({rows:[]}));
+    pacotesDia.rows.forEach(p => reservasFormatadas.push({
+      hora_inicio: '📦', hora_fim: '', status: 'concluida', cliente: p.cliente_nome,
+      servico: `Venda de pacote: ${p.nome_pacote}`, tipo: 'pacote', profissional: '📦 Venda de pacotes',
+      profissional2: null, isDuo: false, quarto: null,
+      total: parseFloat(p.valor_pago || 0), repasse: 0, bebida: null, preco_bebida: 0
+    }));
     const despesasFormatadas = [
       ...pontuais.rows.map(d => ({...d, recorrente: false})),
       ...recorrentes.rows.map(d => ({...d, recorrente: true}))
@@ -2395,6 +2484,171 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         liquido:  Math.round((totReceita - totRepasse - totDespesas) * 100) / 100
       }
     };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PACOTES PRÉ-PAGOS
+// ═══════════════════════════════════════════════════════════════════════════════
+const hojeISO = () => new Date(Date.now() - 3*3600*1000).toISOString().split('T')[0]; // America/Sao_Paulo
+function addDiasISO(iso, dias) {
+  const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + (parseInt(dias)||0));
+  return d.toISOString().split('T')[0];
+}
+const PACOTE_SELECT = `
+  SELECT pc.*, m.nome AS massagem_nome, m.preco AS massagem_preco,
+    (SELECT COUNT(*) FROM reservas r WHERE r.pacote_cliente_id = pc.id AND r.status != 'cancelada')::int AS qtd_usada
+  FROM pacotes_cliente pc
+  LEFT JOIN massagens m ON m.id = pc.massagem_id`;
+function statusPacote(p) {
+  const saldo = p.qtd_total - p.qtd_usada;
+  if (p.status === 'cancelado') return 'cancelado';
+  if (saldo <= 0) return 'encerrado';
+  if (p.data_validade && p.data_validade < hojeISO()) return 'vencido';
+  return 'ativo';
+}
+function fmtPacote(p) { return { ...p, saldo: p.qtd_total - p.qtd_usada, status_atual: statusPacote(p) }; }
+
+// valida e devolve o id do pacote a vincular na reserva (ou null)
+async function validarPacoteReserva(cid, pacoteIdRaw, massagemId, dataReserva, reservaId, status) {
+  const pacoteId = parseInt(pacoteIdRaw) || null;
+  if (!pacoteId) return null;
+  const p = await qOne(`${PACOTE_SELECT} WHERE pc.id=$1 AND pc.clinica_id=$2`, [pacoteId, cid]);
+  if (!p) throw new Error('Pacote não encontrado');
+  if (p.status === 'cancelado') throw new Error('Pacote cancelado');
+  if (parseInt(massagemId) !== p.massagem_id) throw new Error(`Este pacote é de "${p.massagem_nome}" — selecione essa massagem`);
+  if (status === 'cancelada') return pacoteId; // reserva cancelada não consome saldo
+  const jaVinculada = reservaId ? await qOne(
+    `SELECT id FROM reservas WHERE id=$1 AND pacote_cliente_id=$2 AND status != 'cancelada'`, [reservaId, pacoteId]) : null;
+  if (!jaVinculada) {
+    if (p.qtd_total - p.qtd_usada <= 0) throw new Error('Pacote sem saldo de sessões');
+    if (p.data_validade && dataReserva > p.data_validade) throw new Error(`Pacote vence em ${p.data_validade.split('-').reverse().join('/')}`);
+  }
+  return pacoteId;
+}
+
+app.get('/api/pacotes-modelo', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const filtro = req.query.todos === '1' ? '' : 'AND pm.ativo=1';
+    return q(`SELECT pm.*, m.nome AS massagem_nome, m.preco AS massagem_preco
+              FROM pacotes_modelo pm LEFT JOIN massagens m ON m.id = pm.massagem_id
+              WHERE pm.clinica_id=$1 ${filtro} ORDER BY pm.nome`, [cid]);
+  }));
+
+function lerModelo(b) {
+  const nome = (b.nome || '').trim();
+  const massagem_id = parseInt(b.massagem_id) || null;
+  const qtd_pagas = parseInt(b.qtd_pagas) || 0;
+  const qtd_bonus = Math.max(0, parseInt(b.qtd_bonus) || 0);
+  const valor = parseFloat(b.valor);
+  const validade_dias = Math.max(0, parseInt(b.validade_dias) || 0);
+  if (!nome || !massagem_id || qtd_pagas < 1 || isNaN(valor) || valor < 0) throw new Error('Preencha nome, massagem, quantidade e valor');
+  return { nome, massagem_id, qtd_pagas, qtd_bonus, valor, validade_dias, ativo: b.ativo === 0 || b.ativo === '0' ? 0 : 1 };
+}
+app.post('/api/pacotes-modelo', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const m = lerModelo(req.body);
+    return qOne(`INSERT INTO pacotes_modelo (clinica_id,nome,massagem_id,qtd_pagas,qtd_bonus,valor,validade_dias,ativo)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [cid, m.nome, m.massagem_id, m.qtd_pagas, m.qtd_bonus, m.valor, m.validade_dias, m.ativo]);
+  }));
+app.put('/api/pacotes-modelo/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const m = lerModelo(req.body);
+    return qOne(`UPDATE pacotes_modelo SET nome=$1,massagem_id=$2,qtd_pagas=$3,qtd_bonus=$4,valor=$5,validade_dias=$6,ativo=$7
+                 WHERE id=$8 AND clinica_id=$9 RETURNING *`,
+      [m.nome, m.massagem_id, m.qtd_pagas, m.qtd_bonus, m.valor, m.validade_dias, m.ativo, parseInt(req.params.id), cid]);
+  }));
+app.delete('/api/pacotes-modelo/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const usado = await qOne('SELECT id FROM pacotes_cliente WHERE modelo_id=$1 AND clinica_id=$2 LIMIT 1', [id, cid]);
+    if (usado) throw new Error('Modelo já foi vendido — desative em vez de deletar');
+    await qRun('DELETE FROM pacotes_modelo WHERE id=$1 AND clinica_id=$2', [id, cid]);
+    return { id };
+  }));
+
+// Pacotes vendidos. Filtros: ?ativos=1 (só com saldo e dentro da validade), ?busca=nome/telefone
+app.get('/api/pacotes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const params = [cid];
+    let where = 'WHERE pc.clinica_id=$1';
+    if (req.query.busca) {
+      params.push('%' + req.query.busca.trim() + '%');
+      where += ` AND (pc.cliente_nome ILIKE $${params.length} OR pc.cliente_telefone ILIKE $${params.length})`;
+    }
+    const rows = (await q(`${PACOTE_SELECT} ${where} ORDER BY pc.data_compra DESC, pc.id DESC`, params)).map(fmtPacote);
+    return req.query.ativos === '1' ? rows.filter(p => p.status_atual === 'ativo') : rows;
+  }));
+
+app.get('/api/pacotes/:id/sessoes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    return q(`SELECT r.id, r.data, r.hora_inicio, r.hora_fim, r.status,
+                COALESCE(p.nome_fantasia, p.nome, r.profissional_externo) AS profissional
+              FROM reservas r LEFT JOIN profissionais p ON p.id = r.profissional_id
+              WHERE r.pacote_cliente_id=$1 AND r.clinica_id=$2 ORDER BY r.data, r.hora_inicio`,
+      [parseInt(req.params.id), cid]);
+  }));
+
+// Venda de pacote
+app.post('/api/pacotes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const b = req.body;
+    const modelo = await qOne('SELECT * FROM pacotes_modelo WHERE id=$1 AND clinica_id=$2', [parseInt(b.modelo_id), cid]);
+    if (!modelo) throw new Error('Selecione o modelo de pacote');
+    if (!(b.cliente_nome || '').trim()) throw new Error('Informe o nome do cliente');
+    const data_compra = /^\d{4}-\d{2}-\d{2}$/.test(b.data_compra || '') ? b.data_compra : hojeISO();
+    const data_validade = modelo.validade_dias > 0 ? addDiasISO(data_compra, modelo.validade_dias) : null;
+    const valor_pago = b.valor_pago != null && b.valor_pago !== '' ? parseFloat(b.valor_pago) : parseFloat(modelo.valor);
+    let pagamento = null;
+    try { const pags = JSON.parse(b.pagamentos_json || '[]'); if (pags.length) pagamento = pags[0].metodo || null; } catch(e) {}
+    const novo = await qOne(`INSERT INTO pacotes_cliente
+        (clinica_id,modelo_id,nome_pacote,massagem_id,cliente_nome,cliente_telefone,data_compra,data_validade,
+         qtd_pagas,qtd_bonus,qtd_total,valor_pago,pagamento,pagamentos_json,recepcionista_id,observacoes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+      [cid, modelo.id, modelo.nome, modelo.massagem_id, b.cliente_nome.trim(), (b.cliente_telefone || '').trim() || null,
+       data_compra, data_validade, modelo.qtd_pagas, modelo.qtd_bonus, modelo.qtd_pagas + modelo.qtd_bonus,
+       isNaN(valor_pago) ? 0 : valor_pago, pagamento, b.pagamentos_json || null,
+       parseInt(b.recepcionista_id) || null, (b.observacoes || '').trim() || null]);
+    if (b.pagamentos_json)
+      await gerarDespesasCartao(cid, null, data_compra, b.cliente_nome.trim(), b.pagamentos_json, valor_pago, novo.id);
+    return fmtPacote(await qOne(`${PACOTE_SELECT} WHERE pc.id=$1`, [novo.id]));
+  }));
+
+// Edição (cliente, validade, observações) e cancelamento (status='cancelado')
+app.put('/api/pacotes/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const p = await qOne('SELECT * FROM pacotes_cliente WHERE id=$1 AND clinica_id=$2', [id, cid]);
+    if (!p) throw new Error('Pacote não encontrado');
+    const b = req.body;
+    const status = b.status === 'cancelado' ? 'cancelado' : 'ativo';
+    const validade = b.data_validade === '' ? null : (/^\d{4}-\d{2}-\d{2}$/.test(b.data_validade || '') ? b.data_validade : p.data_validade);
+    await qRun(`UPDATE pacotes_cliente SET cliente_nome=$1, cliente_telefone=$2, data_validade=$3, observacoes=$4, status=$5
+                WHERE id=$6 AND clinica_id=$7`,
+      [(b.cliente_nome || p.cliente_nome).trim(), b.cliente_telefone !== undefined ? ((b.cliente_telefone || '').trim() || null) : p.cliente_telefone,
+       validade, b.observacoes !== undefined ? ((b.observacoes || '').trim() || null) : p.observacoes, status, id, cid]);
+    if (status === 'cancelado')
+      await pool.query(`DELETE FROM despesas WHERE pacote_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [id, cid]).catch(()=>{});
+    return fmtPacote(await qOne(`${PACOTE_SELECT} WHERE pc.id=$1`, [id]));
+  }));
+
+app.delete('/api/pacotes/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const uso = await qOne('SELECT id FROM reservas WHERE pacote_cliente_id=$1 AND clinica_id=$2 LIMIT 1', [id, cid]);
+    if (uso) throw new Error('Pacote já tem sessões agendadas — cancele em vez de excluir');
+    await pool.query(`DELETE FROM despesas WHERE pacote_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`, [id, cid]).catch(()=>{});
+    await qRun('DELETE FROM pacotes_cliente WHERE id=$1 AND clinica_id=$2', [id, cid]);
+    return { id };
   }));
 
 // ─── Estoque ──────────────────────────────────────────────────────────────────
