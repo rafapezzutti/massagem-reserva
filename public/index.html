@@ -419,7 +419,7 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <button class="nav-btn" id="nav-profissionais"         onclick="showView('profissionais')">👤 Profissionais</button>
       <button class="nav-btn" id="nav-massagens"         onclick="showView('massagens')">💆 Massagens</button>
       <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
-      <button class="nav-btn" id="nav-pacotes"       onclick="showView('pacotes')">🎟 Pacotes</button>
+      <button class="nav-btn" id="nav-fidelidade"    onclick="showView('fidelidade')">⭐ Fidelidade</button>
       <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
       <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
       <button class="nav-btn" id="nav-despesas"        onclick="showView('despesas')">🧾 Despesas</button>
@@ -532,6 +532,32 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
       <div id="alugueis-list"><div class="spinner"></div></div>
     </div>
 
+    <!-- Cartão fidelidade -->
+    <div id="view-fidelidade" class="view">
+      <div class="list-header"><h1>⭐ Cartão Fidelidade</h1></div>
+      <div class="card" style="max-width:640px;margin-bottom:20px">
+        <div class="card-body" style="padding:18px 20px">
+          <div class="form-grid">
+            <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="fid-ativo" style="width:18px;height:18px"> <span style="font-weight:700">Programa ativo</span></label></div>
+            <div class="field"><label>A cada quantas massagens ganha 1 grátis?</label><input id="fid-meta" type="number" min="1" value="10"/></div>
+            <div class="field"><label>Contar massagens a partir de</label><input id="fid-inicio" type="date"/>
+              <small style="color:var(--text-lt);font-size:.78rem">Vazio = conta todo o histórico</small></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveFidelidadeConfig()" style="margin-top:8px">Salvar configuração</button>
+          <p style="margin-top:12px;font-size:.84rem;color:var(--text-lt)">Conta qualquer massagem já realizada (não cancelada). O cliente é identificado pelo <strong>telefone</strong> — sem telefone, pelo nome. A massagem grátis gera repasse normal para a massagista (sobre o preço de tabela) e entra como R$ 0 de receita.</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px">
+        <h3 style="margin:0;flex:1">👥 Clientes</h3>
+        <input id="fid-busca" type="text" placeholder="Buscar cliente ou telefone…" oninput="renderFidelidadeClientes()" style="max-width:240px"/>
+        <select id="fid-filtro" onchange="renderFidelidadeClientes()" style="max-width:200px">
+          <option value="">Todos</option><option value="disp">🎁 Com grátis disponível</option><option value="perto">🔥 Faltam até 2</option>
+        </select>
+      </div>
+      <div id="fid-clientes-list"><div class="spinner"></div></div>
+    </div>
+
     <!-- Pacotes pré-pagos -->
     <div id="view-pacotes" class="view">
       <div class="list-header">
@@ -614,6 +640,10 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
                   <select id="dash-mm-mes"></select>
                   <select id="dash-mm-ano"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
+                  <span style="color:#fff;font-size:.8rem;margin-left:6px">ou período:</span>
+                  <input type="date" id="dash-mm-de" title="De"/>
+                  <input type="date" id="dash-mm-ate" title="Até"/>
+                  <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista(true)">Aplicar período</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-mm-body','Mensal_Massagista')" title="Exportar para Excel">📥 Excel</button>
                 </div>
               </div>
@@ -1058,7 +1088,7 @@ async function start(){
 const GERENTE_PERMS=[
   {key:'daily',label:'📅 Hoje',group:'op'},{key:'monthly',label:'📆 Mês',group:'op'},
   {key:'quartos',label:'🛏 Quartos',group:'op'},{key:'profissionais',label:'👤 Profissionais',group:'op'},
-  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},{key:'pacotes',label:'🎟 Pacotes',group:'op'},
+  {key:'massagens',label:'💆 Massagens',group:'op'},{key:'alugueis',label:'🏷 Aluguéis',group:'op'},{key:'fidelidade',label:'⭐ Fidelidade',group:'op'},
   {key:'recepcionistas',label:'🗂 Recepcionistas',group:'op'},{key:'repasse',label:'💸 Repasse',group:'op'},
   {key:'dash_dm',label:'👤 Diário Massagista',group:'dash'},{key:'dash_mm',label:'👤 Mensal Massagista',group:'dash'},
   {key:'dash_dt',label:'💆 Diário Massagem',group:'dash'},{key:'dash_mt',label:'💆 Mensal Massagem',group:'dash'},
@@ -1066,7 +1096,7 @@ const GERENTE_PERMS=[
 {key:'despesas',label:'🧾 Despesas',group:'op'},{key:'fluxo',label:'📊 Fluxo de Caixa',group:'op'},{key:'estoque',label:'📦 Estoque',group:'op'},
 ];
 const GERENTE_PERM_DEFAULT={
-  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,pacotes:true,
+  daily:true,monthly:true,quartos:true,profissionais:true,massagens:true,alugueis:true,fidelidade:true,
   recepcionistas:false,repasse:false,
   dash_dm:true,dash_mm:false,dash_dt:true,dash_mt:false,dash_rc:false,dash_pg:false,
 despesas:false,fluxo:false,estoque:false
@@ -1074,10 +1104,10 @@ despesas:false,fluxo:false,estoque:false
 function applyGerentePermissoes(permissoes){
   const p=permissoes||GERENTE_PERM_DEFAULT;
   const navMap={daily:'nav-daily',monthly:'nav-monthly',quartos:'nav-quartos',
-    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',pacotes:'nav-pacotes',
+    profissionais:'nav-profissionais',massagens:'nav-massagens',alugueis:'nav-alugueis',fidelidade:'nav-fidelidade',
     recepcionistas:'nav-recepcionistas',repasse:'nav-repasse',despesas:'nav-despesas',cartao:'nav-cartao',fluxo:'nav-fluxo',estoque:'nav-estoque'};
   Object.entries(navMap).forEach(([key,nid])=>{
-    const el=document.getElementById(nid);if(el)el.style.display=(p[key]??(key==='pacotes'?p.alugueis:false))?'':'none';
+    const el=document.getElementById(nid);if(el)el.style.display=(p[key]??(key==='fidelidade'?p.alugueis:false))?'':'none';
   });
   const hasDash=Object.keys(p).some(k=>k.startsWith('dash_')&&p[k]);
   const navDash=document.getElementById('nav-dashboard');
@@ -1177,7 +1207,7 @@ function showView(v){
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
-  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',alugueis:'alugué',pacotes:'pacotes',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
+  const navMap={daily:'hoje',monthly:'mês',quartos:'quart',profissionais:'prof',massagens:'massa',alugueis:'alugué',fidelidade:'fidelidade',recepcionistas:'recepcion',repasse:'repasse',dashboard:'dashboard',admin:'admin'};
   document.querySelectorAll('.nav-btn').forEach(btn=>{
     const t=btn.textContent.toLowerCase();
     if(navMap[v]&&t.includes(navMap[v])) btn.classList.add('active');
@@ -1191,6 +1221,7 @@ function showView(v){
   else if(v==='massagens') loadMassagens();
   else if(v==='alugueis') loadAlugueis();
   else if(v==='pacotes') loadPacotes();
+  else if(v==='fidelidade') loadFidelidade();
   else if(v==='recepcionistas') loadRecepcionistas();
   else if(v==='repasse') loadRepasse();
   else if(v==='dashboard') loadDashboard();
@@ -1240,7 +1271,7 @@ async function loadClinicaSelector(){
   }catch(e){}
 }
 
-const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','pacotes','recepcionistas','repasse','dashboard','despesas','cartao','fluxo','estoque'];
+const CLINIC_TABS=['daily','monthly','quartos','profissionais','massagens','alugueis','fidelidade','recepcionistas','repasse','dashboard','despesas','cartao','fluxo','estoque'];
 const AUT_TABS=['aut-daily','aut-monthly','aut-clientes','aut-servicos','aut-locais','aut-dash'];
 
 function onClinicaSelect(val){
@@ -2147,6 +2178,75 @@ function setProfTipo(tipo){
   if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
   if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
+// ── Cartão fidelidade ─────────────────────────────────────────────────────────
+let _fidCfg={ativo:false,meta:10,data_inicio:null}, _fidClientes=[];
+async function loadFidelidade(){
+  const cid=cidParam();
+  try{
+    [_fidCfg,_fidClientes]=await Promise.all([
+      api('GET','/fidelidade/config'+(cid?'?'+cid:'')),
+      api('GET','/fidelidade/clientes'+(cid?'?'+cid:''))
+    ]);
+    document.getElementById('fid-ativo').checked=!!_fidCfg.ativo;
+    document.getElementById('fid-meta').value=_fidCfg.meta||10;
+    document.getElementById('fid-inicio').value=_fidCfg.data_inicio||'';
+    renderFidelidadeClientes();
+  }catch(e){toast(e.message,'err')}
+}
+async function saveFidelidadeConfig(){
+  const body={ativo:document.getElementById('fid-ativo').checked,meta:parseInt(document.getElementById('fid-meta').value)||10,
+    data_inicio:document.getElementById('fid-inicio').value||null,...cidBody()};
+  try{ await api('PUT','/fidelidade/config',body); toast('Configuração salva!'); loadFidelidade(); }catch(e){toast(e.message,'err')}
+}
+function renderFidelidadeClientes(){
+  const el=document.getElementById('fid-clientes-list'); if(!el) return;
+  const busca=(document.getElementById('fid-busca')?.value||'').trim().toLowerCase();
+  const f=document.getElementById('fid-filtro')?.value||'';
+  const rows=_fidClientes.filter(c=>(!busca||(c.cliente_nome||'').toLowerCase().includes(busca)||(c.cliente_telefone||'').includes(busca))
+    &&(!f||(f==='disp'&&c.disponiveis>0)||(f==='perto'&&c.meta-c.progresso<=2)));
+  if(!rows.length){el.innerHTML='<div class="dash-empty">Nenhum cliente encontrado.</div>';return;}
+  el.innerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Cliente</th><th class="ctr">Massagens</th><th>Progresso</th><th class="ctr">🎁 Grátis disponível</th><th class="ctr">Grátis usadas</th><th class="ctr">Última visita</th></tr></thead><tbody>'
+    +rows.map(c=>{const pct=Math.round(c.progresso/c.meta*100);
+      return `<tr>
+        <td><strong>${esc(c.cliente_nome||'—')}</strong>${c.cliente_telefone?'<br><small style="color:var(--text-lt)">'+esc(c.cliente_telefone)+'</small>':''}</td>
+        <td class="ctr">${c.contadas}</td>
+        <td style="min-width:150px"><div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:#d4a017"></div></div>
+          <span style="font-size:.82rem;white-space:nowrap">${c.progresso}/${c.meta}</span></div></td>
+        <td class="ctr" style="font-weight:700;color:${c.disponiveis>0?'#2d7a56':'var(--text-lt)'}">${c.disponiveis>0?'🎁 '+c.disponiveis:'—'}</td>
+        <td class="ctr">${c.usados||'—'}</td>
+        <td class="ctr">${c.ultima_visita?c.ultima_visita.split('-').reverse().join('/'):'—'}</td></tr>`;}).join('')
+    +'</tbody></table></div>';
+}
+// Reserva: mostra progresso e permite usar a massagem grátis
+let _fidResgateAtual=false, _fidReservaId=null;
+async function refreshFidBox(){
+  const box=document.getElementById('rv-fid-box'); if(!box) return;
+  const isMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
+  const nome=(document.getElementById('rv-cliente')?.value||'').trim();
+  const tel=(document.getElementById('rv-ctel')?.value||'').trim();
+  if(!isMass||(nome.length<3&&tel.replace(/\D/g,'').length<8)){ box.style.display='none'; return; }
+  const cid=cidParam(); let s=null;
+  try{ s=await api('GET',`/fidelidade/cliente?nome=${encodeURIComponent(nome)}&telefone=${encodeURIComponent(tel)}`+(_fidReservaId?'&excluir_reserva='+_fidReservaId:'')+(cid?'&'+cid:'')); }catch(e){}
+  if(!s||(!s.ativo&&!_fidResgateAtual)){ box.style.display='none'; return; }
+  const chk=document.getElementById('rv-fid-chk'), lab=document.getElementById('rv-fid-label'), wrap=document.getElementById('rv-fid-chk-wrap');
+  const pode=s.disponiveis>0||_fidResgateAtual;
+  lab.innerHTML=pode
+    ?`🎁 <strong>Cliente tem ${Math.max(s.disponiveis,1)} massagem(ns) grátis</strong> <span style="color:var(--text-lt)">(${s.contadas} massagens no cartão)</span>`
+    :`⭐ Cartão fidelidade: <strong>${s.progresso}/${s.meta}</strong> — faltam ${s.meta-s.progresso} para a grátis`;
+  wrap.style.display=pode?'':'none';
+  if(!pode&&chk) chk.checked=false;
+  box.style.display='';
+  fidChkChange();
+}
+function fidChkChange(){
+  const on=!!document.getElementById('rv-fid-chk')?.checked;
+  const info=document.getElementById('rv-fid-info'); if(info) info.style.display=on?'block':'none';
+  const pc=document.getElementById('rv-preco-custom');
+  const usaPac=!!document.getElementById('rv-pacote')?.value;
+  if(pc){ pc.disabled=on||usaPac; if(on) pc.value=''; }
+}
+
 // ── Pacotes pré-pagos ─────────────────────────────────────────────────────────
 let _pacModelos=[], _pacVendidos=[];
 const _hojeLocal=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);};
@@ -2325,7 +2425,7 @@ async function excluirPacote(id){
 }
 // Reserva: lista pacotes ativos do cliente para a massagem selecionada
 let _pacoteAtualReserva=null, _pacTimer=null, _pacLista=[];
-function refreshPacoteBox(){ clearTimeout(_pacTimer); _pacTimer=setTimeout(_refreshPacoteBox,250); }
+function refreshPacoteBox(){ clearTimeout(_pacTimer); _pacTimer=setTimeout(()=>{_refreshPacoteBox();refreshFidBox();},300); }
 async function _refreshPacoteBox(){
   const box=document.getElementById('rv-pacote-box'); const sel=document.getElementById('rv-pacote'); if(!box||!sel) return;
   const isMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
@@ -2354,7 +2454,7 @@ function pacoteSelChange(){
   if(pk&&ms&&parseInt(ms.value)!==pk.massagem_id){ ms.value=pk.massagem_id; if(typeof autoFillHoraFim==='function') autoFillHoraFim(); }
   const info=document.getElementById('rv-pacote-info'); if(info) info.style.display=usa?'block':'none';
   const pc=document.getElementById('rv-preco-custom');
-  if(pc){ pc.disabled=usa; if(usa) pc.value=''; }
+  if(pc){ pc.disabled=usa||!!document.getElementById('rv-fid-chk')?.checked; if(usa) pc.value=''; }
 }
 
 async function loadAlugueis(){
@@ -2447,6 +2547,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     <option value="cancelada"${r.status==='cancelada'?' selected':''}>Cancelada</option>
   </select></div>`:'';
   _pacoteAtualReserva=r?.pacote_cliente_id||null;
+  _fidResgateAtual=!!r?.fidelidade_resgate; _fidReservaId=r?.id||null;
   // inicializa lista de bebidas
   try{ _drinks = r?.bebida ? JSON.parse(r.bebida) : []; }catch(e){ _drinks=[]; }
   openModal(r?`Reserva #${r.id}`:'Nova Reserva',
@@ -2523,6 +2624,13 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <select id="rv-pacote" onchange="pacoteSelChange()"><option value="">—</option></select>
         <small id="rv-pacote-outros" style="color:var(--text-lt);font-size:.78rem;display:block"></small>
         <small id="rv-pacote-info" style="display:none;color:#6d28d9;font-size:.8rem;margin-top:4px">Sessão já paga no pacote — lance pagamento só de bebidas/extras. Repasse calculado sobre o preço de tabela.</small>
+      </div>
+      <div class="field full" id="rv-fid-box" style="display:none;padding:10px 12px;background:#fffbea;border:1.5px solid #f0d36b;border-radius:8px">
+        <div id="rv-fid-label" style="font-size:.88rem"></div>
+        <label id="rv-fid-chk-wrap" style="display:none;margin-top:8px;cursor:pointer;align-items:center;gap:8px">
+          <input type="checkbox" id="rv-fid-chk" onchange="fidChkChange()" style="width:16px;height:16px;vertical-align:middle"${r?.fidelidade_resgate?' checked':''}>
+          <span style="font-weight:600;color:#8a6d00">Usar a massagem grátis nesta sessão</span></label>
+        <small id="rv-fid-info" style="display:none;color:#8a6d00;font-size:.8rem;margin-top:4px">Massagem sem cobrança (R$ 0). A massagista recebe o repasse normal sobre o preço de tabela. Bebidas/extras são cobrados normalmente.</small>
       </div>
       <div class="field full"><label>Recepcionista <span class="required">*</span></label>
         <select id="rv-recep">
@@ -2947,8 +3055,11 @@ async function saveReserva(id){
     const _prof2Val=document.getElementById('rv-prof2')?.value;
     const profissional_id_2=(_prof2Sec?.style.display!=='none'&&_prof2Val)?parseInt(_prof2Val)||null:null;
     const pacote_cliente_id=tipoMass?(parseInt(document.getElementById('rv-pacote')?.value)||null):null;
+    const _fidBox=document.getElementById('rv-fid-box');
+    const fidelidade_resgate=tipoMass&&_fidBox?.style.display!=='none'&&!!document.getElementById('rv-fid-chk')?.checked;
+    if(fidelidade_resgate&&pacote_cliente_id) throw new Error('Escolha pacote OU massagem grátis da fidelidade, não os dois');
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,pacote_cliente_id,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,pacote_cliente_id,fidelidade_resgate,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     if(_saveBtn){_saveBtn.dataset.saving='';_saveBtn.disabled=false;}
@@ -3221,7 +3332,7 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
       <td><strong>${esc(nome)}</strong>${nomeCompleto?'<br><small style="color:var(--text-lt);font-weight:400">'+esc(nomeCompleto)+'</small>':''}</td>
       ${isMassagem?`<td class="ctr">${r.duracao}min</td><td class="num">${fmtMoeda(r.preco_unitario)}</td>`:''}
       <td class="ctr" style="${_dashDate&&!isMassagem&&r.id?'cursor:pointer;color:var(--cel);font-weight:700;text-decoration:underline':''}" ${_dashDate&&!isMassagem&&r.id?`onclick="showProfDetalheModal(${r.id},'${esc(nome).replace(/'/g,"\'")}','${_dashDate}')"`:""}>${atend}</td>
-      <td class="num"${pacDescRow>0?` title="Inclui sessões de pacote: tabela ${fmtMoeda(massagens)} (base do repasse)"`:''}>${fmtMoeda(massagensReal)}${pacDescRow>0?' 🎟':''}</td>
+      <td class="num"${pacDescRow>0?` title="Inclui sessões grátis/pacote: tabela ${fmtMoeda(massagens)} (base do repasse)"`:''}>${fmtMoeda(massagensReal)}${pacDescRow>0?' 🎁':''}</td>
       <td class="num" style="${bebidas>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${bebidas>0?fmtMoeda(bebidas):'—'}</td>
       ${showMultas?`<td class="num" style="${parseFloat(r.total_multas||0)>0?'color:var(--red);font-weight:600':'color:var(--text-lt)'}">${parseFloat(r.total_multas||0)>0?fmtMoeda(r.total_multas):'—'}</td>`:''}
       ${showAlugueis?`<td class="num" style="${alugPerRow>0?'color:#a05c10;font-weight:600':'color:var(--text-lt)'}">${alugPerRow>0?fmtMoeda(alugPerRow):'—'}</td>`:''}
@@ -3388,15 +3499,20 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
   el.innerHTML=html;
 }
 
-async function loadDashMensalMassagista(){
+async function loadDashMensalMassagista(periodo){
   const mes=document.getElementById('dash-mm-mes').value;
   const ano=document.getElementById('dash-mm-ano').value;
+  const de=document.getElementById('dash-mm-de')?.value, ate=document.getElementById('dash-mm-ate')?.value;
   const el=document.getElementById('dash-mm-body');
+  if(periodo&&(!de||!ate)){ toast('Informe as datas De e Até','err'); return; }
+  if(periodo&&ate<de){ toast('Data final menor que a inicial','err'); return; }
   el.innerHTML='<div class="spinner"></div>';
   const cid=cidParam();
+  const qs=periodo?`data_inicio=${de}&data_fim=${ate}`:`mes=${mes}&ano=${ano}`;
   try{
-    const data=await api('GET',`/dashboard/massagista-mensal?mes=${mes}&ano=${ano}`+(cid?'&'+cid:''));
+    const data=await api('GET',`/dashboard/massagista-mensal?${qs}`+(cid?'&'+cid:''));
     renderDashTable(data,'dash-mm-body','massagista');
+    if(periodo) el.insertAdjacentHTML('afterbegin',`<div style="margin-bottom:10px;font-weight:700;color:var(--cel)">📅 Período: ${de.split('-').reverse().join('/')} a ${ate.split('-').reverse().join('/')}</div>`);
   }catch(e){el.innerHTML=`<p style="color:var(--red);padding:20px">${e.message}</p>`}
 }
 

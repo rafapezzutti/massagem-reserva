@@ -383,6 +383,17 @@ async function initDB() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_pacotes_cliente_clinica ON pacotes_cliente(clinica_id)').catch(()=>{});
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pacote_cliente_id INTEGER`).catch(()=>{});
 
+  // 3q. Cartão fidelidade (a cada N massagens, 1 grátis)
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS fidelidade_resgate BOOLEAN NOT NULL DEFAULT false`).catch(()=>{});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fidelidade_config (
+      clinica_id  INTEGER PRIMARY KEY REFERENCES clinicas(id),
+      ativo       INTEGER NOT NULL DEFAULT 0,
+      meta        INTEGER NOT NULL DEFAULT 10,
+      data_inicio TEXT
+    )
+  `).catch(e=>console.error('fidelidade_config',e.message));
+
   // 3o. Estoque
   await pool.query(`
     CREATE TABLE IF NOT EXISTS estoque (
@@ -1186,6 +1197,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     }
     const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, null, 'confirmada');
     if (pacoteId) req.body.preco_custom = null; // sessão de pacote: base do repasse = preço de tabela
+    const fidResgate = await validarResgateFidelidade(cid, req.body, massagem_id, null, 'confirmada');
+    if (fidResgate) req.body.preco_custom = null; // grátis da fidelidade: repasse sobre preço de tabela
     const nova = await qOne(
       'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,tem_brinde,valor_brinde,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
@@ -1204,7 +1217,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
         : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
       await gerarDespesasCartao(cid, nova.id, data, cliente_nome.trim(), pagamentos_json, svcVal);
     }
-    await qRun('UPDATE reservas SET pacote_cliente_id=$1 WHERE id=$2', [pacoteId, nova.id]);
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2 WHERE id=$3', [pacoteId, fidResgate, nova.id]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -1252,6 +1265,8 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     }
     const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, id, status);
     if (pacoteId) req.body.preco_custom = null;
+    const fidResgate = await validarResgateFidelidade(cid, req.body, massagem_id, id, status);
+    if (fidResgate) req.body.preco_custom = null;
     await qRun(
       'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,tem_brinde=$22,valor_brinde=$23,profissional_id_2=$24 WHERE id=$25 AND clinica_id=$26',
       [data, hora_inicio, hora_fim, quarto_id, pid, massagem_id||null, aluguel_id||null,
@@ -1273,7 +1288,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       // sem pagamentos_json: remove despesa de cartão existente
       await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`,[id,cid]).catch(()=>{});
     }
-    await qRun('UPDATE reservas SET pacote_cliente_id=$1 WHERE id=$2 AND clinica_id=$3', [pacoteId, id, cid]);
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2 WHERE id=$3 AND clinica_id=$4', [pacoteId, fidResgate, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -1335,11 +1350,20 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
 app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { mes, ano } = req.query;
-    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
-    const proximo = new Date(parseInt(ano), parseInt(mes), 1); // mes is 1-based, Date uses 0-based, so this gives 1st of next month
-    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
+    const { mes, ano, data_inicio, data_fim } = req.query;
+    let inicio, fim;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(data_inicio||'') && /^\d{4}-\d{2}-\d{2}$/.test(data_fim||'')) {
+      // período livre: fim inclusivo → usa o dia seguinte como limite exclusivo
+      if (data_fim < data_inicio) throw new Error('Data final menor que a inicial');
+      inicio = data_inicio;
+      const f = new Date(data_fim + 'T12:00:00Z'); f.setUTCDate(f.getUTCDate() + 1);
+      fim = f.toISOString().split('T')[0];
+    } else {
+      if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+      inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
+      const proximo = new Date(parseInt(ano), parseInt(mes), 1); // mes is 1-based, Date uses 0-based, so this gives 1st of next month
+      fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
+    }
     const rows = await q(`
       SELECT
         p.id,
@@ -1349,8 +1373,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
           + COALESCE(MAX(duo.qtd_ativas),0)                                              AS atendimentos,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN ((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
-            ELSE  (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
+            THEN ((CASE WHEN r.fidelidade_resgate THEN 0 WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  (CASE WHEN r.fidelidade_resgate THEN 0 WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1366,8 +1390,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
         -- pacote: diferença entre preço de tabela (base do repasse) e a cota efetivamente paga
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND r.pacote_cliente_id IS NOT NULL THEN
-          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND (r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate) THEN
+          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - (CASE WHEN r.fidelidade_resgate THEN 0 ELSE COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) END)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
         ELSE 0 END), 0) + COALESCE(MAX(duo.total_pacote_desc_duo),0)                   AS total_pacote_desc,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL THEN COALESCE(al.valor,0)/2.0 ELSE COALESCE(al.valor,0) END
@@ -1391,13 +1415,13 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
                COUNT(CASE WHEN rd.status = 'confirmada' THEN 1 END)                              AS qtd_confirmadas,
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 ((CASE WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
+                 ((CASE WHEN rd.fidelidade_resgate THEN 0 WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) / 2.0
                ELSE 0 END), 0)                                                                   AS total_massagens_duo,
-               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND rd.pacote_cliente_id IS NOT NULL THEN
-                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0)) / 2.0
+               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND (rd.pacote_cliente_id IS NOT NULL OR rd.fidelidade_resgate) THEN
+                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - (CASE WHEN rd.fidelidade_resgate THEN 0 ELSE COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) END)) / 2.0
                ELSE 0 END), 0)                                                                   AS total_pacote_desc_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL AND rd.pagamento='Acerto' THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_acerto_duo
@@ -1431,10 +1455,10 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     `, [cid, inicio, fim]);
     const pagByMethod = await q(`
       SELECT
-        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
+        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+          (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
         ELSE 0 END), 0) AS total
       FROM reservas r
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1445,9 +1469,9 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
     const pagByProf = await q(`
       SELECT
         COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
+        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(*) AS qtd,
-        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
       FROM reservas r
       LEFT JOIN profissionais p ON p.id = r.profissional_id
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1474,8 +1498,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         -- Total exibição: regular=preço cheio, duo=price/2 por massagista
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL
-            THEN ((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
-            ELSE  (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
+            THEN ((CASE WHEN r.fidelidade_resgate THEN 0 WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END) / 2.0
+            ELSE  (CASE WHEN r.fidelidade_resgate THEN 0 WHEN r.pacote_cliente_id IS NOT NULL THEN COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) ELSE GREATEST(COALESCE(r.preco_custom,m.preco,0),0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + CASE WHEN COALESCE(r.pagamento,'') != 'Acerto' THEN COALESCE(al.valor,0) ELSE 0 END
           END
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_duo),0)                                               AS total,
@@ -1492,8 +1516,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
         ELSE 0 END), 0)
           + COALESCE(MAX(duo.total_massagens_duo),0)                                     AS total_massagens_bruto,
         -- pacote: diferença entre preço de tabela (base do repasse) e a cota efetivamente paga
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND r.pacote_cliente_id IS NOT NULL THEN
-          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
+        COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.massagem_id IS NOT NULL AND (r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate) THEN
+          (GREATEST(COALESCE(r.preco_custom,m.preco,0),0) - (CASE WHEN r.fidelidade_resgate THEN 0 ELSE COALESCE(pc.valor_pago/NULLIF(pc.qtd_total,0),0) END)) * (CASE WHEN r.profissional_id_2 IS NOT NULL THEN 0.5 ELSE 1 END)
         ELSE 0 END), 0) + COALESCE(MAX(duo.total_pacote_desc_duo),0)                   AS total_pacote_desc,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' AND r.aluguel_id IS NOT NULL THEN
           CASE WHEN r.profissional_id_2 IS NOT NULL THEN COALESCE(al.valor,0)/2.0 ELSE COALESCE(al.valor,0) END
@@ -1519,13 +1543,13 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
                COUNT(CASE WHEN rd.status = 'concluida'  THEN 1 END)                              AS qtd_concluidas,
                -- 2a massagista: total e massagens_bruto = price/2 + aluguel/2 para duo
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' THEN
-                 ((CASE WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
+                 ((CASE WHEN rd.fidelidade_resgate THEN 0 WHEN rd.pacote_cliente_id IS NOT NULL THEN COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) ELSE GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) END) + COALESCE(rd.preco_bebida,0) + COALESCE(rd.multa_valor,0) + CASE WHEN COALESCE(rd.pagamento,'') != 'Acerto' THEN COALESCE(ald.valor,0) ELSE 0 END) / 2.0
                ELSE 0 END), 0)                                                                   AS total_duo,
                COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL THEN
                  GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) / 2.0
                ELSE 0 END), 0)                                                                   AS total_massagens_duo,
-               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND rd.pacote_cliente_id IS NOT NULL THEN
-                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0)) / 2.0
+               COALESCE(SUM(CASE WHEN rd.status != 'cancelada' AND rd.massagem_id IS NOT NULL AND (rd.pacote_cliente_id IS NOT NULL OR rd.fidelidade_resgate) THEN
+                 (GREATEST(COALESCE(rd.preco_custom, md.preco, 0),0) - (CASE WHEN rd.fidelidade_resgate THEN 0 ELSE COALESCE(pcd.valor_pago/NULLIF(pcd.qtd_total,0),0) END)) / 2.0
                ELSE 0 END), 0)                                                                   AS total_pacote_desc_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_duo,
                COALESCE(SUM(CASE WHEN rd.status!='cancelada' AND rd.aluguel_id IS NOT NULL AND rd.pagamento='Acerto' THEN COALESCE(ald.valor,0)/2.0 ELSE 0 END),0) AS total_alugueis_acerto_duo
@@ -1559,10 +1583,10 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
     `, [cid, data]);
     const pagByMethod = await q(`
       SELECT
-        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
+        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
         COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
+          (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
         ELSE 0 END), 0) AS total
       FROM reservas r
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -1573,9 +1597,9 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
     const pagByProf = await q(`
       SELECT
         COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
+        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
         COUNT(*) AS qtd,
-        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
+        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
       FROM reservas r
       LEFT JOIN profissionais p ON p.id = r.profissional_id
       LEFT JOIN massagens m ON m.id = r.massagem_id
@@ -2292,7 +2316,7 @@ app.get('/api/despesas/fluxo-caixa', requireAuth, (req, res) =>
              CASE
                WHEN r.aluguel_id IS NOT NULL AND r.pagamento='Acerto' THEN 0
                WHEN r.pagamento IS NOT NULL AND r.pagamento ~ '^[0-9]' THEN r.pagamento::numeric
-               ELSE (CASE WHEN r.pacote_cliente_id IS NOT NULL THEN 0 ELSE COALESCE(m.preco, 0) END)
+               ELSE (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco, 0) END)
                   + COALESCE(r.preco_bebida, 0)
                   + COALESCE(r.multa_valor, 0)
                   + COALESCE(al.valor, 0)
@@ -2379,7 +2403,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       pool.query(
         `SELECT r.hora_inicio, r.hora_fim, r.status, r.cliente_nome,
                 r.pagamento, r.preco_bebida, r.multa_valor, r.bebida,
-                r.preco_custom, r.profissional_id_2, r.pacote_cliente_id,
+                r.preco_custom, r.profissional_id_2, r.pacote_cliente_id, r.fidelidade_resgate,
                 m.nome AS massagem_nome, m.preco AS massagem_preco,
                 al.nome AS aluguel_nome, al.valor AS aluguel_valor,
                 p.nome AS profissional_nome,
@@ -2422,7 +2446,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
       const totalNetRepasse = Math.max(0, total - valorBrinde);
       const isDuo = !!r.profissional_id_2;
       let repasse = 0;
-      if (r.pacote_cliente_id) {
+      if (r.pacote_cliente_id || r.fidelidade_resgate) {
         // Sessão de pacote: massagem já paga na venda do pacote; repasse sobre preço de tabela
         total = parseFloat(r.preco_bebida || 0) + parseFloat(r.multa_valor || 0);
         if (r.status !== 'cancelada') repasse = Math.round(parseFloat(r.massagem_preco || 0) * (isDuo ? 0.25 : repassePct) * 100) / 100;
@@ -2441,7 +2465,7 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         hora_fim:    r.hora_fim,
         status:      r.status,
         cliente:     r.cliente_nome,
-        servico:     (r.massagem_nome || r.aluguel_nome || '—') + (r.pacote_cliente_id ? ' (📦 pacote)' : ''),
+        servico:     (r.massagem_nome || r.aluguel_nome || '—') + (r.fidelidade_resgate ? ' (⭐ grátis fidelidade)' : r.pacote_cliente_id ? ' (📦 pacote)' : ''),
         tipo:        r.aluguel_valor ? 'aluguel' : 'massagem',
         profissional:r.profissional_nome || r.profissional_externo || '—',
         profissional2: r.profissional_nome_2 || null,
@@ -2484,6 +2508,84 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
         liquido:  Math.round((totReceita - totRepasse - totDespesas) * 100) / 100
       }
     };
+  }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CARTÃO FIDELIDADE — a cada N massagens (qualquer tipo), 1 grátis
+// Cliente identificado pelos 8 últimos dígitos do telefone (ou pelo nome, sem telefone)
+// ═══════════════════════════════════════════════════════════════════════════════
+const FID_KEY = a => `CASE WHEN length(regexp_replace(COALESCE(${a}.cliente_telefone,''),'[^0-9]','','g')) >= 8
+  THEN right(regexp_replace(${a}.cliente_telefone,'[^0-9]','','g'), 8)
+  ELSE 'n:' || lower(trim(${a}.cliente_nome)) END`;
+function fidKeyJS(nome, tel) {
+  const d = String(tel || '').replace(/\D/g, '');
+  if (d.length >= 8) return d.slice(-8);
+  const n = String(nome || '').trim().toLowerCase();
+  return n ? 'n:' + n : null;
+}
+const hojeSP = () => new Date(Date.now() - 3*3600*1000).toISOString().split('T')[0];
+async function fidConfig(cid) {
+  const c = await qOne('SELECT * FROM fidelidade_config WHERE clinica_id=$1', [cid]);
+  return { ativo: c ? !!c.ativo : false, meta: c?.meta || 10, data_inicio: c?.data_inicio || null };
+}
+// Massagens que contam: não canceladas, já realizadas (data <= hoje), a partir da data de início, que não sejam o próprio brinde
+async function fidSaldo(cid, nome, tel, excluirReservaId) {
+  const cfg = await fidConfig(cid);
+  const key = fidKeyJS(nome, tel);
+  if (!key) return { ...cfg, contadas: 0, ganhos: 0, usados: 0, disponiveis: 0, progresso: 0 };
+  const r = await qOne(`
+    SELECT
+      COUNT(*) FILTER (WHERE NOT r.fidelidade_resgate AND r.data <= $3 AND ($4::text IS NULL OR r.data >= $4))::int AS contadas,
+      COUNT(*) FILTER (WHERE r.fidelidade_resgate AND ($5::int IS NULL OR r.id != $5))::int AS usados
+    FROM reservas r
+    WHERE r.clinica_id=$1 AND r.massagem_id IS NOT NULL AND r.status != 'cancelada' AND (${FID_KEY('r')}) = $2`,
+    [cid, key, hojeSP(), cfg.data_inicio, excluirReservaId || null]);
+  const ganhos = Math.floor(r.contadas / cfg.meta);
+  return { ...cfg, contadas: r.contadas, ganhos, usados: r.usados, disponiveis: Math.max(0, ganhos - r.usados), progresso: r.contadas % cfg.meta };
+}
+async function validarResgateFidelidade(cid, body, massagemId, reservaId, status) {
+  const quer = body.fidelidade_resgate === true || body.fidelidade_resgate === 'true';
+  if (!quer) return false;
+  if (!massagemId) throw new Error('Massagem grátis da fidelidade só vale para massagem');
+  if (status === 'cancelada') return true;
+  const s = await fidSaldo(cid, body.cliente_nome, body.cliente_telefone, reservaId);
+  if (!s.ativo) throw new Error('Cartão fidelidade está desativado');
+  if (s.disponiveis <= 0) throw new Error(`Cliente ainda não tem massagem grátis (${s.progresso}/${s.meta})`);
+  return true;
+}
+
+app.get('/api/fidelidade/config', requireAuth, (req, res) =>
+  send(res, async () => fidConfig(getClinicaId(req))));
+app.put('/api/fidelidade/config', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const meta = Math.max(1, parseInt(req.body.meta) || 10);
+    const ativo = req.body.ativo ? 1 : 0;
+    const di = /^\d{4}-\d{2}-\d{2}$/.test(req.body.data_inicio || '') ? req.body.data_inicio : null;
+    await qRun(`INSERT INTO fidelidade_config (clinica_id, ativo, meta, data_inicio) VALUES ($1,$2,$3,$4)
+                ON CONFLICT (clinica_id) DO UPDATE SET ativo=$2, meta=$3, data_inicio=$4`, [cid, ativo, meta, di]);
+    return fidConfig(cid);
+  }));
+app.get('/api/fidelidade/cliente', requireAuth, (req, res) =>
+  send(res, async () => fidSaldo(getClinicaId(req), req.query.nome, req.query.telefone, parseInt(req.query.excluir_reserva) || null)));
+app.get('/api/fidelidade/clientes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const cfg = await fidConfig(cid);
+    const rows = await q(`
+      SELECT ${FID_KEY('r')} AS chave,
+        (array_agg(r.cliente_nome ORDER BY r.data DESC, r.id DESC))[1] AS cliente_nome,
+        (array_agg(r.cliente_telefone ORDER BY (r.cliente_telefone IS NULL), r.data DESC))[1] AS cliente_telefone,
+        COUNT(*) FILTER (WHERE NOT r.fidelidade_resgate AND r.data <= $2 AND ($3::text IS NULL OR r.data >= $3))::int AS contadas,
+        COUNT(*) FILTER (WHERE r.fidelidade_resgate)::int AS usados,
+        MAX(r.data) FILTER (WHERE r.data <= $2) AS ultima_visita
+      FROM reservas r
+      WHERE r.clinica_id=$1 AND r.massagem_id IS NOT NULL AND r.status != 'cancelada'
+      GROUP BY 1`, [cid, hojeSP(), cfg.data_inicio]);
+    return rows.filter(r => r.contadas > 0 || r.usados > 0).map(r => {
+      const ganhos = Math.floor(r.contadas / cfg.meta);
+      return { ...r, ganhos, disponiveis: Math.max(0, ganhos - r.usados), progresso: r.contadas % cfg.meta, meta: cfg.meta };
+    }).sort((a, b) => b.disponiveis - a.disponiveis || b.progresso - a.progresso || b.contadas - a.contadas);
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════════
