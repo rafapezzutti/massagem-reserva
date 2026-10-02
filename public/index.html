@@ -1046,7 +1046,16 @@ function openModal(title,bodyHtml,footerHtml){
   document.getElementById('modal-body').innerHTML=bodyHtml;
   document.getElementById('modal-footer').innerHTML=footerHtml;
   document.getElementById('modal-overlay').classList.add('open');
+  // Campos de senha em modais: o navegador não deve preencher sozinho com a senha salva de quem está logado.
+  // Só vale como "nova senha" o que foi digitado de fato (campo focado pelo usuário).
+  [0,150,600,1500].forEach(t=>setTimeout(()=>document.querySelectorAll('#modal-body input[type=password]').forEach(el=>{
+    el.setAttribute('autocomplete','new-password');
+    if(!el.dataset.typed&&el.value){ el.value=''; el.dispatchEvent(new Event('input')); }
+  }),t));
 }
+document.addEventListener('focusin',e=>{ const el=e.target; if(el&&el.matches&&el.matches('#modal-body input[type=password]')) el.dataset.typed='1'; });
+// valor de um campo de senha só se o usuário realmente mexeu nele (ignora preenchimento automático do navegador)
+function pwdVal(id){ const el=document.getElementById(id); return el&&el.dataset.typed?el.value:''; }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open')}
 function closeModalOnBg(e){if(e.target===document.getElementById('modal-overlay'))closeModal()}
 
@@ -4157,8 +4166,8 @@ async function loadClinicaAdmins(clinicaId){
 async function addClinicaAdmin(clinicaId){
   const nome=document.getElementById('cl-adm-nome')?.value.trim();
   const email=document.getElementById('cl-adm-email')?.value.trim();
-  const senha=document.getElementById('cl-adm-senha')?.value;
-  const senha2=document.getElementById('cl-adm-senha2')?.value;
+  const senha=pwdVal('cl-adm-senha');
+  const senha2=pwdVal('cl-adm-senha2');
   if(!nome||!email||!senha)return toast('Nome, email e senha são obrigatórios','err');
   if(senha!==senha2)return toast('As senhas não coincidem','err');
   try{
@@ -4192,8 +4201,8 @@ function editClinicaAdmin(clinicaId,adminId,nomeAtual,emailAtual,ativoAtual){
 async function saveClinicaAdmin(clinicaId,adminId){
   const nome=document.getElementById('edadm-nome')?.value.trim();
   const email=document.getElementById('edadm-email')?.value.trim();
-  const senha=document.getElementById('edadm-senha')?.value;
-  const senha2=document.getElementById('edadm-senha2')?.value;
+  const senha=pwdVal('edadm-senha');
+  const senha2=pwdVal('edadm-senha2');
   const ativo=parseInt(document.getElementById('edadm-ativo')?.value)||1;
   if(!nome||!email)return toast('Nome e email são obrigatórios','err');
   if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
@@ -4217,8 +4226,8 @@ async function deleteClinicaAdmin(clinicaId,adminId,nome){
 async function saveClinica(id){
   const nome=document.getElementById('cl-nome').value.trim();
   const email=document.getElementById('cl-email').value.trim();
-  const senha=document.getElementById('cl-senha').value;
-  const senha2=document.getElementById('cl-senha2').value;
+  const senha=pwdVal('cl-senha');
+  const senha2=pwdVal('cl-senha2');
   const telefone=document.getElementById('cl-tel').value.trim();
   const cnpj=document.getElementById('cl-cnpj').value.trim()||null;
   // Monta endereço estruturado como JSON
@@ -4323,8 +4332,8 @@ async function saveGerente(id){
   const nome=document.getElementById('gr-nome').value.trim();
   const email=document.getElementById('gr-email').value.trim();
   const clinica_id=document.getElementById('gr-clinica').value;
-  const senha=document.getElementById('gr-senha').value;
-  const senha2=document.getElementById('gr-senha2').value;
+  const senha=pwdVal('gr-senha');
+  const senha2=pwdVal('gr-senha2');
   if(!nome||!email)return toast('Nome e email sao obrigatorios','err');
   if(!clinica_id)return toast('Selecione a clinica do gerente','err');
   if(!id&&!senha)return toast('Senha e obrigatoria','err');
@@ -4396,8 +4405,8 @@ function openAdminModal(id){
 async function saveAdmin(id){
   const nome=document.getElementById('ad-nome').value.trim();
   const email=document.getElementById('ad-email').value.trim();
-  const senha=document.getElementById('ad-senha').value;
-  const senha2=document.getElementById('ad-senha2').value;
+  const senha=pwdVal('ad-senha');
+  const senha2=pwdVal('ad-senha2');
   if(!nome||!email)return toast('Nome e email são obrigatórios','err');
   if(!id&&!senha)return toast('Senha é obrigatória','err');
   if(senha&&senha!==senha2)return toast('As senhas não coincidem','err');
@@ -4539,8 +4548,8 @@ async function autOpenAdminModal(id){
 }
 
 function checkAutPwd(){
-  const s1=document.getElementById('aut-adm-senha').value;
-  const s2=document.getElementById('aut-adm-senha2').value;
+  const s1=pwdVal('aut-adm-senha');
+  const s2=pwdVal('aut-adm-senha2');
   const msg=document.getElementById('aut-pwd-msg');
   const btn=document.getElementById('aut-adm-save-btn');
   if(!s1&&!s2){msg.style.display='none';if(btn)btn.disabled=false;return;}
@@ -4555,8 +4564,8 @@ function checkAutPwd(){
 }
 
 async function saveAutAdm(id){
-  const s1=document.getElementById('aut-adm-senha').value;
-  const s2=document.getElementById('aut-adm-senha2').value;
+  const s1=pwdVal('aut-adm-senha');
+  const s2=pwdVal('aut-adm-senha2');
   if(s1&&s1!==s2){toast('As senhas não conferem','erro');return;}
   if(!id&&!s1){toast('Senha obrigatória para novo cadastro','erro');return;}
   const body={
