@@ -83,15 +83,26 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 }
 #topbar .logo{font-size:1rem;font-weight:700;white-space:nowrap}
 #topbar .logo span{opacity:.7;font-weight:400}
-#hamburger{display:none;background:none;border:none;color:#fff;font-size:1.4rem;padding:4px 8px}
-#nav{display:flex;gap:4px;flex:1;overflow-x:auto;min-width:0;scrollbar-width:none;-ms-overflow-style:none}
-.nav-btn{flex-shrink:0;
-  background:rgba(255,255,255,.15);border:none;color:#fff;
-  padding:6px 13px;border-radius:20px;font-size:.82rem;font-weight:500;
+#topbar .logo{margin-right:auto}
+#hamburger{display:block;background:none;border:none;color:#fff;font-size:1.4rem;padding:4px 8px;cursor:pointer}
+/* Menu lateral esquerdo, com rolagem própria e grupos recolhíveis */
+#nav{position:fixed;top:58px;left:0;bottom:0;width:216px;background:var(--card);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:2px;padding:8px 10px 28px;overflow-y:auto;overflow-x:hidden;z-index:90;
+  box-shadow:2px 0 8px rgba(61,90,107,.06)}
+.nav-group{display:flex;flex-direction:column;gap:2px}
+.nav-group-title{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;cursor:pointer;
+  font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-lt);padding:12px 12px 4px}
+.nav-group-title::after{content:'▾';font-size:.8rem;transition:transform .15s}
+.nav-group.collapsed .nav-group-title::after{transform:rotate(-90deg)}
+.nav-group.collapsed .nav-btn{display:none !important}
+.nav-btn{flex-shrink:0;width:100%;text-align:left;cursor:pointer;
+  background:none;border:none;color:var(--text);
+  padding:9px 12px;border-radius:8px;font-size:.88rem;font-weight:500;
   transition:background .18s;white-space:nowrap;
 }
-.nav-btn:hover{background:rgba(255,255,255,.28)}
-.nav-btn.active{background:rgba(255,255,255,.35);font-weight:700;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
+.nav-btn:hover{background:var(--cel-pale)}
+.nav-btn.active{background:var(--cel-lt);font-weight:700;box-shadow:inset 3px 0 0 var(--cel)}
+body.nav-collapsed #nav{display:none}
 
 /* Seletor de clínica (admin) + info clínica */
 #clinica-selector-wrap{display:flex;align-items:center;gap:8px}
@@ -114,7 +125,8 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 .btn-logout:hover{background:rgba(255,255,255,.3)}
 
 /* ═══ LAYOUT ═══════════════════════════════════════════════════════════════ */
-#main{max-width:1400px;margin:0 auto;padding:24px 20px 40px}
+#main{margin-left:216px;padding:24px 24px 40px}
+body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin-left:auto}
 .view{display:none}
 .view.active{display:block}
 
@@ -317,14 +329,13 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 
 /* ═══ RESPONSIVO ═══════════════════════════════════════════════════════════ */
 @media(max-width:768px){
-  #hamburger{display:block}
-  #nav{display:none;flex-direction:column;position:absolute;top:58px;left:0;right:0;background:#5a9abf;padding:12px;gap:6px;z-index:99;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-  #nav.open{display:flex}
-  .nav-btn{border-radius:8px;padding:10px 16px;text-align:left}
-  #topbar{position:relative}
+  #nav,body.nav-collapsed #nav{display:none;width:250px;max-width:82vw;z-index:99;box-shadow:4px 0 18px rgba(0,0,0,.25)}
+  #nav.open,body.nav-collapsed #nav.open{display:flex}
+  .nav-btn{padding:11px 14px}
+  #main,body.nav-collapsed #main{margin-left:0}
   .form-grid{grid-template-columns:1fr}
   .form-grid .full{grid-column:1}
-  #main{padding:16px 12px 40px}
+  #main,body.nav-collapsed #main{padding:16px 12px 40px}
   .item-grid{grid-template-columns:1fr}
   #clinica-selector{max-width:130px}
   .clinica-badge{font-size:.72rem;padding:3px 8px}
@@ -413,27 +424,45 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
     <button id="hamburger" onclick="toggleMenu()">☰</button>
     <div class="logo">💆 <span>Massagem</span> Reserva</div>
     <nav id="nav">
-      <button class="nav-btn active" id="nav-daily"  onclick="showView('daily')">📅 Hoje</button>
-      <button class="nav-btn" id="nav-monthly"         onclick="showView('monthly')">📆 Mês</button>
-      <button class="nav-btn" id="nav-quartos"         onclick="showView('quartos')">🛏 Quartos</button>
-      <button class="nav-btn" id="nav-profissionais"         onclick="showView('profissionais')">👤 Profissionais</button>
-      <button class="nav-btn" id="nav-massagens"         onclick="showView('massagens')">💆 Massagens</button>
-      <button class="nav-btn" id="nav-alugueis"      onclick="showView('alugueis')">🏷 Aluguéis</button>
-      <button class="nav-btn" id="nav-fidelidade"    onclick="showView('fidelidade')">⭐ Fidelidade</button>
-      <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
-      <button class="nav-btn" id="nav-repasse"         onclick="showView('repasse')">💸 Repasse</button>
-      <button class="nav-btn" id="nav-despesas"        onclick="showView('despesas')">🧾 Despesas</button>
-      <button class="nav-btn" id="nav-cartao"          onclick="showView('cartao')">💳 Cartões</button>
-      <button class="nav-btn" id="nav-fluxo"           onclick="showView('fluxo')">📊 Fluxo de Caixa</button>
-      <button class="nav-btn" id="nav-estoque"         onclick="showView('estoque')">📦 Estoque</button>
-      <button class="nav-btn" id="nav-dashboard"       onclick="showView('dashboard')">📊 Dashboard</button>
-      <button class="nav-btn" id="nav-admin" style="display:none" onclick="showView('admin')">⚙️ Admin</button>
-      <button class="nav-btn" id="nav-aut-daily"    style="display:none" onclick="showView('aut-daily')">📅 Hoje</button>
-      <button class="nav-btn" id="nav-aut-monthly"  style="display:none" onclick="showView('aut-monthly')">📆 Mês</button>
-      <button class="nav-btn" id="nav-aut-clientes" style="display:none" onclick="showView('aut-clientes')">👥 Clientes</button>
-      <button class="nav-btn" id="nav-aut-servicos" style="display:none" onclick="showView('aut-servicos')">💆 Serviços</button>
-      <button class="nav-btn" id="nav-aut-locais"   style="display:none" onclick="showView('aut-locais')">📍 Locais</button>
-      <button class="nav-btn" id="nav-aut-dash"     style="display:none" onclick="showView('aut-dash')">💰 Ganhos</button>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Agenda</button>
+        <button class="nav-btn active" id="nav-daily" onclick="showView('daily')">📅 Hoje</button>
+        <button class="nav-btn" id="nav-monthly" onclick="showView('monthly')">📆 Mês</button>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Clientes</button>
+        <button class="nav-btn" id="nav-fidelidade" onclick="showView('fidelidade')">⭐ Fidelidade</button>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Cadastros</button>
+        <button class="nav-btn" id="nav-quartos" onclick="showView('quartos')">🛏 Quartos</button>
+        <button class="nav-btn" id="nav-profissionais" onclick="showView('profissionais')">👤 Profissionais</button>
+        <button class="nav-btn" id="nav-massagens" onclick="showView('massagens')">💆 Massagens</button>
+        <button class="nav-btn" id="nav-alugueis" onclick="showView('alugueis')">🏷 Aluguéis</button>
+        <button class="nav-btn" id="nav-recepcionistas" onclick="showView('recepcionistas')">🗂 Recepcionistas</button>
+        <button class="nav-btn" id="nav-estoque" onclick="showView('estoque')">📦 Estoque</button>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Financeiro</button>
+        <button class="nav-btn" id="nav-dashboard" onclick="showView('dashboard')">📊 Dashboard</button>
+        <button class="nav-btn" id="nav-fluxo" onclick="showView('fluxo')">📊 Fluxo de Caixa</button>
+        <button class="nav-btn" id="nav-despesas" onclick="showView('despesas')">🧾 Despesas</button>
+        <button class="nav-btn" id="nav-cartao" onclick="showView('cartao')">💳 Cartões</button>
+        <button class="nav-btn" id="nav-repasse" onclick="showView('repasse')">💸 Repasse</button>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Sistema</button>
+        <button class="nav-btn" id="nav-admin" style="display:none" onclick="showView('admin')">⚙️ Admin</button>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-title" onclick="this.parentNode.classList.toggle('collapsed')">Autônoma</button>
+        <button class="nav-btn" id="nav-aut-daily"    style="display:none" onclick="showView('aut-daily')">📅 Hoje</button>
+        <button class="nav-btn" id="nav-aut-monthly"  style="display:none" onclick="showView('aut-monthly')">📆 Mês</button>
+        <button class="nav-btn" id="nav-aut-clientes" style="display:none" onclick="showView('aut-clientes')">👥 Clientes</button>
+        <button class="nav-btn" id="nav-aut-servicos" style="display:none" onclick="showView('aut-servicos')">💆 Serviços</button>
+        <button class="nav-btn" id="nav-aut-locais"   style="display:none" onclick="showView('aut-locais')">📍 Locais</button>
+        <button class="nav-btn" id="nav-aut-dash"     style="display:none" onclick="showView('aut-dash')">💰 Ganhos</button>
+      </div>
     </nav>
     <div id="clinica-selector-wrap" style="display:none">
       <select id="clinica-selector" onchange="onClinicaSelect(this.value)">
@@ -1258,7 +1287,28 @@ function showView(v){
   else if(v==='fluxo') showFluxoTab('diario');
   else if(v==='estoque') loadEstoque();
 }
-function toggleMenu(){document.getElementById('nav').classList.toggle('open')}
+function toggleMenu(){
+  // celular: abre/fecha o menu por cima da tela; computador: recolhe/mostra a lateral
+  if(window.matchMedia('(max-width:768px)').matches){ document.getElementById('nav').classList.toggle('open'); return; }
+  const c=document.body.classList.toggle('nav-collapsed');
+  try{ localStorage.setItem('mr_nav_collapsed',c?'1':''); }catch(e){}
+}
+try{ if(localStorage.getItem('mr_nav_collapsed')==='1') document.body.classList.add('nav-collapsed'); }catch(e){}
+// Esconde o título do grupo quando nenhuma opção dele está liberada para o usuário
+function updateNavGroups(){
+  document.querySelectorAll('#nav .nav-group').forEach(g=>{
+    const tem=[...g.querySelectorAll('.nav-btn')].some(b=>b.style.display!=='none');
+    const d=tem?'':'none'; if(g.style.display!==d) g.style.display=d;
+  });
+}
+(function(){
+  const nav=document.getElementById('nav'); if(!nav) return;
+  new MutationObserver(ms=>{ if(ms.some(m=>m.target.classList&&m.target.classList.contains('nav-btn'))) updateNavGroups(); })
+    .observe(nav,{attributes:true,subtree:true,attributeFilter:['style']});
+  updateNavGroups();
+  // fecha o menu do celular ao tocar fora
+  document.addEventListener('click',e=>{ if(nav.classList.contains('open')&&!nav.contains(e.target)&&e.target.id!=='hamburger') nav.classList.remove('open'); });
+})();
 
 // ─── Seletor de clínica (admin) ───────────────────────────────────────────────
 async function loadClinicaSelector(){
