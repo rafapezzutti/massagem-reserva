@@ -534,28 +534,40 @@ input,select,textarea{font-family:inherit;font-size:.93rem}
 
     <!-- Cartão fidelidade -->
     <div id="view-fidelidade" class="view">
-      <div class="list-header"><h1>⭐ Cartão Fidelidade</h1></div>
-      <div class="card" style="max-width:640px;margin-bottom:20px">
-        <div class="card-body" style="padding:18px 20px">
-          <div class="form-grid">
-            <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-              <input type="checkbox" id="fid-ativo" style="width:18px;height:18px"> <span style="font-weight:700">Programa ativo</span></label></div>
-            <div class="field"><label>A cada quantas massagens ganha 1 grátis?</label><input id="fid-meta" type="number" min="1" value="10"/></div>
-            <div class="field"><label>Contar massagens a partir de</label><input id="fid-inicio" type="date"/>
-              <small style="color:var(--text-lt);font-size:.78rem">Vazio = conta todo o histórico</small></div>
+      <div class="list-header">
+        <h1>⭐ Cartão Fidelidade</h1>
+        <button class="btn btn-primary" onclick="openFidClienteModal()">＋ Cadastrar cliente</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;border:1.5px solid #f0d36b;background:#fffbea">
+        <div class="card-body" style="padding:14px 18px">
+          <div style="font-weight:700;margin-bottom:8px">Lançar massagem no cartão</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="fid-quick-tel" type="tel" inputmode="numeric" placeholder="DD - número do celular" oninput="telMaskInput(this);fidQuickLookup()" onkeydown="if(event.key==='Enter')fidQuickAdd()" style="max-width:220px;font-size:1.05rem;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"/>
+            <button class="btn btn-primary" onclick="fidQuickAdd()">＋1 massagem</button>
+            <span id="fid-quick-info" style="font-size:.88rem;color:var(--text-lt)"></span>
           </div>
-          <button class="btn btn-primary" onclick="saveFidelidadeConfig()" style="margin-top:8px">Salvar configuração</button>
-          <p style="margin-top:12px;font-size:.84rem;color:var(--text-lt)">Conta qualquer massagem já realizada (não cancelada). O cliente é identificado pelo <strong>telefone</strong> — sem telefone, pelo nome. A massagem grátis gera repasse normal para a massagista (sobre o preço de tabela) e entra como R$ 0 de receita.</p>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px">
-        <h3 style="margin:0;flex:1">👥 Clientes</h3>
-        <input id="fid-busca" type="text" placeholder="Buscar cliente ou telefone…" oninput="renderFidelidadeClientes()" style="max-width:240px"/>
+        <h3 style="margin:0;flex:1">👥 Clientes cadastrados</h3>
+        <input id="fid-busca" type="text" placeholder="Buscar telefone ou nome…" oninput="renderFidelidadeClientes()" style="max-width:240px"/>
         <select id="fid-filtro" onchange="renderFidelidadeClientes()" style="max-width:200px">
           <option value="">Todos</option><option value="disp">🎁 Com grátis disponível</option><option value="perto">🔥 Faltam até 2</option>
         </select>
       </div>
-      <div id="fid-clientes-list"><div class="spinner"></div></div>
+      <div id="fid-clientes-list" style="margin-bottom:24px"><div class="spinner"></div></div>
+      <details style="max-width:640px">
+        <summary style="cursor:pointer;font-weight:700;color:var(--text-lt)">⚙️ Configuração do programa</summary>
+        <div class="card" style="margin-top:10px"><div class="card-body" style="padding:16px 18px">
+          <div class="form-grid">
+            <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="fid-ativo" style="width:18px;height:18px"> <span style="font-weight:700">Programa ativo</span></label></div>
+            <div class="field"><label>A cada quantas massagens ganha 1 grátis?</label><input id="fid-meta" type="number" min="1" value="10"/></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveFidelidadeConfig()" style="margin-top:8px">Salvar configuração</button>
+          <p style="margin-top:12px;font-size:.84rem;color:var(--text-lt)">O cartão é identificado pelo <strong>telefone</strong> do cliente. Cada massagem é lançada pela recepção (＋1). Ao completar a meta, a massagem grátis fica disponível e é usada na reserva — a massagista recebe o repasse normal.</p>
+        </div></div>
+      </details>
     </div>
 
     <!-- Pacotes pré-pagos -->
@@ -2178,8 +2190,18 @@ function setProfTipo(tipo){
   if(cadBtn) cadBtn.className='btn '+(isCad?'btn-primary':'btn-secondary')+' btn-sm';
   if(extBtn) extBtn.className='btn '+(isCad?'btn-secondary':'btn-primary')+' btn-sm';
 }
-// ── Cartão fidelidade ─────────────────────────────────────────────────────────
-let _fidCfg={ativo:false,meta:10,data_inicio:null}, _fidClientes=[];
+// ── Telefone: máscara "DD - número" ───────────────────────────────────────────
+function telMask(v){
+  let d=String(v||'').replace(/\D/g,'');
+  if(d.length>11&&d.startsWith('55')) d=d.slice(2);
+  d=d.slice(0,11);
+  return d.length>2?d.slice(0,2)+' - '+d.slice(2):d;
+}
+function telMaskInput(el){ const m=telMask(el.value); if(el.value!==m) el.value=m; }
+const telDigits=v=>String(v||'').replace(/\D/g,'');
+
+// ── Cartão fidelidade (cadastro por telefone + carimbos manuais) ──────────────
+let _fidCfg={ativo:false,meta:10}, _fidClientes=[];
 async function loadFidelidade(){
   const cid=cidParam();
   try{
@@ -2189,55 +2211,135 @@ async function loadFidelidade(){
     ]);
     document.getElementById('fid-ativo').checked=!!_fidCfg.ativo;
     document.getElementById('fid-meta').value=_fidCfg.meta||10;
-    document.getElementById('fid-inicio').value=_fidCfg.data_inicio||'';
     renderFidelidadeClientes();
   }catch(e){toast(e.message,'err')}
 }
 async function saveFidelidadeConfig(){
-  const body={ativo:document.getElementById('fid-ativo').checked,meta:parseInt(document.getElementById('fid-meta').value)||10,
-    data_inicio:document.getElementById('fid-inicio').value||null,...cidBody()};
+  const body={ativo:document.getElementById('fid-ativo').checked,meta:parseInt(document.getElementById('fid-meta').value)||10,...cidBody()};
   try{ await api('PUT','/fidelidade/config',body); toast('Configuração salva!'); loadFidelidade(); }catch(e){toast(e.message,'err')}
 }
+function _fidPorTel(tel){ const k=telDigits(tel).slice(-8); return k.length===8?_fidClientes.find(c=>c.telefone.slice(-8)===k):null; }
 function renderFidelidadeClientes(){
   const el=document.getElementById('fid-clientes-list'); if(!el) return;
-  const busca=(document.getElementById('fid-busca')?.value||'').trim().toLowerCase();
+  const busca=(document.getElementById('fid-busca')?.value||'').trim().toLowerCase(), bd=telDigits(busca);
   const f=document.getElementById('fid-filtro')?.value||'';
-  const rows=_fidClientes.filter(c=>(!busca||(c.cliente_nome||'').toLowerCase().includes(busca)||(c.cliente_telefone||'').includes(busca))
+  const rows=_fidClientes.filter(c=>(!busca||(c.nome||'').toLowerCase().includes(busca)||(bd&&c.telefone.includes(bd)))
     &&(!f||(f==='disp'&&c.disponiveis>0)||(f==='perto'&&c.meta-c.progresso<=2)));
+  if(!_fidClientes.length){el.innerHTML='<div class="empty-day"><div class="empty-icon">⭐</div><div>Nenhum cliente cadastrado ainda. Digite o telefone acima ou clique em “＋ Cadastrar cliente”.</div></div>';return;}
   if(!rows.length){el.innerHTML='<div class="dash-empty">Nenhum cliente encontrado.</div>';return;}
-  el.innerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Cliente</th><th class="ctr">Massagens</th><th>Progresso</th><th class="ctr">🎁 Grátis disponível</th><th class="ctr">Grátis usadas</th><th class="ctr">Última visita</th></tr></thead><tbody>'
+  el.innerHTML='<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Telefone</th><th>Nome</th><th class="ctr">Massagens</th><th>Progresso</th><th class="ctr">🎁 Grátis disponível</th><th class="ctr">Grátis usadas</th><th class="ctr">Último lançamento</th><th class="ctr">Lançar</th><th></th></tr></thead><tbody>'
     +rows.map(c=>{const pct=Math.round(c.progresso/c.meta*100);
       return `<tr>
-        <td><strong>${esc(c.cliente_nome||'—')}</strong>${c.cliente_telefone?'<br><small style="color:var(--text-lt)">'+esc(c.cliente_telefone)+'</small>':''}</td>
-        <td class="ctr">${c.contadas}</td>
-        <td style="min-width:150px"><div style="display:flex;align-items:center;gap:8px">
+        <td style="white-space:nowrap"><strong>${telMask(c.telefone)}</strong></td>
+        <td>${esc(c.nome||'—')}</td>
+        <td class="ctr">${c.carimbos}</td>
+        <td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px">
           <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:#d4a017"></div></div>
           <span style="font-size:.82rem;white-space:nowrap">${c.progresso}/${c.meta}</span></div></td>
         <td class="ctr" style="font-weight:700;color:${c.disponiveis>0?'#2d7a56':'var(--text-lt)'}">${c.disponiveis>0?'🎁 '+c.disponiveis:'—'}</td>
         <td class="ctr">${c.usados||'—'}</td>
-        <td class="ctr">${c.ultima_visita?c.ultima_visita.split('-').reverse().join('/'):'—'}</td></tr>`;}).join('')
+        <td class="ctr">${c.ultimo_carimbo?c.ultimo_carimbo.split('-').reverse().join('/'):'—'}</td>
+        <td class="ctr" style="white-space:nowrap">
+          <button class="btn btn-primary btn-sm" onclick="fidCarimbo(${c.id},1)" title="Somar 1 massagem">＋1</button>
+          <button class="btn btn-secondary btn-sm" onclick="fidCarimbo(${c.id},-1)" title="Desfazer o último lançamento"${c.carimbos?'':' disabled'}>−1</button></td>
+        <td class="ctr" style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="openFidClienteModal(${c.id})" title="Editar / histórico">✏️</button></td>
+      </tr>`;}).join('')
     +'</tbody></table></div>';
 }
-// Reserva: mostra progresso e permite usar a massagem grátis
+async function fidCarimbo(id,delta){
+  const c=_fidClientes.find(x=>x.id===id); if(!c) return;
+  if(delta<0&&!confirm(`Desfazer o último lançamento de ${telMask(c.telefone)}?`)) return;
+  const cid=cidParam();
+  try{
+    const n=delta>0?await api('POST',`/fidelidade/clientes/${id}/carimbo`,{...cidBody()}):await api('DELETE',`/fidelidade/clientes/${id}/carimbo`+(cid?'?'+cid:''));
+    Object.assign(c,n); renderFidelidadeClientes(); fidQuickLookup();
+    if(delta>0) toast(n.progresso===0?`🎁 ${telMask(c.telefone)} completou ${n.meta} — ganhou 1 massagem grátis!`:`＋1 lançado: ${n.progresso}/${n.meta}`);
+    else toast('Lançamento desfeito','info');
+  }catch(e){toast(e.message,'err')}
+}
+function fidQuickLookup(){
+  const info=document.getElementById('fid-quick-info'); if(!info) return;
+  const d=telDigits(document.getElementById('fid-quick-tel')?.value);
+  if(d.length<10){ info.textContent=''; return; }
+  const c=_fidPorTel(d);
+  info.innerHTML=c?`${esc(c.nome||'Cliente')} — <strong>${c.progresso}/${c.meta}</strong>${c.disponiveis>0?' · 🎁 '+c.disponiveis+' grátis disponível':''}`:'Telefone ainda sem cartão — ao lançar, o cadastro é aberto.';
+}
+async function fidQuickAdd(){
+  const inp=document.getElementById('fid-quick-tel'); const d=telDigits(inp.value);
+  if(d.length<10) return toast('Digite o telefone com DDD','err');
+  const c=_fidPorTel(d);
+  if(!c) return openFidClienteModal(null,d,1);
+  await fidCarimbo(c.id,1); inp.value=''; fidQuickLookup(); inp.focus();
+}
+async function openFidClienteModal(id,telPre,carimbosIniciais){
+  const c=id?_fidClientes.find(x=>x.id===id):null;
+  openModal(c?'Cartão fidelidade':'Cadastrar cliente no cartão fidelidade',
+    `<div class="form-grid">
+      <div class="field"><label>Telefone (celular) <span class="required">*</span></label>
+        <input id="fc-tel" type="tel" inputmode="numeric" placeholder="DD - número" value="${telMask(c?.telefone||telPre||'')}" oninput="telMaskInput(this)"/>
+        <small style="color:var(--text-lt);font-size:.78rem">Ex.: 11 - 999991234</small></div>
+      <div class="field"><label>Nome</label><input id="fc-nome" type="text" value="${esc(c?.nome||'')}" placeholder="Opcional"/></div>
+      ${c?'':`<div class="field full"><label>Massagens que o cliente já tem no cartão</label>
+        <input id="fc-ini" type="number" min="0" value="${carimbosIniciais||0}" style="max-width:140px"/></div>`}
+    </div>
+    ${c?'<div style="font-weight:700;margin:12px 0 6px">📅 Histórico</div><div id="fc-hist"><div class="spinner"></div></div>':''}`,
+    `${c?`<button class="btn btn-danger" onclick="deleteFidCliente(${id})">🗑 Excluir cartão</button>`:''}
+     <button class="btn btn-secondary" onclick="closeModal()">Fechar</button>
+     <button class="btn btn-primary" onclick="saveFidCliente(${id||'null'})">${c?'Salvar':'Cadastrar'}</button>`);
+  setTimeout(()=>document.getElementById(telPre?'fc-nome':'fc-tel')?.focus(),50);
+  if(!c) return;
+  const cid=cidParam();
+  try{
+    const h=await api('GET',`/fidelidade/clientes/${id}/historico`+(cid?'?'+cid:''));
+    const br=d=>d.split('-').reverse().join('/');
+    const linhas=[...h.carimbos.map(k=>({d:k.data,o:k.id,t:'＋1 massagem'+(k.usuario?' · '+esc(k.usuario):'')})),
+      ...h.resgates.map(r=>({d:r.data,o:0,t:'🎁 Massagem grátis usada'+(r.massagem?' · '+esc(r.massagem):'')}))].sort((x,y)=>y.d.localeCompare(x.d)||y.o-x.o);
+    document.getElementById('fc-hist').innerHTML=linhas.length?'<div style="max-height:220px;overflow:auto"><table class="dash-table"><tbody>'
+      +linhas.map(l=>`<tr><td style="white-space:nowrap">${br(l.d)}</td><td>${l.t}</td></tr>`).join('')+'</tbody></table></div>':'<div class="dash-empty">Nenhum lançamento ainda.</div>';
+  }catch(e){ document.getElementById('fc-hist').innerHTML='<p style="color:var(--red)">'+esc(e.message)+'</p>'; }
+}
+async function saveFidCliente(id){
+  const body={telefone:document.getElementById('fc-tel').value,nome:document.getElementById('fc-nome').value.trim(),
+    carimbos_iniciais:parseInt(document.getElementById('fc-ini')?.value)||0,...cidBody()};
+  if(telDigits(body.telefone).length<10) return toast('Informe o telefone com DDD','err');
+  try{
+    if(id) await api('PUT',`/fidelidade/clientes/${id}`,body); else await api('POST','/fidelidade/clientes',body);
+    toast(id?'Cartão atualizado':'Cliente cadastrado! ⭐'); closeModal();
+    const q=document.getElementById('fid-quick-tel'); if(q) q.value='';
+    if(state.currentView==='fidelidade') loadFidelidade(); else refreshFidBox();
+  }catch(e){toast(e.message,'err')}
+}
+async function deleteFidCliente(id){
+  if(!confirm('Excluir este cartão fidelidade e todos os lançamentos dele?')) return;
+  const cid=cidParam();
+  try{ await api('DELETE',`/fidelidade/clientes/${id}`+(cid?'?'+cid:'')); toast('Cartão excluído','info'); closeModal(); loadFidelidade(); }catch(e){toast(e.message,'err')}
+}
+// Reserva: mostra o cartão do telefone digitado e permite usar a massagem grátis
 let _fidResgateAtual=false, _fidReservaId=null;
 async function refreshFidBox(){
   const box=document.getElementById('rv-fid-box'); if(!box) return;
   const isMass=document.getElementById('rv-massagem-row')?.style.display!=='none';
-  const nome=(document.getElementById('rv-cliente')?.value||'').trim();
-  const tel=(document.getElementById('rv-ctel')?.value||'').trim();
-  if(!isMass||(nome.length<3&&tel.replace(/\D/g,'').length<8)){ box.style.display='none'; return; }
+  const tel=telDigits(document.getElementById('rv-ctel')?.value);
+  if(!isMass||tel.length<10){ box.style.display='none'; return; }
   const cid=cidParam(); let s=null;
-  try{ s=await api('GET',`/fidelidade/cliente?nome=${encodeURIComponent(nome)}&telefone=${encodeURIComponent(tel)}`+(_fidReservaId?'&excluir_reserva='+_fidReservaId:'')+(cid?'&'+cid:'')); }catch(e){}
+  try{ s=await api('GET',`/fidelidade/cliente?telefone=${tel}`+(_fidReservaId?'&excluir_reserva='+_fidReservaId:'')+(cid?'&'+cid:'')); }catch(e){}
   if(!s||(!s.ativo&&!_fidResgateAtual)){ box.style.display='none'; return; }
   const chk=document.getElementById('rv-fid-chk'), lab=document.getElementById('rv-fid-label'), wrap=document.getElementById('rv-fid-chk-wrap');
-  const pode=s.disponiveis>0||_fidResgateAtual;
-  lab.innerHTML=pode
-    ?`🎁 <strong>Cliente tem ${Math.max(s.disponiveis,1)} massagem(ns) grátis</strong> <span style="color:var(--text-lt)">(${s.contadas} massagens no cartão)</span>`
+  const pode=s.cadastrado&&(s.disponiveis>0||_fidResgateAtual);
+  lab.innerHTML=!s.cadastrado
+    ?`⭐ Este telefone ainda não tem cartão fidelidade. <a href="#" onclick="event.preventDefault();fidCadastrarDaReserva()" style="font-weight:700">Cadastrar agora</a>`
+    :pode?`🎁 <strong>Cliente tem ${Math.max(s.disponiveis,1)} massagem(ns) grátis</strong> <span style="color:var(--text-lt)">(${s.carimbos} massagens no cartão)</span>`
     :`⭐ Cartão fidelidade: <strong>${s.progresso}/${s.meta}</strong> — faltam ${s.meta-s.progresso} para a grátis`;
   wrap.style.display=pode?'':'none';
   if(!pode&&chk) chk.checked=false;
   box.style.display='';
   fidChkChange();
+}
+async function fidCadastrarDaReserva(){
+  const tel=telDigits(document.getElementById('rv-ctel')?.value), nome=(document.getElementById('rv-cliente')?.value||'').trim();
+  if(tel.length<10) return toast('Digite o telefone com DDD','err');
+  try{ await api('POST','/fidelidade/clientes',{telefone:tel,nome,...cidBody()}); toast('Cartão fidelidade criado ⭐'); refreshFidBox(); }catch(e){toast(e.message,'err')}
 }
 function fidChkChange(){
   const on=!!document.getElementById('rv-fid-chk')?.checked;
@@ -2618,7 +2720,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
       <div class="field full"><label>Nome do Cliente <span class="required">*</span></label>
         <input id="rv-cliente" type="text" value="${r?.cliente_nome?esc(r.cliente_nome):''}"/></div>
       <div class="field"><label>Telefone do Cliente</label>
-        <input id="rv-ctel" type="tel" value="${r?.cliente_telefone?esc(r.cliente_telefone):''}"/></div>
+        <input id="rv-ctel" type="tel" inputmode="numeric" placeholder="DD - número" oninput="telMaskInput(this)" value="${r?.cliente_telefone?esc(telMask(r.cliente_telefone)):''}"/></div>
       <div class="field full" id="rv-pacote-box" style="display:none;padding:10px 12px;background:#f5f0ff;border:1.5px solid #c4b5fd;border-radius:8px">
         <label style="color:#6d28d9">🎟 Usar pacote do cliente</label>
         <select id="rv-pacote" onchange="pacoteSelChange()"><option value="">—</option></select>

@@ -393,6 +393,29 @@ async function initDB() {
       data_inicio TEXT
     )
   `).catch(e=>console.error('fidelidade_config',e.message));
+  // Cadastro de clientes da fidelidade (por telefone) + carimbos lançados manualmente
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fidelidade_clientes (
+      id          SERIAL PRIMARY KEY,
+      clinica_id  INTEGER NOT NULL REFERENCES clinicas(id),
+      telefone    TEXT NOT NULL,
+      nome        TEXT,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (clinica_id, telefone)
+    )
+  `).catch(e=>console.error('fidelidade_clientes',e.message));
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fidelidade_carimbos (
+      id          SERIAL PRIMARY KEY,
+      cliente_id  INTEGER NOT NULL REFERENCES fidelidade_clientes(id) ON DELETE CASCADE,
+      clinica_id  INTEGER NOT NULL,
+      data        TEXT NOT NULL,
+      usuario     TEXT,
+      criado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `).catch(e=>console.error('fidelidade_carimbos',e.message));
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_fid_carimbos_cliente ON fidelidade_carimbos(cliente_id)').catch(()=>{});
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS fidelidade_cliente_id INTEGER`).catch(()=>{});
 
   // 3o. Estoque
   await pool.query(`
@@ -1197,7 +1220,8 @@ app.post('/api/reservas', requireAuth, (req, res) =>
     }
     const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, null, 'confirmada');
     if (pacoteId) req.body.preco_custom = null; // sessão de pacote: base do repasse = preço de tabela
-    const fidResgate = await validarResgateFidelidade(cid, req.body, massagem_id, null, 'confirmada');
+    const fidClienteId = await validarResgateFidelidade(cid, req.body, massagem_id, null, 'confirmada');
+    const fidResgate = !!fidClienteId;
     if (fidResgate) req.body.preco_custom = null; // grátis da fidelidade: repasse sobre preço de tabela
     const nova = await qOne(
       'INSERT INTO reservas (data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,clinica_id,cliente_nome,cliente_telefone,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamento,parcelas,maquina_cartao_id,pagamentos_json,preco_custom,tem_brinde,valor_brinde,profissional_id_2) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id',
@@ -1217,7 +1241,7 @@ app.post('/api/reservas', requireAuth, (req, res) =>
         : (await pool.query('SELECT valor FROM alugueis WHERE id=$1',[aluguel_id]).then(r=>r.rows[0]?.valor||0));
       await gerarDespesasCartao(cid, nova.id, data, cliente_nome.trim(), pagamentos_json, svcVal);
     }
-    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2 WHERE id=$3', [pacoteId, fidResgate, nova.id]);
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2, fidelidade_cliente_id=$3 WHERE id=$4', [pacoteId, fidResgate, fidClienteId || null, nova.id]);
     return qOne(`${RJ} WHERE r.id=$1`, [nova.id]);
   }));
 
@@ -1265,7 +1289,8 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
     }
     const pacoteId = await validarPacoteReserva(cid, req.body.pacote_cliente_id, massagem_id, data, id, status);
     if (pacoteId) req.body.preco_custom = null;
-    const fidResgate = await validarResgateFidelidade(cid, req.body, massagem_id, id, status);
+    const fidClienteId = await validarResgateFidelidade(cid, req.body, massagem_id, id, status);
+    const fidResgate = !!fidClienteId;
     if (fidResgate) req.body.preco_custom = null;
     await qRun(
       'UPDATE reservas SET data=$1,hora_inicio=$2,hora_fim=$3,quarto_id=$4,profissional_id=$5,massagem_id=$6,aluguel_id=$7,profissional_externo=$8,cliente_nome=$9,cliente_telefone=$10,status=$11,observacoes=$12,bebida=$13,preco_bebida=$14,recepcionista_id=$15,pagamento=$16,multa_valor=$17,parcelas=$18,maquina_cartao_id=$19,pagamentos_json=$20,preco_custom=$21,tem_brinde=$22,valor_brinde=$23,profissional_id_2=$24 WHERE id=$25 AND clinica_id=$26',
@@ -1288,7 +1313,7 @@ app.put('/api/reservas/:id', requireAuth, (req, res) =>
       // sem pagamentos_json: remove despesa de cartão existente
       await pool.query(`DELETE FROM despesas WHERE reserva_id=$1 AND clinica_id=$2 AND tipo='tarifa_cartao'`,[id,cid]).catch(()=>{});
     }
-    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2 WHERE id=$3 AND clinica_id=$4', [pacoteId, fidResgate, id, cid]);
+    await qRun('UPDATE reservas SET pacote_cliente_id=$1, fidelidade_resgate=$2, fidelidade_cliente_id=$3 WHERE id=$4 AND clinica_id=$5', [pacoteId, fidResgate, fidClienteId || null, id, cid]);
     return qOne(`${RJ} WHERE r.id=$1`, [id]);
   }));
 
@@ -2511,47 +2536,57 @@ app.get('/api/fluxo-dia', requireAuth, (req, res) =>
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CARTÃO FIDELIDADE — a cada N massagens (qualquer tipo), 1 grátis
-// Cliente identificado pelos 8 últimos dígitos do telefone (ou pelo nome, sem telefone)
+// CARTÃO FIDELIDADE — cadastro por TELEFONE + carimbos lançados manualmente (+1)
+// A cada N carimbos, 1 massagem grátis (resgatada na reserva)
 // ═══════════════════════════════════════════════════════════════════════════════
-const FID_KEY = a => `CASE WHEN length(regexp_replace(COALESCE(${a}.cliente_telefone,''),'[^0-9]','','g')) >= 8
-  THEN right(regexp_replace(${a}.cliente_telefone,'[^0-9]','','g'), 8)
-  ELSE 'n:' || lower(trim(${a}.cliente_nome)) END`;
-function fidKeyJS(nome, tel) {
-  const d = String(tel || '').replace(/\D/g, '');
-  if (d.length >= 8) return d.slice(-8);
-  const n = String(nome || '').trim().toLowerCase();
-  return n ? 'n:' + n : null;
+// telefone: só dígitos, sem 55, DDD + número (10 ou 11 dígitos)
+function fidTel(tel) {
+  let d = String(tel || '').replace(/\D/g, '');
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2);
+  return d.slice(0, 11);
 }
+const fidTelKey = tel => { const d = fidTel(tel); return d.length >= 8 ? d.slice(-8) : null; }; // tolera 9º dígito
+const FID_TEL_KEY = col => `right(regexp_replace(COALESCE(${col},''),'[^0-9]','','g'), 8)`;
 const hojeSP = () => new Date(Date.now() - 3*3600*1000).toISOString().split('T')[0];
 async function fidConfig(cid) {
   const c = await qOne('SELECT * FROM fidelidade_config WHERE clinica_id=$1', [cid]);
-  return { ativo: c ? !!c.ativo : false, meta: c?.meta || 10, data_inicio: c?.data_inicio || null };
+  return { ativo: c ? !!c.ativo : false, meta: c?.meta || 10 };
 }
-// Massagens que contam: não canceladas, já realizadas (data <= hoje), a partir da data de início, que não sejam o próprio brinde
-async function fidSaldo(cid, nome, tel, excluirReservaId) {
-  const cfg = await fidConfig(cid);
-  const key = fidKeyJS(nome, tel);
-  if (!key) return { ...cfg, contadas: 0, ganhos: 0, usados: 0, disponiveis: 0, progresso: 0 };
-  const r = await qOne(`
-    SELECT
-      COUNT(*) FILTER (WHERE NOT r.fidelidade_resgate AND r.data <= $3 AND ($4::text IS NULL OR r.data >= $4))::int AS contadas,
-      COUNT(*) FILTER (WHERE r.fidelidade_resgate AND ($5::int IS NULL OR r.id != $5))::int AS usados
-    FROM reservas r
-    WHERE r.clinica_id=$1 AND r.massagem_id IS NOT NULL AND r.status != 'cancelada' AND (${FID_KEY('r')}) = $2`,
-    [cid, key, hojeSP(), cfg.data_inicio, excluirReservaId || null]);
-  const ganhos = Math.floor(r.contadas / cfg.meta);
-  return { ...cfg, contadas: r.contadas, ganhos, usados: r.usados, disponiveis: Math.max(0, ganhos - r.usados), progresso: r.contadas % cfg.meta };
+const FID_CLIENTE_SELECT = `
+  SELECT fc.*,
+    (SELECT COUNT(*) FROM fidelidade_carimbos k WHERE k.cliente_id = fc.id)::int AS carimbos,
+    (SELECT MAX(k.data) FROM fidelidade_carimbos k WHERE k.cliente_id = fc.id) AS ultimo_carimbo,
+    (SELECT COUNT(*) FROM reservas r WHERE r.clinica_id = fc.clinica_id AND r.fidelidade_resgate AND r.status != 'cancelada'
+        AND (r.fidelidade_cliente_id = fc.id OR (r.fidelidade_cliente_id IS NULL AND ${FID_TEL_KEY('r.cliente_telefone')} = right(fc.telefone, 8)))
+        AND ($2::int IS NULL OR r.id != $2))::int AS usados
+  FROM fidelidade_clientes fc`;
+function fmtFid(c, meta) {
+  const ganhos = Math.floor(c.carimbos / meta);
+  return { ...c, meta, ganhos, disponiveis: Math.max(0, ganhos - c.usados), progresso: c.carimbos % meta };
 }
+async function fidClientePorTel(cid, tel, excluirReservaId) {
+  const key = fidTelKey(tel);
+  if (!key) return null;
+  return qOne(`${FID_CLIENTE_SELECT} WHERE fc.clinica_id=$1 AND right(fc.telefone, 8) = $3`, [cid, excluirReservaId || null, key]);
+}
+// devolve o id do cliente da fidelidade quando a reserva usa a massagem grátis (ou false)
 async function validarResgateFidelidade(cid, body, massagemId, reservaId, status) {
   const quer = body.fidelidade_resgate === true || body.fidelidade_resgate === 'true';
   if (!quer) return false;
   if (!massagemId) throw new Error('Massagem grátis da fidelidade só vale para massagem');
-  if (status === 'cancelada') return true;
-  const s = await fidSaldo(cid, body.cliente_nome, body.cliente_telefone, reservaId);
-  if (!s.ativo) throw new Error('Cartão fidelidade está desativado');
-  if (s.disponiveis <= 0) throw new Error(`Cliente ainda não tem massagem grátis (${s.progresso}/${s.meta})`);
-  return true;
+  const c = await fidClientePorTel(cid, body.cliente_telefone, reservaId);
+  if (!c) throw new Error('Telefone sem cadastro no cartão fidelidade');
+  if (status === 'cancelada') return c.id;
+  const cfg = await fidConfig(cid);
+  if (!cfg.ativo) throw new Error('Cartão fidelidade está desativado');
+  const f = fmtFid(c, cfg.meta);
+  if (f.disponiveis <= 0) throw new Error(`Cliente ainda não tem massagem grátis (${f.progresso}/${cfg.meta})`);
+  return c.id;
+}
+function lerFidCliente(b) {
+  const telefone = fidTel(b.telefone);
+  if (telefone.length < 10) throw new Error('Informe o telefone com DDD (ex.: 11 - 999991234)');
+  return { telefone, nome: (b.nome || '').trim() || null };
 }
 
 app.get('/api/fidelidade/config', requireAuth, (req, res) =>
@@ -2560,32 +2595,91 @@ app.put('/api/fidelidade/config', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const meta = Math.max(1, parseInt(req.body.meta) || 10);
-    const ativo = req.body.ativo ? 1 : 0;
-    const di = /^\d{4}-\d{2}-\d{2}$/.test(req.body.data_inicio || '') ? req.body.data_inicio : null;
-    await qRun(`INSERT INTO fidelidade_config (clinica_id, ativo, meta, data_inicio) VALUES ($1,$2,$3,$4)
-                ON CONFLICT (clinica_id) DO UPDATE SET ativo=$2, meta=$3, data_inicio=$4`, [cid, ativo, meta, di]);
+    await qRun(`INSERT INTO fidelidade_config (clinica_id, ativo, meta) VALUES ($1,$2,$3)
+                ON CONFLICT (clinica_id) DO UPDATE SET ativo=$2, meta=$3`, [cid, req.body.ativo ? 1 : 0, meta]);
     return fidConfig(cid);
   }));
+
+// consulta pelo telefone (usada na reserva e no lançamento rápido)
 app.get('/api/fidelidade/cliente', requireAuth, (req, res) =>
-  send(res, async () => fidSaldo(getClinicaId(req), req.query.nome, req.query.telefone, parseInt(req.query.excluir_reserva) || null)));
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const cfg = await fidConfig(cid);
+    const c = await fidClientePorTel(cid, req.query.telefone, parseInt(req.query.excluir_reserva) || null);
+    return c ? { ...cfg, cadastrado: true, ...fmtFid(c, cfg.meta) } : { ...cfg, cadastrado: false };
+  }));
+
 app.get('/api/fidelidade/clientes', requireAuth, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
     const cfg = await fidConfig(cid);
-    const rows = await q(`
-      SELECT ${FID_KEY('r')} AS chave,
-        (array_agg(r.cliente_nome ORDER BY r.data DESC, r.id DESC))[1] AS cliente_nome,
-        (array_agg(r.cliente_telefone ORDER BY (r.cliente_telefone IS NULL), r.data DESC))[1] AS cliente_telefone,
-        COUNT(*) FILTER (WHERE NOT r.fidelidade_resgate AND r.data <= $2 AND ($3::text IS NULL OR r.data >= $3))::int AS contadas,
-        COUNT(*) FILTER (WHERE r.fidelidade_resgate)::int AS usados,
-        MAX(r.data) FILTER (WHERE r.data <= $2) AS ultima_visita
-      FROM reservas r
-      WHERE r.clinica_id=$1 AND r.massagem_id IS NOT NULL AND r.status != 'cancelada'
-      GROUP BY 1`, [cid, hojeSP(), cfg.data_inicio]);
-    return rows.filter(r => r.contadas > 0 || r.usados > 0).map(r => {
-      const ganhos = Math.floor(r.contadas / cfg.meta);
-      return { ...r, ganhos, disponiveis: Math.max(0, ganhos - r.usados), progresso: r.contadas % cfg.meta, meta: cfg.meta };
-    }).sort((a, b) => b.disponiveis - a.disponiveis || b.progresso - a.progresso || b.contadas - a.contadas);
+    const rows = await q(`${FID_CLIENTE_SELECT} WHERE fc.clinica_id=$1 ORDER BY fc.nome NULLS LAST, fc.telefone`, [cid, null]);
+    return rows.map(c => fmtFid(c, cfg.meta));
+  }));
+
+app.post('/api/fidelidade/clientes', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const c = lerFidCliente(req.body);
+    if (await fidClientePorTel(cid, c.telefone)) throw new Error('Este telefone já tem cartão fidelidade');
+    const novo = await qOne('INSERT INTO fidelidade_clientes (clinica_id, telefone, nome) VALUES ($1,$2,$3) RETURNING id', [cid, c.telefone, c.nome]);
+    const qtd = Math.min(Math.max(parseInt(req.body.carimbos_iniciais) || 0, 0), 200);
+    for (let i = 0; i < qtd; i++)
+      await qRun('INSERT INTO fidelidade_carimbos (cliente_id, clinica_id, data, usuario) VALUES ($1,$2,$3,$4)', [novo.id, cid, hojeSP(), req.user?.nome || req.user?.role || null]);
+    const cfg = await fidConfig(cid);
+    return fmtFid(await qOne(`${FID_CLIENTE_SELECT} WHERE fc.id=$1`, [novo.id, null]), cfg.meta);
+  }));
+
+app.put('/api/fidelidade/clientes/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const c = lerFidCliente(req.body);
+    const outro = await fidClientePorTel(cid, c.telefone);
+    if (outro && outro.id !== id) throw new Error('Este telefone já pertence a outro cartão');
+    await qRun('UPDATE fidelidade_clientes SET telefone=$1, nome=$2 WHERE id=$3 AND clinica_id=$4', [c.telefone, c.nome, id, cid]);
+    return { id };
+  }));
+
+app.delete('/api/fidelidade/clientes/:id', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    await qRun('DELETE FROM fidelidade_clientes WHERE id=$1 AND clinica_id=$2', [parseInt(req.params.id), cid]);
+    return { id: parseInt(req.params.id) };
+  }));
+
+// +1 carimbo (massagem feita)
+app.post('/api/fidelidade/clientes/:id/carimbo', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const c = await qOne('SELECT id FROM fidelidade_clientes WHERE id=$1 AND clinica_id=$2', [id, cid]);
+    if (!c) throw new Error('Cliente não encontrado');
+    const data = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.data || '') ? req.body.data : hojeSP();
+    await qRun('INSERT INTO fidelidade_carimbos (cliente_id, clinica_id, data, usuario) VALUES ($1,$2,$3,$4)', [id, cid, data, req.user?.nome || req.user?.role || null]);
+    const cfg = await fidConfig(cid);
+    return fmtFid(await qOne(`${FID_CLIENTE_SELECT} WHERE fc.id=$1`, [id, null]), cfg.meta);
+  }));
+// −1: desfaz o último carimbo lançado
+app.delete('/api/fidelidade/clientes/:id/carimbo', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    await qRun(`DELETE FROM fidelidade_carimbos WHERE id = (
+      SELECT id FROM fidelidade_carimbos WHERE cliente_id=$1 AND clinica_id=$2 ORDER BY id DESC LIMIT 1)`, [id, cid]);
+    const cfg = await fidConfig(cid);
+    const c = await qOne(`${FID_CLIENTE_SELECT} WHERE fc.id=$1 AND fc.clinica_id=$3`, [id, null, cid]);
+    if (!c) throw new Error('Cliente não encontrado');
+    return fmtFid(c, cfg.meta);
+  }));
+app.get('/api/fidelidade/clientes/:id/historico', requireAuth, (req, res) =>
+  send(res, async () => {
+    const cid = getClinicaId(req);
+    const id = parseInt(req.params.id);
+    const carimbos = await q('SELECT id, data, usuario FROM fidelidade_carimbos WHERE cliente_id=$1 AND clinica_id=$2 ORDER BY id DESC LIMIT 100', [id, cid]);
+    const resgates = await q(`SELECT r.id, r.data, m.nome AS massagem FROM reservas r LEFT JOIN massagens m ON m.id = r.massagem_id
+      WHERE r.clinica_id=$2 AND r.fidelidade_resgate AND r.status != 'cancelada' AND r.fidelidade_cliente_id=$1 ORDER BY r.data DESC`, [id, cid]);
+    return { carimbos, resgates };
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════════
