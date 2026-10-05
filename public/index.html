@@ -159,7 +159,10 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
 .required{color:var(--pec);margin-left:2px}
 
 /* ═══ DASHBOARD LAYOUT ══════════════════════════════════════════════════════ */
-.dash-layout{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
+.dash-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;align-items:start}
+.dash-layout>*{min-width:0}
+.dash-panel .card-header h2{flex:1 1 220px}
+.dash-panel .dash-controls{flex:0 1 auto;max-width:100%}
 .dash-sidebar{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;position:sticky;top:80px}
 .dash-sidebar-title{font-size:.75rem;font-weight:700;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;padding:6px 8px 10px}
 .dash-menu-btn{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:9px 12px;border-radius:8px;font-size:.84rem;cursor:pointer;transition:background .15s;margin-bottom:2px}
@@ -167,8 +170,8 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
 .dash-menu-btn.active{background:var(--cel-lt);color:var(--text);font-weight:600}
 .dash-panel{display:none}
 .dash-panel.active{display:block}
-@media(max-width:700px){
-  .dash-layout{grid-template-columns:1fr}
+@media(max-width:1500px){
+  .dash-layout{grid-template-columns:minmax(0,1fr)}
   .dash-sidebar{position:static;display:flex;flex-wrap:wrap;gap:4px;padding:8px}
   .dash-menu-btn{width:auto;padding:6px 12px;font-size:.78rem}
   .dash-sidebar-title{display:none}
@@ -678,12 +681,12 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">👤 Resumo Mensal por Massagista</h2>
                 <div class="dash-controls">
-                  <select id="dash-mm-mes"></select>
-                  <select id="dash-mm-ano"></select>
+                  <select id="dash-mm-mes" onchange="loadDashMensalMassagista()"></select>
+                  <select id="dash-mm-ano" onchange="loadDashMensalMassagista()"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista()">Carregar</button>
                   <span style="color:#fff;font-size:.8rem;margin-left:6px">ou período:</span>
-                  <input type="date" id="dash-mm-de" title="De"/>
-                  <input type="date" id="dash-mm-ate" title="Até"/>
+                  <input type="date" id="dash-mm-de" title="De" onchange="dashPeriodoChange()"/>
+                  <input type="date" id="dash-mm-ate" title="Até" onchange="dashPeriodoChange()"/>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagista(true)">Aplicar período</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-mm-body','Mensal_Massagista')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -697,7 +700,7 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:var(--cel);border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">👤 Resumo Diário por Massagista</h2>
                 <div class="dash-controls">
-                  <input type="date" id="dash-dm-data"/>
+                  <input type="date" id="dash-dm-data" onchange="if(this.value)loadDashDiarioMassagista()"/>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagista()">Carregar</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-dm-body','Diario_Massagista')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -711,8 +714,8 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">💆 Resumo Mensal por Tipo de Massagem</h2>
                 <div class="dash-controls">
-                  <select id="dash-mt-mes"></select>
-                  <select id="dash-mt-ano"></select>
+                  <select id="dash-mt-mes" onchange="loadDashMensalMassagem()"></select>
+                  <select id="dash-mt-ano" onchange="loadDashMensalMassagem()"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashMensalMassagem()">Carregar</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-mt-body','Mensal_Massagem')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -726,7 +729,7 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:var(--pec);border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">💆 Resumo Diário por Tipo de Massagem</h2>
                 <div class="dash-controls">
-                  <input type="date" id="dash-dt-data"/>
+                  <input type="date" id="dash-dt-data" onchange="if(this.value)loadDashDiarioMassagem()"/>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashDiarioMassagem()">Carregar</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-dt-body','Diario_Massagem')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -740,8 +743,8 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:var(--green);border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">🗂 Controle Mensal de Recepcionistas</h2>
                 <div class="dash-controls">
-                  <select id="dash-rc-mes"></select>
-                  <select id="dash-rc-ano"></select>
+                  <select id="dash-rc-mes" onchange="loadDashRecepcionista()"></select>
+                  <select id="dash-rc-ano" onchange="loadDashRecepcionista()"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashRecepcionista()">Carregar</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-rc-body','Recepcionistas')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -755,8 +758,8 @@ body.nav-collapsed #main{margin-left:0;max-width:1400px;margin-right:auto;margin
               <div class="card-header" style="background:#8b6fbf;border-radius:var(--radius) var(--radius) 0 0">
                 <h2 style="color:#fff">💳 Controle de Métodos de Pagamento</h2>
                 <div class="dash-controls">
-                  <select id="dash-pg-mes"></select>
-                  <select id="dash-pg-ano"></select>
+                  <select id="dash-pg-mes" onchange="loadDashPagamentos()"></select>
+                  <select id="dash-pg-ano" onchange="loadDashPagamentos()"></select>
                   <button class="btn btn-sm" style="background:rgba(255,255,255,.9);color:var(--text)" onclick="loadDashPagamentos()">Carregar</button>
                   <button class="btn btn-sm" style="background:#1d6b44;color:#fff" onclick="exportDashExcel('dash-pg-body','Pagamentos')" title="Exportar para Excel">📥 Excel</button>
                 </div>
@@ -3377,6 +3380,8 @@ function showDashPanel(id){
   document.querySelectorAll('.dash-menu-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id)?.classList.add('active');
   document.getElementById('dmbtn-'+id)?.classList.add('active');
+  // ao trocar de relatório, já carrega com a data/mês que está selecionado
+  if(state.currentView==='dashboard'&&auth.user) loadDashboard();
 }
 
 async function showProfDetalheModal(profId,profNome,data){
@@ -3660,6 +3665,11 @@ function renderDashTable(resp,containerId,type,opts={}){const _dashDate=opts.dat
   el.innerHTML=html;
 }
 
+// período livre: carrega assim que as duas datas estiverem preenchidas
+function dashPeriodoChange(){
+  const de=document.getElementById('dash-mm-de')?.value, ate=document.getElementById('dash-mm-ate')?.value;
+  if(de&&ate&&ate>=de) loadDashMensalMassagista(true);
+}
 async function loadDashMensalMassagista(periodo){
   const mes=document.getElementById('dash-mm-mes').value;
   const ano=document.getElementById('dash-mm-ano').value;
@@ -3729,6 +3739,7 @@ async function loadDashboard(){
   else if(id==='dash-mt') await loadDashMensalMassagem();
   else if(id==='dash-dt') await loadDashDiarioMassagem();
   else if(id==='dash-rc') await loadDashRecepcionista();
+  else if(id==='dash-pg') await loadDashPagamentos();
 }
 
 async function loadDashRecepcionista(){
