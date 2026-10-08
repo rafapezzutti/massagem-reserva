@@ -1372,23 +1372,24 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD FINANCEIRO
 // ═══════════════════════════════════════════════════════════════════════════════
+// Intervalo do dashboard: mês/ano ou período livre (data_inicio..data_fim, fim inclusivo). Devolve fim exclusivo.
+function periodoDashboard(qs) {
+  const { mes, ano, data_inicio, data_fim } = qs;
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (re.test(data_inicio || '') && re.test(data_fim || '')) {
+    if (data_fim < data_inicio) throw new Error('Data final menor que a inicial');
+    const f = new Date(data_fim + 'T12:00:00Z'); f.setUTCDate(f.getUTCDate() + 1);
+    return { inicio: data_inicio, fim: f.toISOString().split('T')[0] };
+  }
+  if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
+  const proximo = new Date(parseInt(ano), parseInt(mes), 1);
+  return { inicio: `${ano}-${String(mes).padStart(2,'0')}-01`,
+           fim: `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01` };
+}
 app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { mes, ano, data_inicio, data_fim } = req.query;
-    let inicio, fim;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(data_inicio||'') && /^\d{4}-\d{2}-\d{2}$/.test(data_fim||'')) {
-      // período livre: fim inclusivo → usa o dia seguinte como limite exclusivo
-      if (data_fim < data_inicio) throw new Error('Data final menor que a inicial');
-      inicio = data_inicio;
-      const f = new Date(data_fim + 'T12:00:00Z'); f.setUTCDate(f.getUTCDate() + 1);
-      fim = f.toISOString().split('T')[0];
-    } else {
-      if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-      inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
-      const proximo = new Date(parseInt(ano), parseInt(mes), 1); // mes is 1-based, Date uses 0-based, so this gives 1st of next month
-      fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
-    }
+    const { inicio, fim } = periodoDashboard(req.query);
     const rows = await q(`
       SELECT
         p.id,
@@ -1638,11 +1639,7 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
 app.get('/api/dashboard/massagem-mensal', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
-    const { mes, ano } = req.query;
-    if (!mes || !ano) throw new Error('Mês e ano são obrigatórios');
-    const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
-    const proximo = new Date(parseInt(ano), parseInt(mes), 1);
-    const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
+    const { inicio, fim } = periodoDashboard(req.query);
     return q(`
       SELECT
         m.id,
