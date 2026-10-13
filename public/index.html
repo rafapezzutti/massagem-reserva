@@ -1604,8 +1604,8 @@ function renderTimeline(){
       ${prof.nome_fantasia?`<div class="room-num">${esc(prof.nome)}</div>`:''}
       ${!prof.ativo?'<div class="room-hydro" style="color:var(--red)">Inativa</div>':''}
     </div>`;
-    // Inclui reservas onde esta prof é a 1ª OU a 2ª massagista (duo)
-    const res=state.reservasDia.filter(r=>r.profissional_id===prof.id||r.profissional_id_2===prof.id);
+    // Inclui reservas onde esta prof é qualquer uma das massagistas da sessão (1ª, 2ª, 3ª...)
+    const res=state.reservasDia.filter(r=>equipeReserva(r).includes(prof.id));
     const startMap={};
     res.forEach(r=>{
       const ss=Math.max(0,Math.floor((timeToMin(r.hora_inicio)-startMin)/30));
@@ -1623,11 +1623,12 @@ function renderTimeline(){
         const motTxt=ausSlot.motivo?esc(ausSlot.motivo):'Ausente';
         html+=`<div class="tl-cell tl-cell-bloq${isH?' half-border':''}"><div class="bloq-block">🚫 ${motTxt}</div></div>`;
       }else if(rb){
-        const _isDuoSecond=rb.profissional_id_2===prof.id;
+        const _posEq=equipeReserva(rb).indexOf(prof.id)+1;
+        const _isDuoSecond=_posEq>1;
         const sc=rb.status==='cancelada'?'res-canc':rb.status==='concluida'?'res-conc':(rb.quarto_externa?'res-externa':'res-conf');
         html+=`<div class="tl-cell${isH?' half-border':''}" onclick="openReservaModal(null,null,'${minToTime(cm)}','${minToTime(cm+30)}',${prof.id})">
           <div class="reservation-block ${sc}" style="width:calc(${rb.span*100}% + ${(rb.span-1)*1}px);${_isDuoSecond?'opacity:.85;border-left-style:dashed':''}" onclick="event.stopPropagation();viewReserva(${rb.id})">
-            <div class="rb-client">${_isDuoSecond?'👥 2ª — ':''}${esc(rb.cliente_nome)}</div>
+            <div class="rb-client">${_isDuoSecond?'👥 '+_posEq+'ª — ':''}${esc(rb.cliente_nome)}</div>
             <div class="rb-prof">🛏 ${esc(rb.quarto_nome)} · ${esc(rb.servico_nome||rb.massagem_nome)}${rb.aluguel_id?' 🏷':''}</div>
             ${fmtBebidasTimeline(rb.bebida)}
             <div class="rb-time">${rb.hora_inicio}–${rb.hora_fim}${parseFloat(rb.multa_valor||0)>0?` · ⚠️ Multa ${fmtMoeda(rb.multa_valor)}`:''}</div>
@@ -2770,7 +2771,7 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
         <select id="rv-quarto">${optQ}</select></div>
       <div class="field full" style="margin-bottom:0">
         <button type="button" id="rv-duo-btn" onclick="toggleDuo()" class="btn btn-secondary btn-sm" style="border:1px dashed var(--border)">${r?.profissional_id_2?'👥 2ª Massagista ▲':'＋ 2ª Massagista (duo)'}</button>
-        ${r?.profissional_id_2?'<span style="font-size:.78rem;color:#9b59b6;margin-left:8px">⚠️ Repasse 25% cada</span>':'<span style="font-size:.78rem;color:var(--text-lt);margin-left:8px">Opcional — repasse 25%/25%</span>'}
+        <span style="font-size:.78rem;color:var(--text-lt);margin-left:8px">Opcional — repasse dividido igualmente entre as massagistas</span>
       </div>
       <div class="field full" id="rv-prof2-section" style="display:${r?.profissional_id_2?'':' none'}">
         <label>👤 2ª Massagista / Terapeuta</label>
@@ -2778,7 +2779,9 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
           <option value="">— Nenhuma (sessão individual) —</option>
           ${optP}
         </select>
-        <small style="color:#9b59b6;font-size:.78rem">Sessão duo: 50% clínica · 25% 1ª massagista · 25% 2ª massagista</small>
+        <div id="rv-prof-extras"></div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addProfExtra()" style="margin-top:6px;border:1px dashed var(--border)">＋ Adicionar outra massagista</button>
+        <small id="rv-equipe-info" style="color:#9b59b6;font-size:.78rem;display:block;margin-top:4px">Repasse dividido igualmente entre as massagistas da sessão.</small>
       </div>
       <div class="field full" style="margin-bottom:2px">
         <label>Tipo de Serviço <span class="required">*</span></label>
@@ -2917,6 +2920,8 @@ async function openReservaModal(id,quartoIdPre,horaPre,horaFimPre,profissionalId
     if(r?.preco_custom!=null) { const pc=document.getElementById('rv-preco-custom'); if(pc) pc.value=r.preco_custom; }
     // Carrega 2ª massagista ao editar
     if(r?.profissional_id_2) { const s=document.getElementById('rv-prof2'); if(s) s.value=r.profissional_id_2; }
+    (r?.profissionais_extra||[]).forEach(id=>addProfExtra(id));
+    document.getElementById('rv-prof2')?.addEventListener('change',updatePrecoInfo);
     // Atualiza info de preço
     updatePrecoInfo();
     // Pacotes do cliente
@@ -3140,6 +3145,8 @@ function removeDrink(i){
   _drinks.splice(i,1);
   renderDrinksList();
 }
+// equipe da sessão: [1ª, 2ª, 3ª...] (ids)
+function equipeReserva(r){ return [r.profissional_id, r.profissional_id_2, ...(r.profissionais_extra||[])].filter(Boolean); }
 function toggleDuo(){
   const sec=document.getElementById('rv-prof2-section');
   const btn=document.getElementById('rv-duo-btn');
@@ -3147,9 +3154,25 @@ function toggleDuo(){
   const open=sec.style.display!=='none';
   sec.style.display=open?'none':'';
   if(btn) btn.textContent=open?'＋ 2ª Massagista (duo)':'👥 2ª Massagista ▲';
-  if(open){ const s=document.getElementById('rv-prof2'); if(s) s.value=''; }
+  if(open){ const s=document.getElementById('rv-prof2'); if(s) s.value=''; const ex=document.getElementById('rv-prof-extras'); if(ex) ex.innerHTML=''; }
   updatePrecoInfo();
 }
+// 3ª, 4ª... massagista
+function addProfExtra(val){
+  const box=document.getElementById('rv-prof-extras'); if(!box) return;
+  const n=box.children.length+3;
+  const opts=state.profissionais.filter(p=>p.ativo||p.id===val).map(p=>`<option value="${p.id}"${p.id===val?' selected':''}>${esc(p.nome_fantasia||p.nome)}</option>`).join('');
+  const row=document.createElement('div');
+  row.className='rv-prof-extra-row';
+  row.style.cssText='display:flex;gap:6px;align-items:center;margin-top:6px';
+  row.innerHTML=`<label class="rv-px-lbl" style="min-width:34px;margin:0;color:#9b59b6;font-weight:700">${n}ª</label>
+    <select class="rv-prof-extra" style="flex:1" onchange="updatePrecoInfo()"><option value="">— Selecione —</option>${opts}</select>
+    <button type="button" class="drink-remove" title="Remover" onclick="this.parentNode.remove();renumProfExtra();updatePrecoInfo()">✕</button>`;
+  box.appendChild(row);
+  updatePrecoInfo();
+}
+function renumProfExtra(){ document.querySelectorAll('#rv-prof-extras .rv-px-lbl').forEach((l,i)=>l.textContent=(i+3)+'ª'); }
+function profExtrasSelecionadas(){ return [...document.querySelectorAll('#rv-prof-extras select.rv-prof-extra')].map(s=>parseInt(s.value)).filter(Boolean); }
 function autoFillPreco(){
   const mid=parseInt(document.getElementById('rv-massagem')?.value)||0;
   const m=(state.massagens||[]).find(x=>x.id===mid);
@@ -3160,12 +3183,16 @@ function autoFillPreco(){
   updatePrecoInfo();
 }
 function updatePrecoInfo(){
-  const isDuo=document.getElementById('rv-prof2-section')?.style.display!=='none' && document.getElementById('rv-prof2')?.value;
+  const _secAberta=document.getElementById('rv-prof2-section')?.style.display!=='none';
+  const nEquipe=_secAberta?1+(document.getElementById('rv-prof2')?.value?1:0)+profExtrasSelecionadas().length:1;
+  const isDuo=nEquipe>1;
+  const eqInfo=document.getElementById('rv-equipe-info');
+  if(eqInfo) eqInfo.textContent=isDuo?`👥 ${nEquipe} massagistas — repasse dividido igualmente (${nEquipe} partes iguais)`:'Repasse dividido igualmente entre as massagistas da sessão.';
   const qid=parseInt(document.getElementById('rv-quarto')?.value)||0;
   const q=(state.quartos||[]).find(x=>x.id===qid);
   const info=document.getElementById('rv-preco-info');
   if(!info) return;
-  if(isDuo) info.innerHTML='<span style="color:#9b59b6">👥 Duo: 25% para cada massagista, 50% clínica</span>';
+  if(isDuo) info.innerHTML=`<span style="color:#9b59b6">👥 ${nEquipe} massagistas: repasse dividido em ${nEquipe} partes iguais</span>`;
   else if(q?.is_externa) info.textContent='Atendimento externo — preço definido caso a caso';
   else info.textContent='Deixe em branco para usar o preço cadastrado da massagem';
 }
@@ -3244,13 +3271,17 @@ async function saveReserva(id){
     // 2ª massagista
     const _prof2Sec=document.getElementById('rv-prof2-section');
     const _prof2Val=document.getElementById('rv-prof2')?.value;
-    const profissional_id_2=(_prof2Sec?.style.display!=='none'&&_prof2Val)?parseInt(_prof2Val)||null:null;
+    const _secOn=_prof2Sec?.style.display!=='none';
+    let _eq=[_secOn?parseInt(_prof2Val)||null:null, ...(_secOn?profExtrasSelecionadas():[])].filter(Boolean);
+    _eq=[...new Set(_eq)].filter(x=>x!==profissional_id);
+    const profissional_id_2=_eq[0]||null;
+    const profissionais_extra=_eq.slice(1);
     const pacote_cliente_id=tipoMass?(parseInt(document.getElementById('rv-pacote')?.value)||null):null;
     const _fidBox=document.getElementById('rv-fid-box');
     const fidelidade_resgate=tipoMass&&_fidBox?.style.display!=='none'&&!!document.getElementById('rv-fid-chk')?.checked;
     if(fidelidade_resgate&&pacote_cliente_id) throw new Error('Escolha pacote OU massagem grátis da fidelidade, não os dois');
     const body={data,hora_inicio,hora_fim,quarto_id,profissional_id,massagem_id,aluguel_id,profissional_externo,cliente_nome,
-      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,tem_brinde,valor_brinde,pacote_cliente_id,fidelidade_resgate,...cidBody()};
+      cliente_telefone,status,observacoes,bebida,preco_bebida,multa_valor,recepcionista_id,pagamentos_json,preco_custom,profissional_id_2,profissionais_extra,tem_brinde,valor_brinde,pacote_cliente_id,fidelidade_resgate,...cidBody()};
     if(id) await api('PUT',`/reservas/${id}`,body);
     else   await api('POST','/reservas',body);
     if(_saveBtn){_saveBtn.dataset.saving='';_saveBtn.disabled=false;}
@@ -3419,20 +3450,20 @@ async function showProfDetalheModal(profId,profNome,data){
   openModal('Atendimentos — '+profNome+' ('+data+')','<div class="spinner" id="pdet-spin"></div>','<button class="btn btn-secondary" onclick="closeModal()">Fechar</button>');
   try{
     const all=await api('GET','/reservas?data='+data+(cid?'&'+cid:''));
-    const rows=all.filter(r=>(r.profissional_id===profId||r.profissional_id_2===profId)&&r.status!=='cancelada');
+    const rows=all.filter(r=>equipeReserva(r).includes(profId)&&r.status!=='cancelada');
     const el=document.getElementById('pdet-spin');
     if(!rows.length){el.outerHTML='<div class="dash-empty">Nenhum atendimento neste dia.</div>';return;}
     const fS=v=>v?'R$ '+parseFloat(v).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'—';
     const renderRows=()=>{
-      const cur=all.filter(r=>(r.profissional_id===profId||r.profissional_id_2===profId)&&r.status!=='cancelada');
+      const cur=all.filter(r=>equipeReserva(r).includes(profId)&&r.status!=='cancelada');
       if(!cur.length){document.getElementById('pdet-body').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-lt)">Nenhum atendimento.</td></tr>';return;}
       document.getElementById('pdet-body').innerHTML=cur.sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)).map(r=>{
-        const isDuo2=r.profissional_id_2===profId&&r.profissional_id!==profId;
+        const _pos=equipeReserva(r).indexOf(profId)+1; const isDuo2=_pos>1;
         const val=parseFloat(r.preco_custom||r.preco||0)+parseFloat(r.preco_bebida||0)+parseFloat(r.aluguel_valor||0);
         const svc=esc(r.massagem_nome||r.aluguel_nome||'—');
         return '<tr>'
           +'<td>'+r.hora_inicio+'–'+r.hora_fim+'</td>'
-          +'<td>'+esc(r.cliente_nome||'—')+(isDuo2?'<br><small style="color:var(--text-lt)">2ª massoterapeuta</small>':'')+'</td>'
+          +'<td>'+esc(r.cliente_nome||'—')+(isDuo2?'<br><small style="color:var(--text-lt)">'+_pos+'ª massoterapeuta</small>':'')+'</td>'
           +'<td>'+svc+'</td>'
           +'<td class="num">'+fS(val)+'</td>'
           +'<td>'+(r.pagamento||'—')+'</td>'
@@ -3865,11 +3896,12 @@ function renderDashRecepcionista(data,containerId){
       if(d.status==='cancelada')return;
       const duracaoMin=d.duracao_min||0;
       const p=pesoMassagem(d.massagem, d.tipo, duracaoMin);
-      pontos+=d.is_duo?p*2:p;
+      const _np=d.n_prof||(d.is_duo?2:1);
+      pontos+=p*_np;
       // Massagens de 2h que sobem de peso ganham rótulo próprio na tabela
       const isDuracaoDouble=pesoBaseMassagem(d.massagem,d.tipo)===1 && duracaoMin>=120;
-      const pReal=d.is_duo?p*2:p;
-      const mapKey=d.is_duo ? d.massagem+' (4 mãos)' : isDuracaoDouble ? d.massagem+' (2h)' : d.massagem;
+      const pReal=p*_np;
+      const mapKey=_np>1 ? d.massagem+` (${_np*2} mãos)` : isDuracaoDouble ? d.massagem+' (2h)' : d.massagem;
       tiposMap[mapKey]=(tiposMap[mapKey]||{count:0,pontos:0,tipo:d.tipo,pesoUnit:pReal});
       tiposMap[mapKey].count++;
       tiposMap[mapKey].pontos+=pReal;
@@ -5529,16 +5561,15 @@ async function loadFluxoDiario(data){
         porProf[p].reservas.push(r);
         // Massagem = receita do cliente; Aluguel = cobrado DA profissional (reduz o que ela recebe)
         if(r.tipo==='aluguel') porProf[p].aluguel+=Math.abs(r.total||0);
-        else                   porProf[p].massagem+=(r.isDuo?(r.total||0)*0.25:(r.total||0));
+        else                   porProf[p].massagem+=(r.total||0)/(r.nProf||1);
         porProf[p].repasse+=r.repasse||0;
-        // Duo: 2a massagista também aparece no agrupamento com seu repasse (25%)
-        if(r.isDuo && r.profissional2){
-          const p2=r.profissional2;
+        // Sessão com mais de uma massagista: cada uma aparece com a sua parte
+        [r.profissional2,...(r.profissionaisExtra||[])].filter(Boolean).forEach(p2=>{
           if(!porProf[p2]) porProf[p2]={reservas:[],massagem:0,aluguel:0,repasse:0};
           porProf[p2].reservas.push(r);
-          porProf[p2].massagem+=(r.total||0)*0.25;
+          porProf[p2].massagem+=(r.total||0)/(r.nProf||1);
           porProf[p2].repasse+=r.repasse||0;
-        }
+        });
       });
       html+=`<div style="margin-bottom:18px">
         <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--text)">👤 Receitas por Profissional</div>
@@ -5567,7 +5598,7 @@ async function loadFluxoDiario(data){
         </tr></thead><tbody>`;
       reservasAtivas.forEach(r=>{
         const duoLabel=r.isDuo?' 👥':'';
-        const valorExib=r.isDuo?(r.total||0)*0.25:(r.total||0);
+        const valorExib=(r.total||0)/(r.nProf||1);
         html+=`<tr>
           <td style="white-space:nowrap">${r.hora_inicio||''}${r.hora_fim?' – '+r.hora_fim:''}</td>
           <td>${r.cliente||'—'}</td>
@@ -5576,16 +5607,16 @@ async function loadFluxoDiario(data){
           <td class="ctr" style="color:#2d7a56">${fmtMoeda(valorExib)}</td>
           <td class="ctr" style="color:#7a5c2d">${fmtMoeda(r.repasse||0)}</td>
         </tr>`;
-        if(r.isDuo && r.profissional2){
+        [r.profissional2,...(r.profissionaisExtra||[])].filter(Boolean).forEach((p2,i)=>{
           html+=`<tr style="background:rgba(155,89,182,.07)">
             <td style="white-space:nowrap">${r.hora_inicio||''}${r.hora_fim?' – '+r.hora_fim:''}</td>
             <td>${r.cliente||'—'}</td>
-            <td>${r.servico||'—'} 👥 2ª</td>
-            <td>${r.profissional2}</td>
+            <td>${r.servico||'—'} 👥 ${i+2}ª</td>
+            <td>${p2}</td>
             <td class="ctr" style="color:#2d7a56">${fmtMoeda(valorExib)}</td>
             <td class="ctr" style="color:#7a5c2d">${fmtMoeda(r.repasse||0)}</td>
           </tr>`;
-        }
+        });
       });
       html+=`</tbody></table></div></div>`;
     } else {
