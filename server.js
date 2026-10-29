@@ -1349,6 +1349,67 @@ app.delete('/api/reservas/:id/excluir', requireAuth, (req, res) =>
   }));
 
 // ─── Dashboard pagamentos ────────────────────────────────────────────────────
+// ── Formas de pagamento: divide cada atendimento entre os métodos lançados (ex.: 200 dinheiro + 200 crédito)
+function dividirPagamentos(r, total) {
+  if (r.fidelidade_resgate) return [{ metodo: 'Fidelidade (grátis)', valor: total }];
+  if (r.pacote_cliente_id)  return [{ metodo: 'Pacote', valor: total }];
+  let pags = [];
+  try { pags = JSON.parse(r.pagamentos_json || '[]').filter(p => p && p.metodo); } catch (e) {}
+  if (!pags.length) return [{ metodo: r.pagamento || 'Não informado', valor: total }];
+  if (pags.length === 1) {
+    const v = parseFloat(pags[0].valor);
+    return [{ metodo: pags[0].metodo, valor: v > 0 && Math.abs(v - total) > 0.009 ? v : total }];
+  }
+  const comValor = pags.filter(p => parseFloat(p.valor) > 0);
+  const semValor = pags.filter(p => !(parseFloat(p.valor) > 0));
+  const out = comValor.map(p => ({ metodo: p.metodo, valor: parseFloat(p.valor) }));
+  const resto = Math.round((total - out.reduce((a, p) => a + p.valor, 0)) * 100) / 100;
+  if (semValor.length) {
+    const parte = Math.max(0, resto) / semValor.length;
+    semValor.forEach(p => out.push({ metodo: p.metodo, valor: parte }));
+  } else if (resto > 0.009) {
+    out.push({ metodo: 'Não informado', valor: resto });   // lançado a menos que o total
+  }
+  return out;
+}
+// Linhas por atendimento já com o valor de cada parte (massagem/bebida/multa/aluguel)
+async function pagamentosDoPeriodo(cid, whereData, params, soMassagem) {
+  return q(`
+    SELECT r.id, r.pagamento, r.pagamentos_json, r.pacote_cliente_id, r.fidelidade_resgate,
+      COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
+      (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0
+            WHEN r.massagem_id IS NOT NULL THEN GREATEST(COALESCE(r.preco_custom, m.preco, 0), 0) ELSE 0 END)::float AS v_mass,
+      COALESCE(r.preco_bebida, 0)::float AS v_beb,
+      COALESCE(r.multa_valor, 0)::float AS v_multa,
+      ${soMassagem ? '0' : 'COALESCE(al.valor, 0)'}::float AS v_alug
+    FROM reservas r
+    LEFT JOIN profissionais p ON p.id = r.profissional_id
+    LEFT JOIN massagens m ON m.id = r.massagem_id
+    LEFT JOIN alugueis al ON al.id = r.aluguel_id
+    WHERE r.clinica_id = $1 AND ${whereData} AND r.status != 'cancelada' ${soMassagem ? 'AND r.massagem_id IS NOT NULL' : ''}`, [cid, ...params]);
+}
+function agruparPagamentos(linhas) {
+  const porMetodo = {}, porProf = {};
+  for (const r of linhas) {
+    const total = r.v_mass + r.v_beb + r.v_multa + r.v_alug;
+    for (const pg of dividirPagamentos(r, total)) {
+      const f = total > 0 ? pg.valor / total : 0;
+      const m = porMetodo[pg.metodo] ||= { metodo: pg.metodo, qtd: 0, total: 0, total_massagens: 0, total_bebidas: 0, total_multas: 0 };
+      m.qtd++; m.total += pg.valor;
+      m.total_massagens += r.v_mass * f; m.total_bebidas += r.v_beb * f; m.total_multas += r.v_multa * f;
+      const k = r.nome_display + '|' + pg.metodo;
+      const pp = porProf[k] ||= { nome_display: r.nome_display, metodo: pg.metodo, qtd: 0, total: 0 };
+      pp.qtd++; pp.total += pg.valor;
+    }
+  }
+  const r2 = v => Math.round(v * 100) / 100;
+  const pagByMethod = Object.values(porMetodo).map(m => ({ ...m, total: r2(m.total), total_massagens: r2(m.total_massagens),
+    total_bebidas: r2(m.total_bebidas), total_multas: r2(m.total_multas), total_geral: r2(m.total) })).sort((a, b) => b.total - a.total);
+  const pagByProf = Object.values(porProf).map(p => ({ ...p, total: r2(p.total) }))
+    .sort((a, b) => a.nome_display.localeCompare(b.nome_display) || b.total - a.total);
+  return { pagByMethod, pagByProf };
+}
+
 app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
   send(res, async () => {
     const cid = getClinicaId(req);
@@ -1357,31 +1418,11 @@ app.get('/api/dashboard/pagamentos', requireDashboard, (req, res) =>
     const inicio = `${ano}-${String(mes).padStart(2,'0')}-01`;
     const proximo = new Date(parseInt(ano), parseInt(mes), 1);
     const fim = `${proximo.getFullYear()}-${String(proximo.getMonth()+1).padStart(2,'0')}-01`;
-    const rows = await q(`
-      SELECT
-        COALESCE(pagamento, 'Não informado') AS metodo,
-        COUNT(*) AS qtd,
-        SUM(m.preco) AS total_massagens,
-        SUM(r.preco_bebida) AS total_bebidas,
-        SUM(r.multa_valor) AS total_multas,
-        SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
-      FROM reservas r
-      LEFT JOIN massagens m ON r.massagem_id = m.id
-      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
-      GROUP BY metodo
-      ORDER BY total_geral DESC
-    `, [cid, inicio, fim]);
-    const totais = await qOne(`
-      SELECT
-        COUNT(*) AS qtd_total,
-        SUM(m.preco) AS total_massagens,
-        SUM(r.preco_bebida) AS total_bebidas,
-        SUM(r.multa_valor) AS total_multas,
-        SUM(m.preco + r.preco_bebida + r.multa_valor) AS total_geral
-      FROM reservas r
-      LEFT JOIN massagens m ON r.massagem_id = m.id
-      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada' AND r.massagem_id IS NOT NULL
-    `, [cid, inicio, fim]);
+    const linhas = await pagamentosDoPeriodo(cid, 'r.data >= $2 AND r.data < $3', [inicio, fim], true);
+    const rows = agruparPagamentos(linhas).pagByMethod;
+    const soma = k => Math.round(linhas.reduce((a, r) => a + r[k], 0) * 100) / 100;
+    const totais = { qtd_total: linhas.length, total_massagens: soma('v_mass'), total_bebidas: soma('v_beb'), total_multas: soma('v_multa') };
+    totais.total_geral = Math.round((totais.total_massagens + totais.total_bebidas + totais.total_multas) * 100) / 100;
     return { rows, totais };
   }));
 
@@ -1497,32 +1538,8 @@ app.get('/api/dashboard/massagista-mensal', requireDashboard, (req, res) =>
       GROUP BY r.profissional_externo
       ORDER BY total_alugueis DESC
     `, [cid, inicio, fim]);
-    const pagByMethod = await q(`
-      SELECT
-        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
-        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
-        ELSE 0 END), 0) AS total
-      FROM reservas r
-      LEFT JOIN massagens m ON m.id = r.massagem_id
-      LEFT JOIN alugueis al ON al.id = r.aluguel_id
-      WHERE r.clinica_id=$1 AND r.data >= $2 AND r.data < $3 AND r.status != 'cancelada'
-      GROUP BY metodo ORDER BY total DESC
-    `, [cid, inicio, fim]);
-    const pagByProf = await q(`
-      SELECT
-        COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
-        COUNT(*) AS qtd,
-        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
-      FROM reservas r
-      LEFT JOIN profissionais p ON p.id = r.profissional_id
-      LEFT JOIN massagens m ON m.id = r.massagem_id
-      LEFT JOIN alugueis al ON al.id = r.aluguel_id
-      WHERE r.clinica_id=$1 AND r.status != 'cancelada' AND r.data >= $2 AND r.data < $3
-      GROUP BY nome_display, metodo ORDER BY nome_display, total DESC
-    `, [cid, inicio, fim]);
+    // por forma de pagamento, respeitando pagamentos divididos (ex.: parte dinheiro, parte cartão)
+    const { pagByMethod, pagByProf } = agruparPagamentos(await pagamentosDoPeriodo(cid, 'r.data >= $2 AND r.data < $3', [inicio, fim], false));
     return { rows, externas, pagByMethod, pagByProf };
   }));
 
@@ -1627,32 +1644,8 @@ app.get('/api/dashboard/massagista-diario', requireDashDiario, (req, res) =>
       GROUP BY r.profissional_externo
       ORDER BY total_alugueis DESC
     `, [cid, data]);
-    const pagByMethod = await q(`
-      SELECT
-        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
-        COUNT(CASE WHEN r.status != 'cancelada' THEN 1 END) AS qtd,
-        COALESCE(SUM(CASE WHEN r.status != 'cancelada' THEN
-          (CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)
-        ELSE 0 END), 0) AS total
-      FROM reservas r
-      LEFT JOIN massagens m ON m.id = r.massagem_id
-      LEFT JOIN alugueis al ON al.id = r.aluguel_id
-      WHERE r.clinica_id=$1 AND r.data = $2 AND r.status != 'cancelada'
-      GROUP BY metodo ORDER BY total DESC
-    `, [cid, data]);
-    const pagByProf = await q(`
-      SELECT
-        COALESCE(p.nome_fantasia, p.nome, r.profissional_externo, '—') AS nome_display,
-        CASE WHEN r.fidelidade_resgate THEN 'Fidelidade (grátis)' WHEN r.pacote_cliente_id IS NOT NULL THEN 'Pacote' ELSE COALESCE(r.pagamento, 'Não informado') END AS metodo,
-        COUNT(*) AS qtd,
-        COALESCE(SUM((CASE WHEN r.pacote_cliente_id IS NOT NULL OR r.fidelidade_resgate THEN 0 ELSE COALESCE(m.preco,0) END) + COALESCE(r.preco_bebida,0) + COALESCE(r.multa_valor,0) + COALESCE(al.valor,0)), 0) AS total
-      FROM reservas r
-      LEFT JOIN profissionais p ON p.id = r.profissional_id
-      LEFT JOIN massagens m ON m.id = r.massagem_id
-      LEFT JOIN alugueis al ON al.id = r.aluguel_id
-      WHERE r.clinica_id=$1 AND r.status != 'cancelada' AND r.data = $2
-      GROUP BY nome_display, metodo ORDER BY nome_display, total DESC
-    `, [cid, data]);
+    // por forma de pagamento, respeitando pagamentos divididos (ex.: parte dinheiro, parte cartão)
+    const { pagByMethod, pagByProf } = agruparPagamentos(await pagamentosDoPeriodo(cid, 'r.data = $2', [data], false));
     return { rows, externas, pagByMethod, pagByProf };
   }));
 

@@ -3445,6 +3445,12 @@ function showDashPanel(id){
   if(state.currentView==='dashboard'&&auth.user) loadDashboard();
 }
 
+// "Dinheiro R$ 200 + Crédito R$ 200" quando o pagamento foi dividido
+function fmtFormasPagamento(r){
+  let pags=[]; try{ pags=JSON.parse(r.pagamentos_json||'[]').filter(p=>p&&p.metodo); }catch(e){}
+  if(pags.length<=1) return esc(r.pagamento||pags[0]?.metodo||'—');
+  return pags.map(p=>esc(p.metodo)+(parseFloat(p.valor)>0?' '+fmtMoeda(p.valor):'')).join('<br>');
+}
 async function showProfDetalheModal(profId,profNome,data){
   const cid=cidParam();
   openModal('Atendimentos — '+profNome+' ('+data+')','<div class="spinner" id="pdet-spin"></div>','<button class="btn btn-secondary" onclick="closeModal()">Fechar</button>');
@@ -3466,7 +3472,7 @@ async function showProfDetalheModal(profId,profNome,data){
           +'<td>'+esc(r.cliente_nome||'—')+(isDuo2?'<br><small style="color:var(--text-lt)">'+_pos+'ª massoterapeuta</small>':'')+'</td>'
           +'<td>'+svc+'</td>'
           +'<td class="num">'+fS(val)+'</td>'
-          +'<td>'+(r.pagamento||'—')+'</td>'
+          +'<td style="white-space:nowrap">'+fmtFormasPagamento(r)+'</td>'
           +'<td><span class="res-'+r.status+'" style="padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600">'+r.status+'</span></td>'
           +'<td style="text-align:center"><button onclick="excluirDetalhe('+r.id+','+profId+',\''+esc(profNome)+'\',\''+data+'\''+','+(cid?'\''+cid+'\'':'null')+',this)" title="Excluir permanentemente" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--red);padding:2px 6px" aria-label="Excluir">🗑</button></td>'
           +'</tr>';
