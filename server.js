@@ -340,6 +340,8 @@ async function initDB() {
   `).catch(()=>{});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_despesas_clinica ON despesas(clinica_id)').catch(()=>{});
   await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS reserva_id INTEGER`).catch(()=>{});
+  // Fix dados: vínculo CLT/PJ só vale para despesa de funcionário (o formulário gravava CLT em todas)
+  await pool.query(`UPDATE despesas SET subtipo = NULL WHERE subtipo IS NOT NULL AND tipo <> 'funcionario'`).catch(()=>{});
   await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS pacote_id INTEGER`).catch(()=>{});
 
   // 3p. Pacotes pré-pagos (X pagas + Z bônus de um tipo de massagem)
@@ -2286,7 +2288,7 @@ app.post('/api/despesas', requireAuth, (req, res) =>
       `INSERT INTO despesas (clinica_id,tipo,subtipo,descricao,nome_custom,valor,recorrente,
        dia_vencimento,data_vencimento,data_pagamento,status,observacao)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [cid, tipo, subtipo||null, descricao||null, nome_custom||null, parseFloat(valor)||0,
+      [cid, tipo, tipo === 'funcionario' ? (subtipo||null) : null, descricao||null, tipo === 'outro' ? (nome_custom||null) : null, parseFloat(valor)||0,
        recorrente?1:0, dia_vencimento||null, data_vencimento||null,
        data_pagamento||null, status||'pendente', observacao||null]
     );
@@ -2302,7 +2304,7 @@ app.put('/api/despesas/:id', requireAuth, (req, res) =>
       `UPDATE despesas SET tipo=$1,subtipo=$2,descricao=$3,nome_custom=$4,valor=$5,recorrente=$6,
        dia_vencimento=$7,data_vencimento=$8,data_pagamento=$9,status=$10,observacao=$11
        WHERE id=$12 AND clinica_id=$13`,
-      [tipo, subtipo||null, descricao||null, nome_custom||null, parseFloat(valor)||0,
+      [tipo, tipo === 'funcionario' ? (subtipo||null) : null, descricao||null, tipo === 'outro' ? (nome_custom||null) : null, parseFloat(valor)||0,
        recorrente?1:0, dia_vencimento||null, data_vencimento||null,
        data_pagamento||null, status||'pendente', observacao||null,
        req.params.id, cid]

@@ -5377,6 +5377,22 @@ function openDespesaModal(id){
     </div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="saveDespesa()">Salvar</button>`);
+  // Edição: carrega os dados atuais da despesa no formulário
+  const d=id?(window._despesasData||[]).find(x=>x.id===id):null;
+  if(d){
+    const dt=v=>v?String(v).slice(0,10):'';
+    document.getElementById('dform-tipo').value=d.tipo||'outro';
+    document.getElementById('dform-custom').value=d.nome_custom||'';
+    if(d.subtipo) document.getElementById('dform-subtipo').value=d.subtipo;
+    document.getElementById('dform-desc').value=d.descricao||'';
+    document.getElementById('dform-valor').value=d.valor!=null?parseFloat(d.valor):'';
+    document.getElementById('dform-venc').value=dt(d.data_vencimento);
+    document.getElementById('dform-rec').checked=!!parseInt(d.recorrente);
+    document.getElementById('dform-dia').value=d.dia_vencimento||'';
+    document.getElementById('dform-obs').value=d.observacao||'';
+    dformRecChange();
+  }
+  dformTipoChange();
 }
 function dformTipoChange(){
   const t=document.getElementById('dform-tipo').value;
@@ -5388,8 +5404,9 @@ function dformRecChange(){
 }
 async function saveDespesa(){
   const tipo=document.getElementById('dform-tipo').value;
-  const subtipo=document.getElementById('dform-subtipo')?.value||null;
-  const nome_custom=document.getElementById('dform-custom')?.value.trim()||null;
+  // CLT/PJ só para funcionário; nome livre só para "Outro"
+  const subtipo=tipo==='funcionario'?(document.getElementById('dform-subtipo')?.value||null):null;
+  const nome_custom=tipo==='outro'?(document.getElementById('dform-custom')?.value.trim()||null):null;
   const descricao=document.getElementById('dform-desc').value.trim()||null;
   const valor=document.getElementById('dform-valor').value;
   const data_vencimento=document.getElementById('dform-venc').value||null;
@@ -5398,8 +5415,11 @@ async function saveDespesa(){
   const observacao=document.getElementById('dform-obs').value.trim()||null;
   if(!tipo||!valor) return toast('Preencha tipo e valor','err');
   try{
+    // ao editar, mantém a situação atual (pago/pendente) e a data de pagamento
+    const atual=_despSaveId?(window._despesasData||[]).find(x=>x.id===_despSaveId):null;
     const body={tipo,subtipo,descricao,nome_custom,valor:parseFloat(valor),recorrente,
-                dia_vencimento,data_vencimento,status:'pendente',observacao,...cidBody()};
+                dia_vencimento,data_vencimento,status:atual?.status||'pendente',
+                data_pagamento:atual?.data_pagamento?String(atual.data_pagamento).slice(0,10):null,observacao,...cidBody()};
     if(_despSaveId) await api('PUT',`/despesas/${_despSaveId}`,body);
     else            await api('POST','/despesas',body);
     closeModal(); loadDespesas();
